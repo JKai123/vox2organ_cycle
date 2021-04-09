@@ -6,12 +6,12 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
-import argparse
 
+from argparse import ArgumentParser
 from utils.visualization import show_pointcloud
 
-def main():
-    parser = argparse.ArgumentParser(description="Visualize 3D data.")
+def vis_mesh():
+    parser = ArgumentParser(description="Visualize 3D data.")
     parser.add_argument('filenames',
                         nargs='+',
                         type=str,
@@ -31,4 +31,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    vis_mesh()
