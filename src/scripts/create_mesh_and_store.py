@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 """
 Create training ground truth mesh from 3D labeled data with

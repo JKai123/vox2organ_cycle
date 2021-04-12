@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """ Visualization of raw images """
 
 __author__ = "Fabi Bongratz"
