@@ -6,6 +6,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 from utils.params import HyperPs
 from utils.modes import Modes
+from utils.utils import update_dict
 
 from utils.train import training_routine
 from utils.test import test_routine
@@ -18,7 +19,7 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    HyperPs.LEARNING_RATE.name: 0.0003,
+    HyperPs.OPTIM_PARAMS.name: {'lr': 0.0003},
     HyperPs.BATCH_SIZE.name: 64,
 }
 
@@ -47,11 +48,15 @@ def main(hps):
     argparser.add_argument('--test',
                            action='store_true',
                            help="Test a model.")
+    argparser.add_argument('-v', '--verbose',
+                           dest = 'verbose',
+                           action='store_true',
+                           help="Debug output.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
                            default=None,
-                           help="Name of experiment: "
+                           help="Name of experiment:\n"
                            "- 'debug' means that the results are  written "
                            "into a directory \nthat might be overwritten "
                            "later. This may be useful for debugging \n"
@@ -64,9 +69,8 @@ def main(hps):
     hps['EXPERIMENT_NAME'] = args.exp_name
 
     # Fill hyperparameters with defaults
-    for PARAM in HyperPs:
-        if PARAM.name not in hps:
-            hps[PARAM.name] = PARAM.value
+    default_params = HyperPs.dict()
+    hps = update_dict(default_params, hps)
 
     if args.train and not args.test:
         mode = Modes.TRAIN.value
@@ -80,7 +84,7 @@ def main(hps):
 
     # Run
     routine = mode_handler[mode]
-    routine(hps, hps['EXPERIMENT_NAME'])
+    routine(hps, experiment_name=hps['EXPERIMENT_NAME'], verbose=args.verbose)
 
 
 

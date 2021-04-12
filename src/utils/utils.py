@@ -4,6 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
+import collections.abc
 
 import numpy as np
 import nibabel as nib
@@ -95,3 +96,44 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True):
         mesh.export(outfile)
 
     return mesh
+
+def update_dict(d, u):
+    """
+    Recursive function for dictionary updating.
+
+    :param d: The old dict.
+    :param u: The dict that should be used for the update.
+
+    :returns: The updated dict.
+    """
+
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = update_dict(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+def serializable_dict(d: dict):
+    """
+    Convert all object references (classes, objects, functions etc.) to their name.
+
+    :param dict d: The dict that should be made serializable.
+    :returns: The dict with objects converted to their names.
+    """
+    u = d.copy()
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            u[k] = serializable_dict(u.get(k, {}))
+        elif isinstance(v, collections.abc.MutableSequence):
+            seq = u.get(k, []).copy()
+            for e in seq:
+                if e.__class__.__name__ == 'type' or\
+                     e.__class__.__name__ == 'function':
+                    u[k].append(e.__name__)
+                    u[k].remove(e)
+
+        elif v.__class__.__name__ == 'type' or\
+                v.__class__.__name__ == 'function':
+            u[k] = v.__name__
+    return u

@@ -9,8 +9,9 @@ import json
 import numpy as np
 
 from utils.params import HyperPs
+from utils.utils import serializable_dict
 
-def training_routine(hps: dict, experiment_name=None):
+def training_routine(hps: dict, experiment_name=None, verbose=False):
     """
     A full training routine including setup of experiments etc.
 
@@ -50,7 +51,43 @@ def training_routine(hps: dict, experiment_name=None):
         # Throw error if directory exists already
         os.makedirs(experiment_dir)
 
+    if verbose:
+        print(f"Starting training '{experiment_name}'.")
+
     # Store hyperparameters
     param_file = os.path.join(experiment_dir, "params.json")
+    hps_to_write = serializable_dict(hps)
     with open(param_file, 'w') as f:
-        json.dump(hps, f)
+        json.dump(hps_to_write, f)
+
+    ###### Start training ######
+
+    solver = Solver(optimizer=hps[HyperPs.OPTIMIZER.name],
+                    optim_params=hps[HyperPs.OPTIM_PARAMS.name],
+                    loss_func=hps[HyperPs.LOSS_FUNCTIONS.name],
+                    loss_func_weights =\
+                      hps[HyperPs.LOSS_FUNCTION_WEIGHTS.name],
+                    save_path=experiment_dir)
+
+class Solver():
+    """
+    Solver class for neural network training.
+
+    :param torch.optim optimizer: The optimizer to use, e.g. Adam.
+    :param dict optim_params: The parameters for the optimizer. If empty,
+    default values are used.
+    :param list loss_func: A list of loss functions to apply.
+    :param list loss_func_weights: A list of the same length of 'loss_func'
+    with weights for the losses.
+    :param str save_path: The path where results and stats are saved.
+
+    """
+
+    def __init__(self,
+                 optimizer,
+                 optim_params,
+                 loss_func,
+                 loss_func_weights,
+                 save_path):
+        pass
+
