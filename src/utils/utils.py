@@ -6,6 +6,10 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 
 import numpy as np
+import nibabel as nib
+
+from skimage import measure
+from trimesh import Trimesh
 
 from plyfile import PlyData
 
@@ -59,3 +63,35 @@ def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
                   " '{label_dir}'.")
             return None
     return os.path.join(label_dir, label_name)
+
+def create_mesh_from_file(filename: str, output_dir: str=None, store=True):
+    """
+    Create a mesh from file using marching cubes.
+
+    :param str filename: The name of the input file.
+    :param str output_dir: The name of the output directory.
+    :param bool store (optional): Store the created mesh.
+
+    :return the created mesh
+    """
+
+    name = os.path.basename(filename) # filename without path
+    name = name.split(".")[0]
+
+    data = nib.load(filename)
+
+    img3D = data.get_fdata() # get np.ndarray
+    assert img3D.ndim == 3, "Image dimension not equal to 3."
+
+    # Use marching cubes to obtain surface mesh
+    outfile = os.path.join(output_dir, name + ".ply") # output .ply file
+    verts, faces, normals, values = measure.marching_cubes(img3D)
+    mesh = Trimesh(verts,
+                   faces,
+                   vertex_normals=normals,
+                   vertex_colors=values)
+
+    if (output_dir is not None and store):
+        mesh.export(outfile)
+
+    return mesh
