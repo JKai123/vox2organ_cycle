@@ -38,6 +38,9 @@ def show_pointcloud(filenames: Union[str, list], backend='pyvista'):
         else:
             show_pointcloud_pynt(fn)
 
+        input("Press Enter to continue..")
+        plt.close('all')
+
 def show_pointcloud_open3d(filename: str):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d.
@@ -112,6 +115,9 @@ def show_img_slices_3D(filenames: str, show_label=True):
 
         else:
             show_slices([img1, img2, img3])
+
+        input("Press Enter to continue..")
+        plt.close('all')
 
 def show_slices(slices, labels=None):
     """
