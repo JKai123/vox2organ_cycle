@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 from utils.visualization import show_pointcloud
 
 def vis_mesh():
-    parser = ArgumentParser(description="Visualize 3D data.")
+    parser = ArgumentParser(description="Visualize 3D meshes.")
     parser.add_argument('filenames',
                         nargs='+',
                         type=str,
