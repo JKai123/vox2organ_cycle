@@ -8,8 +8,31 @@ import os
 import json
 import numpy as np
 
-from utils.params import HyperPs
 from utils.utils import serializable_dict
+from data.dataset import dataset_split_handler
+
+class Solver():
+    """
+    Solver class for neural network training.
+
+    :param torch.optim optimizer: The optimizer to use, e.g. Adam.
+    :param dict optim_params: The parameters for the optimizer. If empty,
+    default values are used.
+    :param list loss_func: A list of loss functions to apply.
+    :param list loss_func_weights: A list of the same length of 'loss_func'
+    with weights for the losses.
+    :param str save_path: The path where results and stats are saved.
+
+    """
+
+    def __init__(self,
+                 optimizer,
+                 optim_params,
+                 loss_func,
+                 loss_func_weights,
+                 save_path):
+        pass
+
 
 def training_routine(hps: dict, experiment_name=None, verbose=False):
     """
@@ -21,7 +44,7 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
     """
     ###### Prepare folder ######
 
-    experiment_base_dir = hps[HyperPs.EXPERIMENT_BASE_DIR.name]
+    experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
     experiment_name = hps.get('EXPERIMENT_NAME', None)
 
     if experiment_name is not None:
@@ -52,7 +75,7 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
         os.makedirs(experiment_dir)
 
     if verbose:
-        print(f"Starting training '{experiment_name}'.")
+        print(f"Starting training '{experiment_name}'...")
 
     # Store hyperparameters
     param_file = os.path.join(experiment_dir, "params.json")
@@ -60,34 +83,28 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
     with open(param_file, 'w') as f:
         json.dump(hps_to_write, f)
 
+    ###### Load data ######
+    if verbose:
+        print(f"Loading dataset {hps['DATASET']}...")
+    try:
+        training_set,\
+                validation_set,\
+                test_set = dataset_split_handler[hps['DATASET']](hps)
+    except KeyError:
+        print(f"Dataset {hps['DATASET']} not known.")
+        return
+
+    if verbose:
+        print(f"{len(training_set)} training files.")
+        print(f"{len(validation_set)} validation files.")
+        print(f"{len(test_set)} test files.")
+
     ###### Start training ######
 
-    solver = Solver(optimizer=hps[HyperPs.OPTIMIZER.name],
-                    optim_params=hps[HyperPs.OPTIM_PARAMS.name],
-                    loss_func=hps[HyperPs.LOSS_FUNCTIONS.name],
+    solver = Solver(optimizer=hps['OPTIMIZER'],
+                    optim_params=hps['OPTIM_PARAMS'],
+                    loss_func=hps['LOSS_FUNCTIONS'],
                     loss_func_weights =\
-                      hps[HyperPs.LOSS_FUNCTION_WEIGHTS.name],
+                      hps['LOSS_FUNCTION_WEIGHTS'],
                     save_path=experiment_dir)
-
-class Solver():
-    """
-    Solver class for neural network training.
-
-    :param torch.optim optimizer: The optimizer to use, e.g. Adam.
-    :param dict optim_params: The parameters for the optimizer. If empty,
-    default values are used.
-    :param list loss_func: A list of loss functions to apply.
-    :param list loss_func_weights: A list of the same length of 'loss_func'
-    with weights for the losses.
-    :param str save_path: The path where results and stats are saved.
-
-    """
-
-    def __init__(self,
-                 optimizer,
-                 optim_params,
-                 loss_func,
-                 loss_func_weights,
-                 save_path):
-        pass
 

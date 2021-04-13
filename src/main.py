@@ -4,8 +4,8 @@
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
-from utils.params import HyperPs
-from utils.modes import Modes
+from utils.params import hyper_ps_default
+from utils.modes import ExecModes
 from utils.utils import update_dict
 
 from utils.train import training_routine
@@ -19,14 +19,18 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    HyperPs.OPTIM_PARAMS.name: {'lr': 0.0003},
-    HyperPs.BATCH_SIZE.name: 64,
+    'OPTIM_PARAMS': {'lr': 0.0003},
+    'BATCH_SIZE': 64,
+
+    # Data directories
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
+    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
 }
 
 mode_handler = {
-    Modes.TRAIN.value: training_routine,
-    Modes.TEST.value: test_routine,
-    Modes.TRAIN_TEST.value: train_test_routine
+    ExecModes.TRAIN.value: training_routine,
+    ExecModes.TEST.value: test_routine,
+    ExecModes.TRAIN_TEST.value: train_test_routine
 }
 
 
@@ -38,10 +42,12 @@ def main(hps):
                                formatter_class=RawTextHelpFormatter)
     argparser.add_argument('algorithm',
                            type=str,
-                           help="voxel2mesh")
+                           help="The name of the algorithm. Supported:\n"
+                           "- voxel2mesh")
     argparser.add_argument('dataset',
                            type=str,
-                           help="The name of the dataset.")
+                           help="The name of the dataset. Supported:\n"
+                           "- Hippocampus")
     argparser.add_argument('--train',
                            action='store_true',
                            help="Train a model.")
@@ -67,17 +73,17 @@ def main(hps):
                            " enumerated with exp_i.")
     args = argparser.parse_args()
     hps['EXPERIMENT_NAME'] = args.exp_name
+    hps['DATASET'] = args.dataset
 
     # Fill hyperparameters with defaults
-    default_params = HyperPs.dict()
-    hps = update_dict(default_params, hps)
+    hps = update_dict(hyper_ps_default, hps)
 
     if args.train and not args.test:
-        mode = Modes.TRAIN.value
+        mode = ExecModes.TRAIN.value
     if args.test and not args.train:
-        mode = Modes.TEST.value
+        mode = ExecModes.TEST.value
     if args.train and args.test:
-        mode = Modes.TRAIN_TEST.value
+        mode = ExecModes.TRAIN_TEST.value
     if not args.test and not args.train:
         print("Please use either --train or --test or both.")
         return
@@ -85,8 +91,6 @@ def main(hps):
     # Run
     routine = mode_handler[mode]
     routine(hps, experiment_name=hps['EXPERIMENT_NAME'], verbose=args.verbose)
-
-
 
 
 if __name__ == '__main__':
