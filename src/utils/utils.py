@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import collections.abc
+from enum import Enum
 
 import numpy as np
 import nibabel as nib
@@ -13,6 +14,15 @@ from skimage import measure
 from trimesh import Trimesh
 
 from plyfile import PlyData
+
+class ExtendedEnum(Enum):
+    """
+    Extends an enum such that it can be converted to dict.
+    """
+
+    @classmethod
+    def dict(cls):
+        return {c.name: c.value for c in cls}
 
 def read_vertices_from_ply(filename: str) -> np.ndarray:
     """
@@ -124,8 +134,10 @@ def serializable_dict(d: dict):
     u = d.copy()
     for k, v in u.items():
         if isinstance(v, collections.abc.Mapping):
+            # Dicts
             u[k] = serializable_dict(u.get(k, {}))
         elif isinstance(v, collections.abc.MutableSequence):
+            # Lists
             seq = u.get(k, []).copy()
             for e in seq:
                 if e.__class__.__name__ == 'type' or\
@@ -135,5 +147,6 @@ def serializable_dict(d: dict):
 
         elif v.__class__.__name__ == 'type' or\
                 v.__class__.__name__ == 'function':
+            # Objects:
             u[k] = v.__name__
     return u
