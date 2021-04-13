@@ -54,10 +54,11 @@ def main(hps):
     argparser.add_argument('--test',
                            action='store_true',
                            help="Test a model.")
-    argparser.add_argument('-v', '--verbose',
-                           dest = 'verbose',
-                           action='store_true',
-                           help="Debug output.")
+    argparser.add_argument('--log',
+                           type=str,
+                           dest='loglevel',
+                           default='INFO',
+                           help="Specify log level.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -74,6 +75,7 @@ def main(hps):
     args = argparser.parse_args()
     hps['EXPERIMENT_NAME'] = args.exp_name
     hps['DATASET'] = args.dataset
+    hps['LOGLEVEL'] = args.loglevel
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
@@ -90,7 +92,8 @@ def main(hps):
 
     # Run
     routine = mode_handler[mode]
-    routine(hps, experiment_name=hps['EXPERIMENT_NAME'], verbose=args.verbose)
+    routine(hps, experiment_name=hps['EXPERIMENT_NAME'],
+            loglevel=hps['LOGLEVEL'])
 
 
 if __name__ == '__main__':

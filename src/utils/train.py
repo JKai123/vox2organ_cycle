@@ -5,11 +5,15 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
+import logging
+
 import json
 import numpy as np
 
 from utils.utils import serializable_dict
 from data.dataset import dataset_split_handler
+from utils.logging import init_logging
+from utils.modes import ExecModes
 
 class Solver():
     """
@@ -34,7 +38,7 @@ class Solver():
         pass
 
 
-def training_routine(hps: dict, experiment_name=None, verbose=False):
+def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     """
     A full training routine including setup of experiments etc.
 
@@ -42,7 +46,8 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
     :param str experiment_name (optional): The name of the experiment
     directory. If None, a name is created automatically.
     """
-    ###### Prepare folder ######
+
+    ###### Prepare training experiment ######
 
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
     experiment_name = hps.get('EXPERIMENT_NAME', None)
@@ -74,8 +79,6 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
         # Throw error if directory exists already
         os.makedirs(experiment_dir)
 
-    if verbose:
-        print(f"Starting training '{experiment_name}'...")
 
     # Store hyperparameters
     param_file = os.path.join(experiment_dir, "params.json")
@@ -83,9 +86,14 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
     with open(param_file, 'w') as f:
         json.dump(hps_to_write, f)
 
+    # Configure logging
+    log_file = os.path.join(experiment_dir, "training.log")
+    init_logging(ExecModes.TRAIN.name, log_file, loglevel)
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info(f"Start training '{experiment_name}'...")
+
     ###### Load data ######
-    if verbose:
-        print(f"Loading dataset {hps['DATASET']}...")
+    trainLogger.info(f"Loading dataset {hps['DATASET']}...")
     try:
         training_set,\
                 validation_set,\
@@ -94,10 +102,9 @@ def training_routine(hps: dict, experiment_name=None, verbose=False):
         print(f"Dataset {hps['DATASET']} not known.")
         return
 
-    if verbose:
-        print(f"{len(training_set)} training files.")
-        print(f"{len(validation_set)} validation files.")
-        print(f"{len(test_set)} test files.")
+    trainLogger.info(f"{len(training_set)} training files.")
+    trainLogger.info(f"{len(validation_set)} validation files.")
+    trainLogger.info(f"{len(test_set)} test files.")
 
     ###### Start training ######
 
