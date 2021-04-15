@@ -12,7 +12,7 @@ from utils.train import training_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
 
-# Define parameters
+# Overwrite default parameters
 hyper_ps = {
     #######################
     'EXPERIMENT_NAME': None,  # Attention: "debug" overwrites previous dir"
@@ -40,12 +40,16 @@ def main(hps):
     """
     argparser = ArgumentParser(description="cortex-parcellation-using-meshes",
                                formatter_class=RawTextHelpFormatter)
-    argparser.add_argument('algorithm',
+    argparser.add_argument('architecture',
+                           nargs='?',
                            type=str,
+                           default="voxel2mesh",
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2mesh")
     argparser.add_argument('dataset',
+                           nargs='?',
                            type=str,
+                           default="Hippocampus",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus")
     argparser.add_argument('--train',
@@ -74,6 +78,7 @@ def main(hps):
                            " enumerated with exp_i.")
     args = argparser.parse_args()
     hps['EXPERIMENT_NAME'] = args.exp_name
+    hps['ARCHITECTURE'] = args.exp_name
     hps['DATASET'] = args.dataset
     hps['LOGLEVEL'] = args.loglevel
 
