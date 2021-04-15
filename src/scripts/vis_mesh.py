@@ -19,8 +19,8 @@ def vis_mesh():
     parser.add_argument('--backend',
                         metavar='LIB',
                         type=str,
-                        default='pyvista',
-                        help="The library used for visualization, 'open3d' or 'pyvista' (default).")
+                        default='opend3d',
+                        help="The library used for visualization, 'open3d' (default) or 'pyvista'.")
 
     args = parser.parse_args()
     if os.path.isdir(args.filenames[0]):

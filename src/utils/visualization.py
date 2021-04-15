@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from pyntcloud import PyntCloud
 from utils.utils import find_label_to_img
 
-def show_pointcloud(filenames: Union[str, list], backend='pyvista'):
+def show_pointcloud(filenames: Union[str, list], backend='open3d'):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d or pyvista.
     An alternative is based on PyntCloud and pyvista, see
