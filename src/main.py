@@ -63,6 +63,16 @@ def main(hps):
                            dest='loglevel',
                            default='INFO',
                            help="Specify log level.")
+    argparser.add_argument('--proj',
+                           type=str,
+                           dest='proj_name',
+                           default='cortex',
+                           help="Specify the name of the wandb project.")
+    argparser.add_argument('--group',
+                           type=str,
+                           dest='group_name',
+                           default='uncategorized',
+                           help="Specify the name of the wandb group.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -78,9 +88,11 @@ def main(hps):
                            " enumerated with exp_i.")
     args = argparser.parse_args()
     hps['EXPERIMENT_NAME'] = args.exp_name
-    hps['ARCHITECTURE'] = args.exp_name
+    hps['ARCHITECTURE'] = args.architecture
     hps['DATASET'] = args.dataset
     hps['LOGLEVEL'] = args.loglevel
+    hps['PROJ_NAME'] = args.proj_name
+    hps['GROUP_NAME'] = args.proj_name
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
