@@ -35,8 +35,10 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d'):
         print(f"File: {fn}")
         if backend == 'open3d':
             show_pointcloud_open3d(fn)
-        else:
+        elif backend == 'pyvista':
             show_pointcloud_pynt(fn)
+        else:
+            raise ValueError("Unknown backend {}".format(backend))
 
 def show_pointcloud_open3d(filename: str):
     """
@@ -46,9 +48,10 @@ def show_pointcloud_open3d(filename: str):
 
     :param str filename: The file that should be visualized.
     """
-    cloud = o3d.io.read_point_cloud(filename)
-    print(cloud)
-    o3d.visualization.draw_geometries([cloud])
+    mesh = o3d.io.read_triangle_mesh(filename)
+    mesh.compute_vertex_normals()
+    print(mesh)
+    o3d.visualization.draw_geometries([mesh])
 
 def show_pointcloud_pynt(filename: str):
     """
