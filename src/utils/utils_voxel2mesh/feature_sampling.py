@@ -80,13 +80,13 @@ class NeighbourhoodSampling(nn.Module):
 
 class LearntNeighbourhoodSampling(nn.Module):
 
-    def __init__(self, config, features_count, step):
+    def __init__(self, patch_shape, steps, features_count, step):
         super(LearntNeighbourhoodSampling, self).__init__()
 
-        D, H, W = config.patch_shape 
+        D, H, W = patch_shape 
         self.shape = torch.tensor([W, H, D]).cuda().float()
 
-        self.shift = torch.tensor(list(product((-1, 0, 1), repeat=3)))[None].float() * torch.tensor([[[2 ** (config.steps+1 - step)/(W), 2 ** (config.steps+1 - step)/(H), 2 ** (config.steps+1 - step)/(D)]]])[None]
+        self.shift = torch.tensor(list(product((-1, 0, 1), repeat=3)))[None].float() * torch.tensor([[[2 ** (steps+1 - step)/(W), 2 ** (steps+1 - step)/(H), 2 ** (steps+1 - step)/(D)]]])[None]
         self.shift = self.shift.cuda()
 
         self.sum_neighbourhood = nn.Conv2d(features_count, features_count, kernel_size=(1, 27), padding=0).cuda()

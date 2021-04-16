@@ -20,7 +20,8 @@ hyper_ps = {
     #######################
     # Learning
     'OPTIM_PARAMS': {'lr': 0.0003},
-    'BATCH_SIZE': 64,
+    'BATCH_SIZE': 1,
+    'DEVICE_NR': 0,
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",

@@ -19,7 +19,7 @@ import nibabel as nib
 import trimesh
 
 from utils.modes import DataModes
-from utils.utils import img_with_patch_size
+from utils.utils import img_with_patch_size, create_mesh_from_voxels
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
@@ -81,10 +81,15 @@ class Hippocampus(DatasetHandler):
     :param str pre_processed_dir: Pre-processed data, e.g. meshes created with
     marching cubes.
     :param patch_size: The patch size of the images, e.g. (64, 64, 64)
+    :param bool load_mesh: Load a precomputed mesh. If False, meshes are
+    calculated with marching cubes.
+    :param mc_step_size: The step size for marching cubes generation, only
+    relevant if load_mesh is False.
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_dir: str,
-                 pre_processed_dir: str, patch_size):
+                 pre_processed_dir: str, patch_size, load_mesh=False,
+                 mc_step_size=1):
         super().__init__(ids, mode)
 
         self._raw_dir = raw_dir
@@ -97,7 +102,10 @@ class Hippocampus(DatasetHandler):
         self.voxel_labels = self._load_data3D(folder="labelsTr",
                                               patch_size=patch_size,
                                               is_label=True)
-        self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
+        if load_mesh:
+            self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
+        else:
+            self.mesh_labels = self._calc_dataMesh(mc_step_size)
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -182,6 +190,13 @@ class Hippocampus(DatasetHandler):
             data.append(d)
 
         return data
+
+    def _calc_dataMesh(self, mc_step_size):
+        meshes = []
+        for v in self.voxel_labels:
+            meshes.append(create_mesh_from_voxels(v, mc_step_size))
+
+        return meshes
 
     def _load_dataMesh(self, folder):
         data_dir = os.path.join(self._pre_processed_dir, folder)

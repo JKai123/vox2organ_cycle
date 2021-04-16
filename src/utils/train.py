@@ -13,7 +13,9 @@ import wandb
 import numpy as np
 from torch.utils.data import DataLoader
 
-from utils.utils import serializable_dict, convert_data_to_voxel2mesh_data
+from utils.utils import (serializable_dict,
+                         convert_data_to_voxel2mesh_data,
+                         get_cuda_device)
 from utils.logging import init_logging
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
@@ -26,7 +28,7 @@ class Solver():
 
     :param int n_classes: The number of classes to distinguish (including
     background)
-    :param torch.optim optimizer: The optimizer to use, e.g. Adam.
+    :param torch.optim optimizer_class: The optimizer to use, e.g. Adam.
     :param dict optim_params: The parameters for the optimizer. If empty,
     default values are used.
     :param evaluator: Evaluator for the optimized model.
@@ -42,12 +44,13 @@ class Solver():
     computed, e.g. 'linear' weighted average, 'geometric' mean
     :param str save_path: The path where results and stats are saved.
     :param log_every: Log the stats every n iterations.
+    :param device_nr: The number of the cuda device.
 
     """
 
     def __init__(self,
                  n_classes,
-                 optimizer,
+                 optimizer_class,
                  optim_params,
                  evaluator,
                  voxel_loss_func,
@@ -56,23 +59,27 @@ class Solver():
                  mesh_loss_func_weights,
                  loss_averaging,
                  save_path,
-                 log_every):
+                 log_every,
+                 device_nr):
 
         self.n_classes = n_classes
-        self.optim = optimizer
+        self.optim_class = optimizer_class
         self.optim_params = optim_params
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
         self.voxel_loss_func_weights = voxel_loss_func_weights
         assert len(voxel_loss_func) == len(voxel_loss_func_weights),\
                 "Number of weights must be equal to number of 3D seg. losses."
+
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
         assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                 "Number of weights must be equal to number of mesh losses."
+
         self.loss_averaging = loss_averaging
         self.save_path = save_path
         self.log_every = log_every
+        self.device_nr = device_nr
 
     def training_step(self, model, data, iteration):
         """ One training step.
@@ -91,8 +98,11 @@ class Solver():
 
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         loss_total = 0
-        data = convert_data_to_voxel2mesh_data(data, self.n_classes,
-                                               ExecModes.TRAIN) # compatibility of code
+        # make data compatible
+        data = convert_data_to_voxel2mesh_data(data,
+                                               self.n_classes,
+                                               ExecModes.TRAIN,
+                                               self.device_nr)
         breakpoint()
         pred = model(data)
         return loss_total
@@ -120,6 +130,7 @@ class Solver():
               training_set: torch.utils.data.Dataset,
               validation_set: torch.utils.data.Dataset,
               n_epochs: int,
+              batch_size: int,
               early_stop: bool,
               eval_every: int):
         """
@@ -129,22 +140,29 @@ class Solver():
         :param training_set: The training dataset.
         :param validation_set: The validation dataset.
         :param n_epochs: The number of training epochs.
+        :param batch_size: The minibatch size.
         :param early_stop: Enable early stopping.
         :param eval_every: Evaluate the model every n epochs.
         """
 
-        breakpoint()
-        # optim = self.optim(model.parameters(), **self.optim_params)
-        optim = self.optim(filter(lambda p: p.requires_grad,
-                                  model.parameters(),
-                                  **self.optim_params))
-        training_loader = DataLoader(training_set)
+        device = get_cuda_device(self.device_nr)
+        model.to(device).float()
+
+        trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+        trainLogger.info("Training on device %s", device)
+
+        self.optim = self.optim_class(model.parameters(), **self.optim_params)
+
+        training_loader = DataLoader(training_set, batch_size=batch_size)
+        trainLogger.info("Created training loader of length %d",
+                    len(training_loader))
 
         iteration = 1
 
         for epoch in range(1, n_epochs+1):
-            for iter_in_epoch, data in enumerate(training_set):
+            model.train()
 
+            for iter_in_epoch, data in enumerate(training_set):
                 # Step
                 loss = self.training_step(model, data, iteration)
 
@@ -234,21 +252,18 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     trainLogger.info("%d validation files.", len(validation_set))
     trainLogger.info("%d test files.", len(test_set))
 
-    breakpoint()
-
     ###### Training ######
 
     model = ModelHandler[hps['ARCHITECTURE']].value(\
-                                        batch_size=hps['BATCH_SIZE'],
                                         ndims=hps['N_DIMS'],
                                         num_classes=hps['N_CLASSES'],
-                                        patch_shape=hps['PATCH_SHAPE'],
+                                        patch_shape=hps['PATCH_SIZE'],
                                         config=hps['VOXEL2MESH_ORIG_CONFIG'])
     evaluator = ModelEvaluator()
 
     solver = Solver(
         n_classes=hps['N_CLASSES'],
-        optimizer=hps['OPTIMIZER'],
+        optimizer_class=hps['OPTIMIZER'],
         optim_params=hps['OPTIM_PARAMS'],
         evaluator=evaluator,
         voxel_loss_func=hps['VOXEL_LOSS_FUNCTIONS'],
@@ -257,11 +272,13 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
         mesh_loss_func_weights=hps['MESH_LOSS_FUNCTION_WEIGHTS'],
         loss_averaging=hps['LOSS_FUNCTION_AVERAGING'],
         save_path=experiment_dir,
-        log_every=hps['LOG_EVERY'])
+        log_every=hps['LOG_EVERY'],
+        device_nr=hps['DEVICE_NR'])
 
     solver.train(model=model,
                  training_set=training_set,
                  validation_set=validation_set,
                  n_epochs=hps['EPOCHS'],
+                 batch_size=hps['BATCH_SIZE'],
                  early_stop=hps['EARLY_STOP'],
                  eval_every=hps['EVAL_EVERY'])
