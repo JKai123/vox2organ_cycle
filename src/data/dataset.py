@@ -19,6 +19,7 @@ import nibabel as nib
 import trimesh
 
 from utils.modes import DataModes
+from utils.utils import img_with_patch_size
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
@@ -55,7 +56,7 @@ class DatasetHandler(torch.utils.data.Dataset):
 
     def get_item_from_index(self, index: int):
         """
-        For training and validation datasets, an item consists of (data, label)
+        For training and validation datasets, an item consists of (data, labels)
         while test datasets only contain (data)
 
         :param int index: The index of the data to access.
@@ -79,17 +80,28 @@ class Hippocampus(DatasetHandler):
     imagesTr/ and labelsTr/
     :param str pre_processed_dir: Pre-processed data, e.g. meshes created with
     marching cubes.
+    :param patch_size: The patch size of the images, e.g. (64, 64, 64)
     """
 
-    def __init__(self, ids: list, mode: DataModes, raw_dir: str, pre_processed_dir: str):
+    def __init__(self, ids: list, mode: DataModes, raw_dir: str,
+                 pre_processed_dir: str, patch_size):
         super().__init__(ids, mode)
 
         self._raw_dir = raw_dir
         self._pre_processed_dir = pre_processed_dir
+        self.patch_size = patch_size
 
-        self.data = self._load_data3D(folder="imagesTr")
-        self.voxel_labels = self._load_data3D(folder="labelsTr")
+        self.data = self._load_data3D(folder="imagesTr",
+                                      patch_size=patch_size,
+                                      is_label=False)
+        self.voxel_labels = self._load_data3D(folder="labelsTr",
+                                              patch_size=patch_size,
+                                              is_label=True)
         self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
+
+        assert self.__len__() == len(self.data)
+        assert self.__len__() == len(self.voxel_labels)
+        assert self.__len__() == len(self.mesh_labels)
 
     @staticmethod
     def split(hps):
@@ -129,20 +141,20 @@ class Hippocampus(DatasetHandler):
         train_dataset = Hippocampus(all_files[indices_train],
                                     DataModes.TRAIN,
                                     raw_dir,
-                                    pre_processed_dir)
+                                    pre_processed_dir,
+                                    hps['PATCH_SIZE'])
         val_dataset = Hippocampus(all_files[indices_val],
                                   DataModes.VALIDATION,
                                   raw_dir,
-                                  pre_processed_dir)
+                                  pre_processed_dir,
+                                  hps['PATCH_SIZE'])
         test_dataset = Hippocampus(all_files[indices_test],
                                   DataModes.TEST,
                                   raw_dir,
-                                  pre_processed_dir)
+                                  pre_processed_dir,
+                                  hps['PATCH_SIZE'])
 
         return train_dataset, val_dataset, test_dataset
-
-
-
 
     def __len__(self):
         return len(self._files)
@@ -152,19 +164,22 @@ class Hippocampus(DatasetHandler):
         One data item has the form
         (data, 3D voxel label, mesh label)
         with types
-        (np.ndarray, np.ndarray, trimesh.base.Trimesh)
+        (torch.tensor, torch.tensor, trimesh.base.Trimesh)
         """
         return self.data[index],\
                 self.voxel_labels[index],\
                 self.mesh_labels[index]
 
-    def _load_data3D(self, folder: str):
+    def _load_data3D(self, folder: str, patch_size, is_label: bool):
         data_dir = os.path.join(self._raw_dir, folder)
         data = []
         for fn in self._files:
             d = nib.load(os.path.join(data_dir, fn + ".nii.gz")).get_fdata()
+            if is_label:
+                d = img_with_patch_size(d, patch_size, True)
+            else:
+                d = img_with_patch_size(d, patch_size, False)
             data.append(d)
-        data = np.asarray(data)
 
         return data
 

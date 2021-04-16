@@ -9,11 +9,15 @@ from enum import Enum
 
 import numpy as np
 import nibabel as nib
+import torch
+import torch.nn.functional as F
 
 from skimage import measure
 from trimesh import Trimesh
 
 from plyfile import PlyData
+
+from utils.modes import ExecModes
 
 class ExtendedEnum(Enum):
     """
@@ -159,3 +163,104 @@ def crop_and_merge(tensor1, tensor2):
     slices = tuple(slices)
 
     return torch.cat((tensor1[slices], tensor2), 1)
+
+def sample_outer_surface_in_voxel(volume): 
+    """ Samples an outer surface in 3D given a volume representation of the
+    objects.
+    """
+    a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))[0]
+    b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3, 1), stride=1, padding=(0, 1, 0))[0]
+    c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))[0] 
+    border, _ = torch.max(torch.cat([a,b,c],dim=0),dim=0) 
+    surface = border - volume.float()
+    return surface.long()
+
+def convert_data_to_voxel2mesh_data(data, n_classes, mode):
+    """ Convert data such that it's compatible with the original voxel2mesh
+    implementation. Code is an assembly of parts from
+    https://github.com/cvlab-epfl/voxel2mesh
+    """
+    for c in range(1, n_classes):
+        y_outer = sample_outer_surface_in_voxel((data[1]==i).long())
+        surface_points = torch.nonzero(y_outer)
+        surface_points = torch.flip(surface_points, dims=[1]).float()  # convert z,y,x -> x, y, z
+        surface_points_normalized = normalize_vertices(surface_points, shape) 
+
+        perm = torch.randperm(len(surface_points_normalized))
+        point_count = 3000
+        surface_points_normalized_all += [surface_points_normalized[perm[:np.min([len(perm), point_count])]].cuda()]  # randomly pick 3000 points
+
+    if mode == ExecModes.TRAIN:
+        voxel2mesh_data = {'x': data[0],
+                'y_voxels': data[1],
+                'surface_points': surface_points_normalized_all,
+                'unpool':[0, 1, 0, 1, 0]
+                }
+    elif mode == ExecModes.TEST:
+        voxel2mesh_data = {'x': data[0],
+                'y_voxels': data[1],
+                'surface_points': surface_points_normalized_all,
+                'unpool':[0, 1, 0, 1, 0]
+                }
+    else:
+        raise ValueError("Unknown execution mode.")
+
+    return voxel2mesh_data
+
+def _box_in_bounds(box, image_shape):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    newbox = []
+    pad_width = []
+
+    for box_i, shape_i in zip(box, image_shape):
+        pad_width_i = (max(0, -box_i[0]), max(0, box_i[1] - shape_i))
+        newbox_i = (max(0, box_i[0]), min(shape_i, box_i[1]))
+
+        newbox.append(newbox_i)
+        pad_width.append(pad_width_i)
+
+    needs_padding = any(i != (0, 0) for i in pad_width)
+
+    return newbox, pad_width, needs_padding
+
+def crop_indices(image_shape, patch_shape, center):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    box = [(i - ps // 2, i - ps // 2 + ps) for i, ps in zip(center, patch_shape)]
+    box, pad_width, needs_padding = _box_in_bounds(box, image_shape)
+    slices = tuple(slice(i[0], i[1]) for i in box)
+    return slices, pad_width, needs_padding
+
+def crop(image, patch_shape, center, mode='constant'):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    slices, pad_width, needs_padding = crop_indices(image.shape, patch_shape, center)
+    patch = image[slices]
+
+    if needs_padding and mode != 'nopadding':
+        if isinstance(image, np.ndarray):
+            if len(pad_width) < patch.ndim:
+                pad_width.append((0, 0))
+            patch = np.pad(patch, pad_width, mode=mode)
+        elif isinstance(image, torch.Tensor):
+            assert len(pad_width) == patch.dim(), "not supported"
+            # [int(element) for element in np.flip(np.array(pad_width).flatten())]
+            patch = F.pad(patch, tuple([int(element) for element in np.flip(np.array(pad_width), axis=0).flatten()]), mode=mode)
+
+    return patch
+
+def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> torch.tensor:
+    """ Pad/interpolate an image such that it has a certain shape
+    """
+
+    D, H, W = img.shape
+    center_z, center_y, center_x = D // 2, H // 2, W // 2
+    D, H, W = patch_size
+    img = crop(img, (D, H, W), (center_z, center_y, center_x))
+
+    img = torch.from_numpy(img).float()
+
+    if is_label:
+        img = F.interpolate(img[None, None].float(), patch_size, mode='nearest')[0, 0].long()
+    else:
+        img = F.interpolate(img[None, None], patch_size, mode='trilinear', align_corners=False)[0, 0]
+
+    return img
