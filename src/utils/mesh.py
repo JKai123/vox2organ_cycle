@@ -4,10 +4,14 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+from trimesh import Trimesh
+
 class Mesh():
-    def __init__(self, vertices, faces):
+    def __init__(self, vertices, faces, normals=None, values=None):
         self._vertices = vertices
         self._faces = faces
+        self._normals = normals
+        self._values = values
 
     @property
     def vertices(self):
@@ -16,3 +20,18 @@ class Mesh():
     @property
     def faces(self):
         return self._faces
+
+    @property
+    def normals(self):
+        return self._normals
+
+    @property
+    def values(self):
+        return self._values
+
+    def to_trimesh(self):
+        return Trimesh(vertices=self.vertices,
+                       faces=self.faces,
+                       normals=self.normals,
+                       values=self.values,
+                       process=False)
