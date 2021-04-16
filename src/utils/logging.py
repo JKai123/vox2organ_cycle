@@ -4,15 +4,22 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import os
 import logging
 
-def init_logging(name: str, log_file: str, loglevel: str):
-    """
-    Init a logger with given name.
+import wandb
 
-    :param str name: The name of the logger.
-    :param log_file: The file used for logging.
-    :param log_level: The level used for logging.
+from utils.modes import ExecModes
+
+def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
+                       wandb_group_name, wandb_job_type, params):
+    """ Initialization for logging with wandb
+    """
+    wandb.init(name=exp_name, dir=log_dir, config=params, project=wandb_proj_name,
+               group=wandb_group_name, job_type=wandb_job_type)
+
+def init_std_logging(name, log_dir, loglevel, mode):
+    """ The standard logger with levels 'INFO', 'DEBUG', etc.
     """
     logger = logging.getLogger(name)
 
@@ -26,7 +33,8 @@ def init_logging(name: str, log_file: str, loglevel: str):
     fileFormatter = logging.Formatter("%(asctime)s"\
                                       " [%(levelname)s]"\
                                       " %(message)s")
-    fileHandler = logging.FileHandler(log_file)
+    log_file = os.path.join(log_dir, mode.name.lower() + ".log")
+    fileHandler = logging.FileHandler(log_file, mode='a')
     fileHandler.setFormatter(fileFormatter)
     logger.addHandler(fileHandler)
 
@@ -35,3 +43,26 @@ def init_logging(name: str, log_file: str, loglevel: str):
     consoleHandler = logging.StreamHandler()
     consoleHandler.setFormatter(consoleFormatter)
     logger.addHandler(consoleHandler)
+
+def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, mode: ExecModes,
+                 proj_name: str, group_name: str, params: dict):
+    """
+    Init a logger with given name.
+
+    :param str logger_name: The name of the logger.
+    :param str exp_name: The name of the experiment.
+    :param log_file: The file used for logging.
+    :param log_level: The level used for logging.
+    :param exec_modes: TRAIN or TEST, see utils.modes.ExecModes
+    :param str proj_name: The project name of the wandb logger.
+    :param str group_name: The group name of the experiment.
+    :param dict params: The experiment configuration.
+    """
+    init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
+    if exp_name != 'debug':
+        init_wandb_logging(exp_name=exp_name,
+                           log_dir=log_dir,
+                           wandb_proj_name=proj_name,
+                           wandb_group_name=group_name,
+                           wandb_job_type=mode.name.lower(),
+                           params=params)
