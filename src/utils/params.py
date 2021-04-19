@@ -9,7 +9,13 @@ __email__ = "fabi.bongratz@gmail.com"
 from enum import Enum
 
 import torch
-import torch.nn.functional as F
+
+from utils.losses import (
+    ChamferLoss,
+    LaplacianLoss,
+    NormalConsistencyLoss,
+    EdgeLoss
+)
 
 hyper_ps_default={
 
@@ -23,10 +29,10 @@ hyper_ps_default={
     'BATCH_SIZE': 1,
 
     # The number of training epochs
-    'EPOCHS': 1,
+    'N_EPOCHS': 1,
 
     # The optimizer used for training
-    'OPTIMIZER': torch.optim.Adam,
+    'OPTIMIZER_CLASS': torch.optim.Adam,
 
     # Parameters for the optimizer
     'OPTIM_PARAMS': {#
@@ -36,20 +42,28 @@ hyper_ps_default={
         'weight_decay': 0.0},
 
     # The used loss functions for the voxel segmentation
-    'VOXEL_LOSS_FUNCTIONS': [F.cross_entropy],
+    'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
 
     # The weights for the voxel loss functions
-    'VOXEL_LOSS_FUNCTION_WEIGHTS': [1.],
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.],
 
     # The used loss functions for the mesh
-    'MESH_LOSS_FUNCTIONS': [], # TODO
+    'MESH_LOSS_FUNC': [ChamferLoss(),
+                       LaplacianLoss(),
+                       NormalConsistencyLoss(),
+                       EdgeLoss()]
 
     # The weights for the mesh loss functions
-    'MESH_LOSS_FUNCTION_WEIGHTS': [], # TODO
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+
+    # The number of sample points for the mesh loss computaiton if done as by
+    # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
+    # of the voxel ground truth
+    'N_SAMPLE_POINTS': 3000,
 
     # The way the weighted average of the losses is computed,
     # e.g. 'linear' weighted average, 'geometric' mean
-    'LOSS_FUNCTION_AVERAGING': 'linear',
+    'LOSS_AVERAGING': 'linear',
 
     # Log losses etc. every n iterations
     'LOG_EVERY': 1,
