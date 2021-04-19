@@ -102,6 +102,10 @@ class Hippocampus(DatasetHandler):
         self.voxel_labels = self._load_data3D(folder="labelsTr",
                                               patch_size=patch_size,
                                               is_label=True)
+        # Ignore distinction between anterior and posterior hippocampus
+        for vl in self.voxel_labels:
+            vl[vl > 1] = 1
+
         if load_mesh:
             self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
         else:
