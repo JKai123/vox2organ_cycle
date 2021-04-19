@@ -4,6 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
+import copy
 import inspect
 import collections.abc
 from enum import Enum
@@ -173,7 +174,7 @@ def string_dict(d: dict):
     :param dict d: The dict that should be made serializable/writable.
     :returns: The dict with objects converted to their names.
     """
-    u = d.copy()
+    u = copy.deepcopy(d)
     for k, v in u.items():
         if isinstance(v, collections.abc.Mapping):
             # Dicts
