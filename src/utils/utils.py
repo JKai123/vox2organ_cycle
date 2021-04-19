@@ -4,6 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
+import inspect
 import collections.abc
 from enum import Enum
 
@@ -165,31 +166,37 @@ def update_dict(d, u):
             d[k] = v
     return d
 
-def serializable_dict(d: dict):
+def string_dict(d: dict):
     """
-    Convert all object references (classes, objects, functions etc.) to their name.
+    Convert classes and functions to their name and every object to its string.
 
-    :param dict d: The dict that should be made serializable.
+    :param dict d: The dict that should be made serializable/writable.
     :returns: The dict with objects converted to their names.
     """
     u = d.copy()
     for k, v in u.items():
         if isinstance(v, collections.abc.Mapping):
             # Dicts
-            u[k] = serializable_dict(u.get(k, {}))
+            u[k] = string_dict(u.get(k, {}))
         elif isinstance(v, collections.abc.MutableSequence):
             # Lists
             seq = u.get(k, []).copy()
             for e in seq:
-                if e.__class__.__name__ == 'type' or\
-                     e.__class__.__name__ == 'function':
+                # Class or function
+                if inspect.isclass(e) or inspect.isfunction(e):
                     u[k].append(e.__name__)
                     u[k].remove(e)
+                else:
+                    # Everything else to string
+                    u[k].remove(e)
+                    u[k].append(str(e))
 
-        elif v.__class__.__name__ == 'type' or\
-                v.__class__.__name__ == 'function':
-            # Objects:
+        # Class or function
+        elif inspect.isclass(v) or inspect.isfunction(v):
             u[k] = v.__name__
+        else:
+            # Everything else to string
+            u[k] = str(v)
     return u
 
 def crop_slices(shape1, shape2):
