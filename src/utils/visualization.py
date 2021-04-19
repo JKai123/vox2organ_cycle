@@ -7,7 +7,6 @@ import os
 from typing import Union
 
 import open3d as o3d
-import pyvista as pv
 import nibabel as nib
 import matplotlib.pyplot as plt
 
@@ -59,6 +58,7 @@ def show_pointcloud_pynt(filename: str):
 
     :param str filename: The file that should be visualized.
     """
+    import pyvista as pv
     cloud = PyntCloud.from_file(filename)
     print(cloud)
 
@@ -116,7 +116,7 @@ def show_img_slices_3D(filenames: str, show_label=True):
         else:
             show_slices([img1, img2, img3])
 
-def show_slices(slices, labels=None):
+def show_slices(slices, labels=None, save_path=None):
     """
     Visualize image slices in a row.
 
@@ -134,4 +134,7 @@ def show_slices(slices, labels=None):
             axs[i].imshow(l, cmap="OrRd", alpha=0.3)
 
     plt.suptitle("Image Slices")
-    plt.show()
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)

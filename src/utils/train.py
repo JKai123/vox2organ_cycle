@@ -183,6 +183,7 @@ class Solver():
         for epoch in range(1, n_epochs+1):
             model.train()
 
+            # TODO: Change training_set -> training_loader for batch size > 1
             for iter_in_epoch, data in enumerate(training_set):
                 # Step
                 loss = self.training_step(model, data, iteration)
