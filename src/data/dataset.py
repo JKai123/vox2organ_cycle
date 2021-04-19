@@ -14,6 +14,7 @@ from enum import IntEnum
 
 import numpy as np
 import torch.utils.data
+import torch.nn.functional as F
 import nibabel as nib
 
 import trimesh
@@ -24,6 +25,47 @@ from utils.utils import create_mesh_from_voxels
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
     Hippocampus = 1
+
+def _box_in_bounds(box, image_shape):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    newbox = []
+    pad_width = []
+
+    for box_i, shape_i in zip(box, image_shape):
+        pad_width_i = (max(0, -box_i[0]), max(0, box_i[1] - shape_i))
+        newbox_i = (max(0, box_i[0]), min(shape_i, box_i[1]))
+
+        newbox.append(newbox_i)
+        pad_width.append(pad_width_i)
+
+    needs_padding = any(i != (0, 0) for i in pad_width)
+
+    return newbox, pad_width, needs_padding
+
+def crop_indices(image_shape, patch_shape, center):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    box = [(i - ps // 2, i - ps // 2 + ps) for i, ps in zip(center, patch_shape)]
+    box, pad_width, needs_padding = _box_in_bounds(box, image_shape)
+    slices = tuple(slice(i[0], i[1]) for i in box)
+    return slices, pad_width, needs_padding
+
+
+def crop(image, patch_shape, center, mode='constant'):
+    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    slices, pad_width, needs_padding = crop_indices(image.shape, patch_shape, center)
+    patch = image[slices]
+
+    if needs_padding and mode != 'nopadding':
+        if isinstance(image, np.ndarray):
+            if len(pad_width) < patch.ndim:
+                pad_width.append((0, 0))
+            patch = np.pad(patch, pad_width, mode=mode)
+        elif isinstance(image, torch.Tensor):
+            assert len(pad_width) == patch.dim(), "not supported"
+            # [int(element) for element in np.flip(np.array(pad_width).flatten())]
+            patch = F.pad(patch, tuple([int(element) for element in np.flip(np.array(pad_width), axis=0).flatten()]), mode=mode)
+
+    return patch
 
 def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> torch.tensor:
     """ Pad/interpolate an image such that it has a certain shape

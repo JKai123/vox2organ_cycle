@@ -41,7 +41,7 @@ hyper_ps_default={
     # Parameters for data augmentation
     'DATA_AUGMENTATION': {
         'RandomCrop': 0.5
-    }
+    },
 
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],

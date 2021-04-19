@@ -223,46 +223,6 @@ def sample_outer_surface_in_voxel(volume):
     surface = border - volume.float()
     return surface.long()
 
-def _box_in_bounds(box, image_shape):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
-    newbox = []
-    pad_width = []
-
-    for box_i, shape_i in zip(box, image_shape):
-        pad_width_i = (max(0, -box_i[0]), max(0, box_i[1] - shape_i))
-        newbox_i = (max(0, box_i[0]), min(shape_i, box_i[1]))
-
-        newbox.append(newbox_i)
-        pad_width.append(pad_width_i)
-
-    needs_padding = any(i != (0, 0) for i in pad_width)
-
-    return newbox, pad_width, needs_padding
-
-def crop_indices(image_shape, patch_shape, center):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
-    box = [(i - ps // 2, i - ps // 2 + ps) for i, ps in zip(center, patch_shape)]
-    box, pad_width, needs_padding = _box_in_bounds(box, image_shape)
-    slices = tuple(slice(i[0], i[1]) for i in box)
-    return slices, pad_width, needs_padding
-
-def crop(image, patch_shape, center, mode='constant'):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
-    slices, pad_width, needs_padding = crop_indices(image.shape, patch_shape, center)
-    patch = image[slices]
-
-    if needs_padding and mode != 'nopadding':
-        if isinstance(image, np.ndarray):
-            if len(pad_width) < patch.ndim:
-                pad_width.append((0, 0))
-            patch = np.pad(patch, pad_width, mode=mode)
-        elif isinstance(image, torch.Tensor):
-            assert len(pad_width) == patch.dim(), "not supported"
-            # [int(element) for element in np.flip(np.array(pad_width).flatten())]
-            patch = F.pad(patch, tuple([int(element) for element in np.flip(np.array(pad_width), axis=0).flatten()]), mode=mode)
-
-    return patch
-
 def verts_faces_to_Meshes(verts, faces, ndim):
     """ Convert lists of vertices and faces to lists of
     pytorch3d.structures.Meshes
