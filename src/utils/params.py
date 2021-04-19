@@ -19,9 +19,6 @@ from utils.losses import (
 
 hyper_ps_default={
 
-    # The cuda device
-    'DEVICE_NR': 0,
-
     # The number of classes to distinguish (including background)
     'N_CLASSES': 2,
 
@@ -29,7 +26,7 @@ hyper_ps_default={
     'BATCH_SIZE': 1,
 
     # The number of training epochs
-    'N_EPOCHS': 1,
+    'N_EPOCHS': 5,
 
     # The optimizer used for training
     'OPTIMIZER_CLASS': torch.optim.Adam,
@@ -41,6 +38,11 @@ hyper_ps_default={
         'eps': 1e-8,
         'weight_decay': 0.0},
 
+    # Parameters for data augmentation
+    'DATA_AUGMENTATION': {
+        'RandomCrop': 0.5
+    }
+
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
 
@@ -51,7 +53,7 @@ hyper_ps_default={
     'MESH_LOSS_FUNC': [ChamferLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss()]
+                       EdgeLoss()],
 
     # The weights for the mesh loss functions
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],

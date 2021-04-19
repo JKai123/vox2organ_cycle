@@ -2,6 +2,8 @@
 
 """ Main file """
 
+import torch
+
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 from utils.params import hyper_ps_default
@@ -21,7 +23,8 @@ hyper_ps = {
     # Learning
     'OPTIM_PARAMS': {'lr': 0.0003},
     'BATCH_SIZE': 1,
-    'DEVICE_NR': 0,
+    'N_EPOCHS': 1,
+    'LOG_EVERY': 1,
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -74,6 +77,11 @@ def main(hps):
                            dest='group_name',
                            default='uncategorized',
                            help="Specify the name of the wandb group.")
+    argparser.add_argument('--device',
+                           type=str,
+                           dest='device',
+                           default='cuda:0',
+                           help="Specify the device for execution.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -94,6 +102,9 @@ def main(hps):
     hps['LOGLEVEL'] = args.loglevel
     hps['PROJ_NAME'] = args.proj_name
     hps['GROUP_NAME'] = args.proj_name
+    hps['DEVICE'] = args.device
+
+    torch.cuda.set_device(args.device)
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)

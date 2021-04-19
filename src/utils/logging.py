@@ -11,6 +11,19 @@ import wandb
 
 from utils.modes import ExecModes
 
+debug = False
+
+def log_losses(losses, iteration):
+    """ Logging with wandb and std logging """
+    losses = {k: v.detach() for k, v in losses.items()}
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Iteration: %d", iteration)
+    for k, v in losses.items():
+        trainLogger.info("%s: %.5f", k, v)
+
+    if not debug:
+        wandb.log(losses, step=iteration)
+
 def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
                        wandb_group_name, wandb_job_type, params):
     """ Initialization for logging with wandb
@@ -59,7 +72,10 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     :param dict params: The experiment configuration.
     """
     init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
-    if exp_name != 'debug':
+    if exp_name == 'debug':
+        global debug
+        debug = True
+    if not debug: # no wanb when debugging
         init_wandb_logging(exp_name=exp_name,
                            log_dir=log_dir,
                            wandb_proj_name=proj_name,

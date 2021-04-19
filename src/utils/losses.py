@@ -4,7 +4,8 @@ and/or instances of meshes.
 
     Notation:
         - B: batch size
-        - I: number of instances, e.g. positions where the loss is computed in the
+        - S: number of instances, e.g. steps/positions where the loss is computed in
+        the model
         - C: number of channels (= number of classes usually)
         architecture
         - V: number of vertices
@@ -25,23 +26,25 @@ from pytorch3d.loss import (chamfer_distance,
 from pytorch3d.ops import sample_points_from_meshes
 
 class MeshLoss(ABC):
+    def __str__(self):
+        return self.__class__.__name__ + "()"
     def __call__(self, pred_meshes, target):
         """ Chamfer loss calculation
 
         :param pred_meshes: A multidimensional array of predicted meshes of shape
-        (I, C), each of type pytorch3d.structures.Meshes
-        :param target: A multidimensional array of target points of shape (I, C),
-        each of type pytorch3d.structures.Pointclouds
+        (S, C), each of type pytorch3d.structures.Meshes
+        :param target: A multidimensional array of target points of shape (C)
+        i.e. one tensor per class
         :return: The calculated loss.
         """
-        mesh_loss = 0.
+        mesh_loss = torch.tensor(0).float().cuda()
 
-        I = pred_meshes.shape[0]
-        C = pred_meshes.shape[1]
+        S = len(pred_meshes)
+        C = len(pred_meshes[0])
 
-        for i in range(I):
-            for c in range(C-1):
-                mesh_loss += self.get_loss(pred_meshes[i][c], target[i,c])
+        for s in range(S):
+            for c in range(C):
+                mesh_loss += self.get_loss(pred_meshes[s][c], target[c])
 
         return mesh_loss
 

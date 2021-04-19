@@ -4,24 +4,27 @@ import torch.nn as nn
 import torch 
 import torch.nn.functional as F 
 
-from pytorch3d.structures import Meshes 
+from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import (chamfer_distance,  mesh_edge_loss, mesh_laplacian_smoothing, mesh_normal_consistency)
 
 import numpy as np
 from itertools import product, combinations, chain
 from scipy.spatial import ConvexHull
+from deprecated import deprecated
 
 # from IPython import embed 
 import time 
 
-from utils.utils import crop_and_merge  
+from utils.utils import (
+    crop_and_merge,
+    sample_outer_surface_in_voxel,
+    normalize_vertices)
 from utils.utils_voxel2mesh.graph_conv import adjacency_matrix, Features2Features, Feature2VertexLayer 
 from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling 
 from utils.utils_voxel2mesh.file_handle import read_obj 
-
-
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
+from utils.modes import ExecModes
 
 from models.u_net import UNetLayer
 
@@ -192,6 +195,7 @@ class Voxel2Mesh(nn.Module):
         return pred
 
 
+    @deprecated # Use model-independent loss calculation instead
     def loss(self, data, epoch):
 
          
@@ -234,8 +238,74 @@ class Voxel2Mesh(nn.Module):
                "laplacian_loss": laplacian_loss.detach()}
         return loss, log
 
+    def save(self, path):
+        """ Save model with its parameters to the given path.
+        Conventionally the path should end with "*.model".
 
- 
+        :param str path: The path where the model should be saved.
+        """
 
- 
+        torch.save(self.state_dict(), path)
+
+
+    @staticmethod
+    def convert_data_to_voxel2mesh_data(data, n_classes, mode):
+        """ Convert data such that it's compatible with the original voxel2mesh
+        implementation from above. Code is an assembly of parts from
+        https://github.com/cvlab-epfl/voxel2mesh
+        """
+        shape = torch.tensor(data[1].shape)[None]
+        surface_points_normalized_all = []
+        for c in range(1, n_classes):
+            y_outer = sample_outer_surface_in_voxel((data[1]==c).long())
+            surface_points = torch.nonzero(y_outer)
+            surface_points = torch.flip(surface_points, dims=[1]).float()  # convert z,y,x -> x, y, z
+            surface_points_normalized = normalize_vertices(surface_points, shape)
+
+            perm = torch.randperm(len(surface_points_normalized))
+            point_count = 3000
+            # randomly pick 3000 points
+            surface_points_normalized_all +=\
+                [Pointclouds([surface_points_normalized[\
+                                    perm[:np.min([len(perm), point_count])]].cuda()])]
+        if mode == ExecModes.TRAIN:
+            voxel2mesh_data = {'x': data[0].float().cuda()[None][None],
+                    'y_voxels': data[1].long().cuda()[None],
+                    'surface_points': surface_points_normalized_all,
+                    'unpool':[0, 1, 0, 1, 0]
+                    }
+        elif mode == ExecModes.TEST:
+            voxel2mesh_data = {'x': data[0].float().cuda()[None][None],
+                       'y_voxels': data[1].long().cuda()[None],
+                       'vertices_mc': data[2].vertices.cuda(),
+                       'faces_mc': data[2].faces.cuda(),
+                       'surface_points': surface_points_normalized_all,
+                       'unpool':[0, 1, 1, 1, 1]}
+        else:
+            raise ValueError("Unknown execution mode.")
+
+        return voxel2mesh_data
+
+    @staticmethod
+    def pred_to_verts_and_faces(pred):
+        """ Get the vertices and faces of shape (S,C)
+        """
+        C = len(pred) - 1 # ignore background class
+        S = len(pred[0]) - 1 # ignore step 1
+
+        vertices = []
+        faces = []
+        for s in range(S):
+            step_verts = []
+            step_faces = []
+            for c in range(C):
+                v, f, _, _, _ = pred[c][s+1]
+                step_verts.append(v)
+                step_faces.append(f)
+
+            vertices.append(step_verts)
+            faces.append(step_faces)
+
+        return vertices, faces
+
 

@@ -14,6 +14,8 @@ import nibabel as nib
 import torch
 import torch.nn.functional as F
 
+from pytorch3d.structures import Meshes
+
 from skimage import measure
 
 from plyfile import PlyData
@@ -29,12 +31,6 @@ class ExtendedEnum(Enum):
     @classmethod
     def dict(cls):
         return {c.name: c.value for c in cls}
-
-def get_cuda_device(number=0):
-    device = torch.device(f"cuda:{number}"\
-                          if torch.cuda.is_available()\
-                          else "cpu")
-    return device
 
 def read_vertices_from_ply(filename: str) -> np.ndarray:
     """
@@ -227,43 +223,6 @@ def sample_outer_surface_in_voxel(volume):
     surface = border - volume.float()
     return surface.long()
 
-def convert_data_to_voxel2mesh_data(data, n_classes, mode, device_nr):
-    """ Convert data such that it's compatible with the original voxel2mesh
-    implementation. Code is an assembly of parts from
-    https://github.com/cvlab-epfl/voxel2mesh
-    """
-    shape = torch.tensor(data[1].shape)[None]
-    surface_points_normalized_all = []
-    for c in range(1, n_classes):
-        y_outer = sample_outer_surface_in_voxel((data[1]==c).long())
-        surface_points = torch.nonzero(y_outer)
-        surface_points = torch.flip(surface_points, dims=[1]).float()  # convert z,y,x -> x, y, z
-        surface_points_normalized = normalize_vertices(surface_points, shape)
-
-        perm = torch.randperm(len(surface_points_normalized))
-        point_count = 3000
-        surface_points_normalized_all += [surface_points_normalized[perm[:np.min([len(perm), point_count])]].cuda()]  # randomly pick 3000 points
-
-    device = get_cuda_device(device_nr)
-
-    if mode == ExecModes.TRAIN:
-        voxel2mesh_data = {'x': data[0].float().to(device)[None][None],
-                'y_voxels': data[1].long().to(device),
-                'surface_points': surface_points_normalized_all,
-                'unpool':[0, 1, 0, 1, 0]
-                }
-    elif mode == ExecModes.TEST:
-        voxel2mesh_data = {'x': data[0].float().to(device)[None][None],
-                   'y_voxels': data[1].long().to(device),
-                   'vertices_mc': data[2].vertices.to(device),
-                   'faces_mc': data[2].faces.to(device),
-                   'surface_points': surface_points_normalized_all,
-                   'unpool':[0, 1, 1, 1, 1]}
-    else:
-        raise ValueError("Unknown execution mode.")
-
-    return voxel2mesh_data
-
 def _box_in_bounds(box, image_shape):
     """ From https://github.com/cvlab-epfl/voxel2mesh """
     newbox = []
@@ -322,3 +281,21 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> tor
         img = F.interpolate(img[None, None], patch_size, mode='trilinear', align_corners=False)[0, 0]
 
     return img
+
+def verts_faces_to_Meshes(verts, faces, ndim):
+    """ Convert lists of vertices and faces to lists of
+    pytorch3d.structures.Meshes
+
+    :param verts: Lists of vertices.
+    :param faces: Lists of faces.
+    :param ndim: The list dimensions.
+    :returns: A list of Meshes of dimension n_dim.
+    """
+    meshes = []
+    for v, f in zip(verts, faces):
+        if ndim > 1:
+            meshes.append(verts_faces_to_Meshes(v, f, ndim-1))
+        else:
+            meshes.append(Meshes(verts=list(v), faces=list(f)))
+
+    return meshes

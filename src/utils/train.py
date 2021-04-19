@@ -11,16 +11,18 @@ import json
 import torch
 import wandb
 import numpy as np
+from pytorch3d.structures import Meshes
 from torch.utils.data import DataLoader
 
-from utils.utils import (serializable_dict,
-                         convert_data_to_voxel2mesh_data,
-                         get_cuda_device)
-from utils.logging import init_logging
+from utils.utils import (string_dict,
+                         verts_faces_to_Meshes)
+from utils.logging import init_logging, log_losses
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
+from utils.losses import linear_loss_combine, geometric_loss_combine
 from data.dataset import dataset_split_handler
 from models.model_handler import ModelHandler
+from models.voxel2mesh import Voxel2Mesh
 
 class Solver():
     """
@@ -44,7 +46,9 @@ class Solver():
     computed, e.g. 'linear' weighted average, 'geometric' mean
     :param str save_path: The path where results and stats are saved.
     :param log_every: Log the stats every n iterations.
-    :param device_nr: The number of the cuda device.
+    :param n_sample_points: The number of points sampled for mesh loss
+    computation.
+    :param str device: The device for execution, e.g. 'cuda:0'.
 
     """
 
@@ -60,11 +64,14 @@ class Solver():
                  loss_averaging,
                  save_path,
                  log_every,
-                 device_nr):
+                 n_sample_points,
+                 device,
+                 **kwargs):
 
         self.n_classes = n_classes
         self.optim_class = optimizer_class
         self.optim_params = optim_params
+        self.optim = None # defined for each training separately
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
         self.voxel_loss_func_weights = voxel_loss_func_weights
@@ -79,7 +86,8 @@ class Solver():
         self.loss_averaging = loss_averaging
         self.save_path = save_path
         self.log_every = log_every
-        self.device_nr = device_nr
+        self.n_sample_points = n_sample_points
+        self.device = device
 
     def training_step(self, model, data, iteration):
         """ One training step.
@@ -94,34 +102,48 @@ class Solver():
         loss_total.backward()
         self.optim.step()
 
+        logging.getLogger(ExecModes.TRAIN.name).debug("Completed backward"\
+                                                      " pass.")
+
         return loss_total
 
     def compute_loss(self, model, data, iteration) -> torch.tensor:
-        loss_total = 0
         # make data compatible
-        data = convert_data_to_voxel2mesh_data(data,
+        data = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
                                                self.n_classes,
-                                               ExecModes.TRAIN,
-                                               self.device_nr)
-        breakpoint()
+                                               ExecModes.TRAIN)
         pred = model(data)
-        return loss_total
 
-    def linear_loss(self, losses, weights):
-        """ Compute the losses in a linear manner, e.g.
-        a1 * loss1 + a2 * loss2 + ...
+        losses = {}
+        # Voxel losses
+        for lf in self.voxel_loss_func:
+            losses[str(lf)] = lf(pred[0][-1][3], data['y_voxels'])
 
-        :param losses: The individual losses.
-        :param weights: The weights for the losses.
-        :returns: The overall (weighted) loss.
-        """
-        loss_total = 0
-        for loss, weight in zip(losses, weights):
-            loss_total += weight * loss
+        # Mesh losses
+        vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+        pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
+        targets = data['surface_points']
+        for lf in self.mesh_loss_func:
+            losses[str(lf)] = lf(pred_meshes, targets)
 
-            # wandb.log({loss_func.__name__: loss})
+        # Merge loss weights into one list
+        combined_loss_weights = self.voxel_loss_func_weights +\
+                self.mesh_loss_func_weights
 
-        # wandb.log({'loss_total': loss_total})
+        if self.loss_averaging == 'linear':
+            loss_total = linear_loss_combine(losses.values(),
+                                             combined_loss_weights)
+        elif self.loss_averaging == 'geometric':
+            loss_total = geometric_loss_combine(losses.values(),
+                                                combined_loss_weights)
+        else:
+            raise ValueError("Unknown loss averaging.")
+
+        losses['TotalLoss'] = loss_total
+
+        # log
+        if iteration % self.log_every == 0:
+            log_losses(losses, iteration)
 
         return loss_total
 
@@ -145,11 +167,10 @@ class Solver():
         :param eval_every: Evaluate the model every n epochs.
         """
 
-        device = get_cuda_device(self.device_nr)
-        model.to(device).float()
+        model.float().to(self.device)
 
         trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-        trainLogger.info("Training on device %s", device)
+        trainLogger.info("Training on device %s", self.device)
 
         self.optim = self.optim_class(model.parameters(), **self.optim_params)
 
@@ -170,12 +191,21 @@ class Solver():
 
             # Evaluate
             if epoch % eval_every == 0:
+                model.eval()
                 self.evaluator.eval(model, validation_set, epoch)
+                best_state = model.state_dict()
 
             # TODO: Early stopping
 
+        # Save models
+        model.eval()
+        model.save(os.path.join(self.save_path, "final.model"))
+        model.load_state_dict(best_state)
+        model.save(os.path.join(self.save_path, "best.model"))
 
-
+        logging.getLogger(ExecModes.TRAIN.name).info("Saved models at"\
+                                                     " %s", self.save_path)
+        logging.getLogger(ExecModes.TRAIN.name).info("Training finished.")
 
 def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     """
@@ -211,11 +241,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
 
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
 
-    # Store hyperparameters
-    param_file = os.path.join(experiment_dir, "params.json")
-    hps_to_write = serializable_dict(hps)
-    with open(param_file, 'w') as f:
-        json.dump(hps_to_write, f)
+    # Lower case param names as input to constructors/functions
+    hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # Create directories
     log_dir = os.path.join(experiment_dir, "logs")
@@ -225,6 +252,12 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     else:
         # Throw error if directory exists already
         os.makedirs(log_dir)
+
+    # Store hyperparameters
+    param_file = os.path.join(experiment_dir, "params.json")
+    hps_to_write = string_dict(hps)
+    with open(param_file, 'w') as f:
+        json.dump(hps_to_write, f)
 
     # Configure logging
     init_logging(logger_name=ExecModes.TRAIN.name,
@@ -261,24 +294,12 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
                                         config=hps['VOXEL2MESH_ORIG_CONFIG'])
     evaluator = ModelEvaluator()
 
-    solver = Solver(
-        n_classes=hps['N_CLASSES'],
-        optimizer_class=hps['OPTIMIZER'],
-        optim_params=hps['OPTIM_PARAMS'],
-        evaluator=evaluator,
-        voxel_loss_func=hps['VOXEL_LOSS_FUNCTIONS'],
-        voxel_loss_func_weights=hps['VOXEL_LOSS_FUNCTION_WEIGHTS'],
-        mesh_loss_func=hps['MESH_LOSS_FUNCTIONS'],
-        mesh_loss_func_weights=hps['MESH_LOSS_FUNCTION_WEIGHTS'],
-        loss_averaging=hps['LOSS_FUNCTION_AVERAGING'],
-        save_path=experiment_dir,
-        log_every=hps['LOG_EVERY'],
-        device_nr=hps['DEVICE_NR'])
+    solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
 
     solver.train(model=model,
                  training_set=training_set,
                  validation_set=validation_set,
-                 n_epochs=hps['EPOCHS'],
+                 n_epochs=hps['N_EPOCHS'],
                  batch_size=hps['BATCH_SIZE'],
                  early_stop=hps['EARLY_STOP'],
                  eval_every=hps['EVAL_EVERY'])
