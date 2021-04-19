@@ -263,25 +263,6 @@ def crop(image, patch_shape, center, mode='constant'):
 
     return patch
 
-def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> torch.tensor:
-    """ Pad/interpolate an image such that it has a certain shape
-    """
-    # TODO: Not sure about the effect of this procedure --> analyse
-
-    D, H, W = img.shape
-    center_z, center_y, center_x = D // 2, H // 2, W // 2
-    D, H, W = patch_size
-    img = crop(img, (D, H, W), (center_z, center_y, center_x))
-
-    img = torch.from_numpy(img).float()
-
-    if is_label:
-        img = F.interpolate(img[None, None].float(), patch_size, mode='nearest')[0, 0].long()
-    else:
-        img = F.interpolate(img[None, None], patch_size, mode='trilinear', align_corners=False)[0, 0]
-
-    return img
-
 def verts_faces_to_Meshes(verts, faces, ndim):
     """ Convert lists of vertices and faces to lists of
     pytorch3d.structures.Meshes
