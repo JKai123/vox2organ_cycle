@@ -19,11 +19,30 @@ import nibabel as nib
 import trimesh
 
 from utils.modes import DataModes
-from utils.utils import img_with_patch_size, create_mesh_from_voxels
+from utils.utils import create_mesh_from_voxels
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
     Hippocampus = 1
+
+def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> torch.tensor:
+    """ Pad/interpolate an image such that it has a certain shape
+    """
+    # TODO: Not sure about the effect of this procedure --> analyse
+
+    D, H, W = img.shape
+    center_z, center_y, center_x = D // 2, H // 2, W // 2
+    D, H, W = patch_size
+    img = crop(img, (D, H, W), (center_z, center_y, center_x))
+
+    img = torch.from_numpy(img).float()
+
+    if is_label:
+        img = F.interpolate(img[None, None].float(), patch_size, mode='nearest')[0, 0].long()
+    else:
+        img = F.interpolate(img[None, None], patch_size, mode='trilinear', align_corners=False)[0, 0]
+
+    return img
 
 class DatasetHandler(torch.utils.data.Dataset):
     """
@@ -76,9 +95,9 @@ class Hippocampus(DatasetHandler):
     :param list ids: The ids of the files the dataset split should contain, example:
         ['hippocampus_101', 'hippocampus_212',...]
     :param DataModes datamode: TRAIN, VALIDATION, or TEST
-    :param str raw_dir: The raw base folder, contains e.g. subfolders
+    :param str raw_data_dir: The raw base folder, contains e.g. subfolders
     imagesTr/ and labelsTr/
-    :param str pre_processed_dir: Pre-processed data, e.g. meshes created with
+    :param str preprocessed_data_dir: Pre-processed data, e.g. meshes created with
     marching cubes.
     :param patch_size: The patch size of the images, e.g. (64, 64, 64)
     :param bool load_mesh: Load a precomputed mesh. If False, meshes are
@@ -87,13 +106,13 @@ class Hippocampus(DatasetHandler):
     relevant if load_mesh is False.
     """
 
-    def __init__(self, ids: list, mode: DataModes, raw_dir: str,
-                 pre_processed_dir: str, patch_size, load_mesh=False,
+    def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
+                 preprocessed_data_dir: str, patch_size, load_mesh=False,
                  mc_step_size=1):
         super().__init__(ids, mode)
 
-        self._raw_dir = raw_dir
-        self._pre_processed_dir = pre_processed_dir
+        self._raw_data_dir = raw_data_dir
+        self._preprocessed_data_dir = preprocessed_data_dir
         self.patch_size = patch_size
 
         self.data = self._load_data3D(folder="imagesTr",
@@ -116,55 +135,53 @@ class Hippocampus(DatasetHandler):
         assert self.__len__() == len(self.mesh_labels)
 
     @staticmethod
-    def split(hps):
+    def split(raw_data_dir, preprocessed_data_dir, dataset_seed,
+              dataset_split_proportions, patch_size, **kwargs):
         """ Create train, validation, and test split of the Hippocampus data"
 
-        :param dict hps: Parameters dict
+        :param str raw_data_dir: The raw base folder, contains e.g. subfolders
+        imagesTr/ and labelsTr/
+        :param str preprocessed_data_dir: Pre-processed data, e.g. meshes created with
+        marching cubes.
+        :param dataset_seed: A seed for the random splitting of the dataset.
+        :param dataset_split_proportions: The proportions of the dataset
+        splits, e.g. (80, 10, 10)
+        :patch_size: The patch size of the 3D images.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
 
-        try:
-            raw_dir = hps['RAW_DATA_DIR']
-            pre_processed_dir = hps['PREPROCESSED_DATA_DIR']
-            seed = hps['DATASET_SEED']
-            split_prop = hps['DATASET_SPLIT_PROPORTIONS']
-        except KeyError:
-            print("Missing parameter specification for creating Hippocampus"\
-                  "splits, aborting.")
-            return None, None, None
-
         # Available files
-        all_files = os.listdir(os.path.join(raw_dir, "imagesTr"))
+        all_files = os.listdir(os.path.join(raw_data_dir, "imagesTr"))
         all_files = [fn for fn in all_files if "._" not in fn] # Remove invalid
         all_files = [fn.split(".")[0] for fn in all_files] # Remove file ext.
 
         # Shuffle with seed
-        random.Random(seed).shuffle(all_files)
+        random.Random(dataset_seed).shuffle(all_files)
 
         # Split
-        assert np.sum(split_prop) == 100, "Splits need to sum to 100."
-        indices_train = slice(0, split_prop[0] * len(all_files) // 100)
+        assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
+        indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
         indices_val = slice(indices_train.stop,
                             indices_train.stop +\
-                                (split_prop[1] * len(all_files) // 100))
+                                (dataset_split_proportions[1] * len(all_files) // 100))
         indices_test = slice(indices_val.stop, len(all_files))
 
         # Create datasets
         train_dataset = Hippocampus(all_files[indices_train],
                                     DataModes.TRAIN,
-                                    raw_dir,
-                                    pre_processed_dir,
-                                    hps['PATCH_SIZE'])
+                                    raw_data_dir,
+                                    preprocessed_data_dir,
+                                    patch_size)
         val_dataset = Hippocampus(all_files[indices_val],
                                   DataModes.VALIDATION,
-                                  raw_dir,
-                                  pre_processed_dir,
-                                  hps['PATCH_SIZE'])
+                                  raw_data_dir,
+                                  preprocessed_data_dir,
+                                  patch_size)
         test_dataset = Hippocampus(all_files[indices_test],
                                   DataModes.TEST,
-                                  raw_dir,
-                                  pre_processed_dir,
-                                  hps['PATCH_SIZE'])
+                                  raw_data_dir,
+                                  preprocessed_data_dir,
+                                  patch_size)
 
         return train_dataset, val_dataset, test_dataset
 
@@ -183,7 +200,7 @@ class Hippocampus(DatasetHandler):
                 self.mesh_labels[index]
 
     def _load_data3D(self, folder: str, patch_size, is_label: bool):
-        data_dir = os.path.join(self._raw_dir, folder)
+        data_dir = os.path.join(self._raw_data_dir, folder)
         data = []
         for fn in self._files:
             d = nib.load(os.path.join(data_dir, fn + ".nii.gz")).get_fdata()
@@ -203,7 +220,7 @@ class Hippocampus(DatasetHandler):
         return meshes
 
     def _load_dataMesh(self, folder):
-        data_dir = os.path.join(self._pre_processed_dir, folder)
+        data_dir = os.path.join(self._preprocessed_data_dir, folder)
         data = []
         for fn in self._files:
             d = trimesh.load_mesh(os.path.join(data_dir, fn + ".ply"))
