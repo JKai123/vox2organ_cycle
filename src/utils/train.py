@@ -300,7 +300,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         config=hps['MODEL_CONFIG'])
-    evaluator = ModelEvaluator(eval_dataset=validation_set, **hps_lower)
+    evaluator = ModelEvaluator(eval_dataset=validation_set,
+                               save_dir=experiment_dir, **hps_lower)
 
     solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
 
