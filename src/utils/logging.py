@@ -13,6 +13,9 @@ from utils.modes import ExecModes
 
 debug = False
 
+def get_log_dir(experiment_dir: str):
+    return os.path.join(experiment_dir, "logs")
+
 def log_losses(losses, iteration):
     """ Logging with wandb and std logging """
     losses = {k: v.detach() for k, v in losses.items()}

@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 from utils.utils import (string_dict,
                          verts_faces_to_Meshes)
-from utils.logging import init_logging, log_losses
+from utils.logging import init_logging, log_losses, get_log_dir
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.losses import linear_loss_combine, geometric_loss_combine
@@ -193,8 +193,9 @@ class Solver():
             # Evaluate
             if epoch % eval_every == 0:
                 model.eval()
-                self.evaluator.eval(model, validation_set, epoch)
+                # self.evaluator.eval(model)
                 best_state = model.state_dict()
+                best_epoch = epoch
 
             # TODO: Early stopping
 
@@ -203,6 +204,12 @@ class Solver():
         model.save(os.path.join(self.save_path, "final.model"))
         model.load_state_dict(best_state)
         model.save(os.path.join(self.save_path, "best.model"))
+
+        # Save epochs corresponding to models
+        epochs_file = os.path.join(self.save_path, "models_to_epochs.json")
+        with open(epochs_file, 'w') as f:
+            json.dump({"final.model": n_epochs, "best.model": best_epoch}, f)
+
 
         logging.getLogger(ExecModes.TRAIN.name).info("Saved models at"\
                                                      " %s", self.save_path)
@@ -215,12 +222,12 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     :param dict hps: Hyperparameters to use.
     :param str experiment_name (optional): The name of the experiment
     directory. If None, a name is created automatically.
+    :param lovlevel: The loglevel of the standard logger to use.
     """
 
     ###### Prepare training experiment ######
 
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
-    experiment_name = hps.get('EXPERIMENT_NAME', None)
 
     if experiment_name is not None:
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
@@ -246,7 +253,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # Create directories
-    log_dir = os.path.join(experiment_dir, "logs")
+    log_dir = get_log_dir(experiment_dir)
     if experiment_name=="debug":
         # Overwrite
         os.makedirs(log_dir, exist_ok=True)
@@ -292,8 +299,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
                                         ndims=hps['N_DIMS'],
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
-                                        config=hps['VOXEL2MESH_ORIG_CONFIG'])
-    evaluator = ModelEvaluator()
+                                        config=hps['MODEL_CONFIG'])
+    evaluator = ModelEvaluator(eval_dataset=validation_set, **hps_lower)
 
     solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
 

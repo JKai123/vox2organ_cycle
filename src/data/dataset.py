@@ -133,6 +133,10 @@ class DatasetHandler(torch.utils.data.Dataset):
         """ Return the filename corresponding to an index in the dataset """
         return self._files[index]
 
+    def get_item_and_mesh_from_index(self, index):
+        """ Return the 3D data plus a mesh """
+        raise NotImplementedError
+
     def get_item_from_index(self, index: int):
         """
         An item consists in general of (data, labels)
@@ -190,7 +194,7 @@ class Hippocampus(DatasetHandler):
             self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
         elif load_mesh == 'create':
             # Create all meshes with marching cubes
-            self.mesh_labels = self._calc_dataMesh()
+            self.mesh_labels = self._calc_mesh_labels_all()
         else:
             # Do not store mesh labels
             self.mesh_labels = None
@@ -238,19 +242,22 @@ class Hippocampus(DatasetHandler):
                                     raw_data_dir,
                                     preprocessed_data_dir,
                                     patch_size,
-                                    augment_train)
+                                    augment_train,
+                                    load_mesh='no') # no meshes for train
         val_dataset = Hippocampus(all_files[indices_val],
                                   DataModes.VALIDATION,
                                   raw_data_dir,
                                   preprocessed_data_dir,
                                   patch_size,
-                                  False) # no augment for val
+                                  False, # no augment for val
+                                  load_mesh='create') # create all mc meshes
         test_dataset = Hippocampus(all_files[indices_test],
                                   DataModes.TEST,
                                   raw_data_dir,
                                   preprocessed_data_dir,
                                   patch_size,
-                                  False) # no augment for test
+                                  False, # no augment for test
+                                  load_mesh='create') # create all mc meshes
 
         return train_dataset, val_dataset, test_dataset
 
@@ -276,6 +283,16 @@ class Hippocampus(DatasetHandler):
 
         return img, voxel_label
 
+    def get_item_and_mesh_from_index(self, index: int):
+        """ One data item and a corresponding mesh.
+        Data is returned in the form
+        (3D input image, 3D voxel label, 3D mesh)
+        """
+        img, voxel_label = self.get_item_from_index(index)
+        mesh_label = self._get_mesh_from_index(index)
+
+        return img, voxel_label, mesh_label
+
     def _load_data3D(self, folder: str):
         data_dir = os.path.join(self._raw_data_dir, folder)
         data = []
@@ -285,16 +302,21 @@ class Hippocampus(DatasetHandler):
 
         return data
 
-    def _calc_dataMesh(self):
+    def _calc_mesh_labels_all(self):
         meshes = []
         for v in self.voxel_labels:
             meshes.append(create_mesh_from_voxels(v, self._mc_step_size))
 
         return meshes
 
-    def get_mesh_from_index(self, index):
-        return create_mesh_from_voxels(self.voxel_labels[index],
-                                       self._mc_step_size)
+    def _get_mesh_from_index(self, index):
+        if self.mesh_labels is not None: # read
+            mesh_label = self.mesh_labels[index]
+        else: # generate
+            mesh_label = create_mesh_from_voxels(self.voxel_labels[index],
+                                                   self._mc_step_size)
+
+        return mesh_label
 
     def _load_dataMesh(self, folder):
         data_dir = os.path.join(self._preprocessed_data_dir, folder)

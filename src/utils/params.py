@@ -74,12 +74,18 @@ hyper_ps_default={
     # Use early stopping
     'EARLY_STOP': False,
 
+    # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
+    # options
+    'EVAL_METRICS': [
+        'Jaccard'
+    ],
+
     # The number of image dimensions
     'N_DIMS': 3,
 
     # Voxel2Mesh original parameters
     # (from https://github.com/cvlab-epfl/voxel2mesh)
-    'VOXEL2MESH_ORIG_CONFIG': {
+    'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,

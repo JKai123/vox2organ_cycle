@@ -183,15 +183,19 @@ def string_dict(d: dict):
                 if inspect.isclass(e) or inspect.isfunction(e):
                     u[k].append(e.__name__)
                     u[k].remove(e)
-                else:
-                    # Everything else to string
+                elif not all(isinstance(v_i, (int, float, str)) for v_i in v):
+                    # Everything else than int, float, str to str
                     u[k].remove(e)
                     u[k].append(str(e))
 
         # Class or function
         elif inspect.isclass(v) or inspect.isfunction(v):
             u[k] = v.__name__
-        else:
+        elif isinstance(v, tuple):
+            if not all(isinstance(v_i, (int, float, str)) for v_i in v):
+                # Tuple with something else than int, float, str
+                u[k] = str(v)
+        elif not isinstance(v, (int, float, str)):
             # Everything else to string
             u[k] = str(v)
     return u
@@ -240,3 +244,4 @@ def verts_faces_to_Meshes(verts, faces, ndim):
             meshes.append(Meshes(verts=list(v), faces=list(f)))
 
     return meshes
+
