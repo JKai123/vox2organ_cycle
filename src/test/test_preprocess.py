@@ -12,6 +12,8 @@ from utils.visualization import show_slices
 
 def run_preprocess_test():
 
+    print("Loading data...")
+
     hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/Task04_Hippocampus',
            'PREPROCESSED_DATA_DIR': None,
            'DATASET_SEED': 1234,
@@ -21,20 +23,34 @@ def run_preprocess_test():
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
+    # No augmentation
     training_set,\
-            validation_set,\
-            test_set = dataset_split_handler['Hippocampus'](**hps_lower)
+            _,\
+            _ = dataset_split_handler['Hippocampus'](augment_train=False,
+                                                             **hps_lower)
+    # Augmentation
+    training_set_augment,\
+            _,\
+            _ = dataset_split_handler['Hippocampus'](augment_train=True,
+                                                             **hps_lower)
 
-    for iter_in_epoch, data in tqdm(enumerate(training_set[:5]),
-                                    desc="Testing...",
-                                    position=0,
-                                    leave=True):
+    for iter_in_epoch, (data, data_augment) in tqdm(enumerate(zip(training_set[:5],
+                                                  training_set_augment[:5])),
+                                                  desc="Testing...",
+                                                  position=0,
+                                                  leave=True):
         img_slices = [data[0][32, :, :], data[0][:, 32, :], data[0][:, :, 32]]
         label_slices = [data[1][32, :, :], data[1][:, 32, :], data[1][:, :, 32]]
+        img_slices_augment = [data_augment[0][32, :, :], data_augment[0][:, 32, :], data_augment[0][:, :, 32]]
+        label_slices_augment = [data_augment[1][32, :, :], data_augment[1][:, 32, :], data_augment[1][:, :, 32]]
         show_slices(img_slices, label_slices, "../test_results/img" +\
                     str(iter_in_epoch) + ".png")
         show_slices(img_slices, None, "../test_results/img" +\
                     str(iter_in_epoch) + "_nolabel.png")
+        show_slices(img_slices_augment, label_slices_augment, "../test_results/img" +\
+                    str(iter_in_epoch) + "_augment.png")
+        show_slices(img_slices_augment, None, "../test_results/img" +\
+                    str(iter_in_epoch) + "_augment_nolabel.png")
 
 if __name__ == '__main__':
     run_preprocess_test()

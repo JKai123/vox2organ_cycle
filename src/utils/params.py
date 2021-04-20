@@ -38,10 +38,8 @@ hyper_ps_default={
         'eps': 1e-8,
         'weight_decay': 0.0},
 
-    # Parameters for data augmentation
-    'DATA_AUGMENTATION': {
-        'RandomCrop': 0.5
-    },
+    # Data augmentation
+    'AUGMENT_TRAIN': False,
 
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
