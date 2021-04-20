@@ -29,9 +29,9 @@ class Mesh():
     def values(self):
         return self._values
 
-    def to_trimesh(self):
+    def to_trimesh(self, process=False):
         return Trimesh(vertices=self.vertices,
                        faces=self.faces,
                        normals=self.normals,
                        values=self.values,
-                       process=False)
+                       process=process)

@@ -16,6 +16,7 @@ import numpy as np
 import torch.utils.data
 import torch.nn.functional as F
 import nibabel as nib
+from elasticdeform import deform_random_grid
 
 import trimesh
 
@@ -49,7 +50,6 @@ def crop_indices(image_shape, patch_shape, center):
     slices = tuple(slice(i[0], i[1]) for i in box)
     return slices, pad_width, needs_padding
 
-
 def crop(image, patch_shape, center, mode='constant'):
     """ From https://github.com/cvlab-epfl/voxel2mesh """
     slices, pad_width, needs_padding = crop_indices(image.shape, patch_shape, center)
@@ -70,7 +70,6 @@ def crop(image, patch_shape, center, mode='constant'):
 def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> torch.tensor:
     """ Pad/interpolate an image such that it has a certain shape
     """
-    # TODO: Not sure about the effect of this procedure --> analyse
 
     D, H, W = img.shape
     center_z, center_y, center_x = D // 2, H // 2, W // 2
@@ -85,6 +84,21 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> tor
         img = F.interpolate(img[None, None], patch_size, mode='trilinear', align_corners=False)[0, 0]
 
     return img
+
+def augment_data(img, label):
+    # Rotate 90
+    if np.random.rand(1) > 0.5:
+        img, label = np.rot90(img, 1, [0,1]), np.rot90(label, 1, [0,1])
+    if np.random.rand(1) > 0.5:
+        img, label = np.rot90(img, 1, [1,2]), np.rot90(label, 1, [1,2])
+    if np.random.rand(1) > 0.5:
+        img, label = np.rot90(img, 1, [2,0]), np.rot90(label, 1, [2,0])
+
+    # Elastic deformation
+    img, label = deform_random_grid([img, label], sigma=1, points=3,
+                                    order=[3, 0])
+
+    return img, label
 
 class DatasetHandler(torch.utils.data.Dataset):
     """
@@ -115,10 +129,17 @@ class DatasetHandler(torch.utils.data.Dataset):
 
         raise TypeError("Invalid argument type.")
 
+    def get_file_name_from_index(self, index):
+        """ Return the filename corresponding to an index in the dataset """
+        return self._files[index]
+
+    def get_item_and_mesh_from_index(self, index):
+        """ Return the 3D data plus a mesh """
+        raise NotImplementedError
+
     def get_item_from_index(self, index: int):
         """
-        For training and validation datasets, an item consists of (data, labels)
-        while test datasets only contain (data)
+        An item consists in general of (data, labels)
 
         :param int index: The index of the data to access.
         """
@@ -142,43 +163,50 @@ class Hippocampus(DatasetHandler):
     :param str preprocessed_data_dir: Pre-processed data, e.g. meshes created with
     marching cubes.
     :param patch_size: The patch size of the images, e.g. (64, 64, 64)
-    :param bool load_mesh: Load a precomputed mesh. If False, meshes are
-    calculated with marching cubes.
+    :param augment: Use image augmentation during training if 'True'
+    :param bool load_mesh: Load a precomputed mesh. Possible values are
+    'folder': Load meshes from a folder defined by 'preprocessed_data_dir',
+    'create': create all meshes with marching cubes. 'no': Do not store meshes.
     :param mc_step_size: The step size for marching cubes generation, only
-    relevant if load_mesh is False.
+    relevant if load_mesh is 'create'.
+    :param
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 preprocessed_data_dir: str, patch_size, load_mesh=False,
-                 mc_step_size=1):
+                 preprocessed_data_dir: str, patch_size, augment: bool,
+                 load_mesh='no', mc_step_size=1):
         super().__init__(ids, mode)
 
         self._raw_data_dir = raw_data_dir
         self._preprocessed_data_dir = preprocessed_data_dir
+        self._augment = augment
+        self._mc_step_size = mc_step_size
         self.patch_size = patch_size
 
-        self.data = self._load_data3D(folder="imagesTr",
-                                      patch_size=patch_size,
-                                      is_label=False)
-        self.voxel_labels = self._load_data3D(folder="labelsTr",
-                                              patch_size=patch_size,
-                                              is_label=True)
+        self.data = self._load_data3D(folder="imagesTr")
+        self.voxel_labels = self._load_data3D(folder="labelsTr")
         # Ignore distinction between anterior and posterior hippocampus
         for vl in self.voxel_labels:
             vl[vl > 1] = 1
 
-        if load_mesh:
+        if load_mesh == 'folder':
+            # Load all meshes from a folder
             self.mesh_labels = self._load_dataMesh(folder="meshlabelsTr")
+        elif load_mesh == 'create':
+            # Create all meshes with marching cubes
+            self.mesh_labels = self._calc_mesh_labels_all()
         else:
-            self.mesh_labels = self._calc_dataMesh(mc_step_size)
+            # Do not store mesh labels
+            self.mesh_labels = None
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
-        assert self.__len__() == len(self.mesh_labels)
+        if load_mesh != 'no':
+            assert self.__len__() == len(self.mesh_labels)
 
     @staticmethod
     def split(raw_data_dir, preprocessed_data_dir, dataset_seed,
-              dataset_split_proportions, patch_size, **kwargs):
+              dataset_split_proportions, patch_size, augment_train, **kwargs):
         """ Create train, validation, and test split of the Hippocampus data"
 
         :param str raw_data_dir: The raw base folder, contains e.g. subfolders
@@ -213,17 +241,23 @@ class Hippocampus(DatasetHandler):
                                     DataModes.TRAIN,
                                     raw_data_dir,
                                     preprocessed_data_dir,
-                                    patch_size)
+                                    patch_size,
+                                    augment_train,
+                                    load_mesh='no') # no meshes for train
         val_dataset = Hippocampus(all_files[indices_val],
                                   DataModes.VALIDATION,
                                   raw_data_dir,
                                   preprocessed_data_dir,
-                                  patch_size)
+                                  patch_size,
+                                  False, # no augment for val
+                                  load_mesh='create') # create all mc meshes
         test_dataset = Hippocampus(all_files[indices_test],
                                   DataModes.TEST,
                                   raw_data_dir,
                                   preprocessed_data_dir,
-                                  patch_size)
+                                  patch_size,
+                                  False, # no augment for test
+                                  load_mesh='create') # create all mc meshes
 
         return train_dataset, val_dataset, test_dataset
 
@@ -233,33 +267,56 @@ class Hippocampus(DatasetHandler):
     def get_item_from_index(self, index: int):
         """
         One data item has the form
-        (data, 3D voxel label, mesh label)
+        (3D input image, 3D voxel label)
         with types
-        (torch.tensor, torch.tensor, trimesh.base.Trimesh)
+        (torch.tensor, torch.tensor)
         """
-        return self.data[index],\
-                self.voxel_labels[index],\
-                self.mesh_labels[index]
+        img, voxel_label = self.data[index], self.voxel_labels[index]
 
-    def _load_data3D(self, folder: str, patch_size, is_label: bool):
+        # Potentially augment
+        if self._augment:
+            img, voxel_label = augment_data(img, voxel_label)
+
+        # Fit patch size
+        img = img_with_patch_size(img, self.patch_size, False)
+        voxel_label = img_with_patch_size(voxel_label, self.patch_size, True)
+
+        return img, voxel_label
+
+    def get_item_and_mesh_from_index(self, index: int):
+        """ One data item and a corresponding mesh.
+        Data is returned in the form
+        (3D input image, 3D voxel label, 3D mesh)
+        """
+        img, voxel_label = self.get_item_from_index(index)
+        mesh_label = self._get_mesh_from_index(index)
+
+        return img, voxel_label, mesh_label
+
+    def _load_data3D(self, folder: str):
         data_dir = os.path.join(self._raw_data_dir, folder)
         data = []
         for fn in self._files:
             d = nib.load(os.path.join(data_dir, fn + ".nii.gz")).get_fdata()
-            if is_label:
-                d = img_with_patch_size(d, patch_size, True)
-            else:
-                d = img_with_patch_size(d, patch_size, False)
             data.append(d)
 
         return data
 
-    def _calc_dataMesh(self, mc_step_size):
+    def _calc_mesh_labels_all(self):
         meshes = []
         for v in self.voxel_labels:
-            meshes.append(create_mesh_from_voxels(v, mc_step_size))
+            meshes.append(create_mesh_from_voxels(v, self._mc_step_size))
 
         return meshes
+
+    def _get_mesh_from_index(self, index):
+        if self.mesh_labels is not None: # read
+            mesh_label = self.mesh_labels[index]
+        else: # generate
+            mesh_label = create_mesh_from_voxels(self.voxel_labels[index],
+                                                   self._mc_step_size)
+
+        return mesh_label
 
     def _load_dataMesh(self, folder):
         data_dir = os.path.join(self._preprocessed_data_dir, folder)

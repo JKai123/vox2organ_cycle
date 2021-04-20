@@ -38,10 +38,8 @@ hyper_ps_default={
         'eps': 1e-8,
         'weight_decay': 0.0},
 
-    # Parameters for data augmentation
-    'DATA_AUGMENTATION': {
-        'RandomCrop': 0.5
-    },
+    # Data augmentation
+    'AUGMENT_TRAIN': False,
 
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
@@ -76,12 +74,18 @@ hyper_ps_default={
     # Use early stopping
     'EARLY_STOP': False,
 
+    # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
+    # options
+    'EVAL_METRICS': [
+        'Jaccard'
+    ],
+
     # The number of image dimensions
     'N_DIMS': 3,
 
     # Voxel2Mesh original parameters
     # (from https://github.com/cvlab-epfl/voxel2mesh)
-    'VOXEL2MESH_ORIG_CONFIG': {
+    'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,

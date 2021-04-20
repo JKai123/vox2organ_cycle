@@ -21,7 +21,7 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'OPTIM_PARAMS': {'lr': 0.0003},
+    'OPTIM_PARAMS': {'lr': 1e-4},
     'BATCH_SIZE': 1,
     'N_EPOCHS': 1,
     'LOG_EVERY': 1,
@@ -101,7 +101,7 @@ def main(hps):
     hps['DATASET'] = args.dataset
     hps['LOGLEVEL'] = args.loglevel
     hps['PROJ_NAME'] = args.proj_name
-    hps['GROUP_NAME'] = args.proj_name
+    hps['GROUP_NAME'] = args.group_name
     hps['DEVICE'] = args.device
 
     torch.cuda.set_device(args.device)

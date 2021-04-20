@@ -2,4 +2,4 @@
 __pycache__/
 experiments/
 meshes/
-test_results/
+misc/
