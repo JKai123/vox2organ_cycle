@@ -10,10 +10,11 @@ import logging
 import numpy as np
 import torch
 from tqdm import tqdm
+from pytorch3d.loss import chamfer_distance
 
 from utils.modes import ExecModes
 from utils.mesh import Mesh
-from utils.utils import create_mesh_from_voxels
+from utils.utils import create_mesh_from_voxels, verts_faces_to_Meshes
 from models.voxel2mesh import Voxel2Mesh
 
 class EvalMetrics(IntEnum):
@@ -21,13 +22,12 @@ class EvalMetrics(IntEnum):
     # Jaccard score/ Intersection over Union
     Jaccard = 1
 
-    # Saving several predicted meshes
-    Visual_Mesh = 2
-
+    # Chamfer distance between ground truth mesh and predicted mesh
+    Chamfer = 2
 
 def Jaccard_score(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background """
-    voxel_pred = pred[0][-1][3].argmax(dim=1).squeeze()
+    voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)
     _, voxel_label, _ = data # chop
     ious = []
     for c in range(1, n_classes):
@@ -42,6 +42,25 @@ def Jaccard_score(pred, data, n_classes):
 
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
+
+def Chamfer_score(pred, data, n_classes):
+    """ Chamfer distance averaged over classes
+
+    Note: In contrast to the ChamferLoss, where the Chamfer distance is computed
+    between the predicted loss and randomly sampled surface points, here the
+    Chamfer distance is computed between the predicted mesh and the ground
+    truth mesh. """
+    pred_vertices, _ = Voxel2Mesh.pred_to_verts_and_faces(pred)
+    _, _, gt_mesh = data # chop
+    gt_vertices = gt_mesh.vertices.cuda()[None] # currently only one class
+    chamfer_scores = []
+    for c in range(n_classes - 1):
+        pred_vertices = pred_vertices[-1][c] # only consider last mesh step
+        chamfer_scores.append(chamfer_distance(pred_vertices,
+                                               gt_vertices)[0].cpu().item())
+
+    # Average over classes
+    return np.sum(chamfer_scores) / float(n_classes - 1)
 
 class ModelEvaluator():
     """ Class for evaluation of models.
@@ -65,7 +84,8 @@ class ModelEvaluator():
             os.mkdir(self._mesh_dir)
 
         self._metricHandler = {
-            EvalMetrics.Jaccard.name: Jaccard_score
+            EvalMetrics.Jaccard.name: Jaccard_score,
+            EvalMetrics.Chamfer.name: Chamfer_score
         }
 
     def evaluate(self, model, epoch, save_meshes=5):
@@ -91,7 +111,7 @@ class ModelEvaluator():
                     self.store_meshes(pred, data, filename, epoch)
 
         # Just consider means over evaluation set
-        results = {"Mean " + k: np.mean(v) for k, v in results_all.items()}
+        results = {k: np.mean(v) for k, v in results_all.items()}
 
         return results
 
@@ -114,7 +134,8 @@ class ModelEvaluator():
             # Mesh prediction
             pred_mesh_filename = filename + "_epoch" + str(epoch) +\
                 "_class" + str(c + 1) + "_meshpred.ply"
-            vertices, faces, _, _, _ = pred[c][-1]
+            vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+            vertices, faces = vertices[-1][c], faces[-1][c]
             pred_mesh = Mesh(vertices.squeeze().cpu(),
                              faces.squeeze().cpu()).to_trimesh(process=True)
             pred_mesh.export(os.path.join(self._mesh_dir, pred_mesh_filename))
@@ -122,7 +143,7 @@ class ModelEvaluator():
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\
                 "_class" + str(c + 1) + "_voxelpred.ply"
-            pred_voxel = pred[0][-1][3].argmax(dim=1).squeeze()
+            pred_voxel = Voxel2Mesh.pred_to_voxel_pred(pred)
             try:
                 mc_pred_mesh = create_mesh_from_voxels(pred_voxel,
                                                   self._mc_step_size).to_trimesh(process=True)

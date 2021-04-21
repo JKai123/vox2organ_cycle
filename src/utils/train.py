@@ -9,14 +9,16 @@ import logging
 
 import json
 import torch
-import wandb
 import numpy as np
-from pytorch3d.structures import Meshes
 from torch.utils.data import DataLoader
 
 from utils.utils import (string_dict,
                          verts_faces_to_Meshes)
-from utils.logging import init_logging, log_losses, get_log_dir
+from utils.logging import (
+    init_logging,
+    log_losses,
+    get_log_dir,
+    log_val_results)
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.losses import linear_loss_combine, geometric_loss_combine
@@ -49,6 +51,8 @@ class Solver():
     :param n_sample_points: The number of points sampled for mesh loss
     computation.
     :param str device: The device for execution, e.g. 'cuda:0'.
+    :param str main_eval_metric: The main evaluation metric according to which
+    the best model is determined.
 
     """
 
@@ -66,6 +70,7 @@ class Solver():
                  log_every,
                  n_sample_points,
                  device,
+                 main_eval_metric,
                  **kwargs):
 
         self.n_classes = n_classes
@@ -88,6 +93,7 @@ class Solver():
         self.log_every = log_every
         self.n_sample_points = n_sample_points
         self.device = device
+        self.main_eval_metric = main_eval_metric
 
     def training_step(self, model, data, iteration):
         """ One training step.
@@ -150,7 +156,6 @@ class Solver():
     def train(self,
               model: torch.nn.Module,
               training_set: torch.utils.data.Dataset,
-              validation_set: torch.utils.data.Dataset,
               n_epochs: int,
               batch_size: int,
               early_stop: bool,
@@ -166,6 +171,9 @@ class Solver():
         :param early_stop: Enable early stopping.
         :param eval_every: Evaluate the model every n epochs.
         """
+        best_val_score = -1
+        best_epoch = 0
+        best_state = None
 
         model.float().to(self.device)
 
@@ -193,9 +201,17 @@ class Solver():
             # Evaluate
             if epoch % eval_every == 0:
                 model.eval()
-                # self.evaluator.eval(model)
-                best_state = model.state_dict()
-                best_epoch = epoch
+                val_results = self.evaluator.evaluate(model, epoch,
+                                                      save_meshes=0)
+                log_val_results(val_results, iteration)
+
+                # Main validation score
+                # Attention: smaller = better is assumed!
+                main_val_score = val_results[self.main_eval_metric]
+                if main_val_score < best_val_score or epoch == 1:
+                    best_val_score = main_val_score
+                    best_state = model.state_dict()
+                    best_epoch = epoch
 
             # TODO: Early stopping
 
@@ -213,7 +229,6 @@ class Solver():
 
         logging.getLogger(ExecModes.TRAIN.name).info("Saved models at"\
                                                      " %s", self.save_path)
-        logging.getLogger(ExecModes.TRAIN.name).info("Training finished.")
 
 def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     """
@@ -223,6 +238,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     :param str experiment_name (optional): The name of the experiment
     directory. If None, a name is created automatically.
     :param lovlevel: The loglevel of the standard logger to use.
+    :return: The name of the experiment.
     """
 
     ###### Prepare training experiment ######
@@ -281,15 +297,16 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
 
     ###### Load data ######
     trainLogger.info("Loading dataset %s...", hps['DATASET'])
-    try:
-        training_set,\
-                validation_set,\
-                test_set =\
+    overfit = False
+    if experiment_name == 'debug':
+        # Overfit on one sample when debugging
+        overfit = True
+    training_set,\
+            validation_set,\
+            test_set=\
                 dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
+                                                      overfit=overfit,
                                                       **hps_lower)
-    except KeyError:
-        print(f"Dataset {hps['DATASET']} not known.")
-        return
 
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
@@ -309,8 +326,11 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
 
     solver.train(model=model,
                  training_set=training_set,
-                 validation_set=validation_set,
                  n_epochs=hps['N_EPOCHS'],
                  batch_size=hps['BATCH_SIZE'],
                  early_stop=hps['EARLY_STOP'],
                  eval_every=hps['EVAL_EVERY'])
+
+    logging.getLogger(ExecModes.TRAIN.name).info("Training finished.")
+
+    return experiment_name

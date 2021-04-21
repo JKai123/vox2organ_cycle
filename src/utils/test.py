@@ -68,21 +68,22 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
-    # !!! Just for temporal backward compatibility:
-    training_hps = hps
-
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict((k.lower(), v) for k, v in training_hps.items())
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # Get same split as defined during training for testset
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    try:
-        _, _, test_set =\
-                dataset_split_handler[training_hps['DATASET']](save_dir=test_dir, **training_hps_lower)
-    except KeyError:
-        print(f"Dataset {hps['DATASET']} not known.")
-        return
+    overfit = False
+    if experiment_name == 'debug':
+        # Overfit on one sample when debugging
+        overfit = True
+
+    _, _, test_set =\
+            dataset_split_handler[training_hps['DATASET']](save_dir=test_dir,
+                                                           overfit=overfit,
+                                                           **training_hps_lower)
+    testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be
     # different than during training.

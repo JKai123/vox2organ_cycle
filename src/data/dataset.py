@@ -239,8 +239,11 @@ class Hippocampus(DatasetHandler):
         :patch_size: The patch size of the 3D images.
         :augment_train: Augment training data.
         :save_dir: A directory where the split ids can be saved.
+        :overfit: All three splits are the same and contain only one element.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
+
+        overfit = kwargs.get("overfit", False)
 
         # Available files
         all_files = os.listdir(os.path.join(raw_data_dir, "imagesTr"))
@@ -251,12 +254,19 @@ class Hippocampus(DatasetHandler):
         random.Random(dataset_seed).shuffle(all_files)
 
         # Split
-        assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
-        indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
-        indices_val = slice(indices_train.stop,
-                            indices_train.stop +\
-                                (dataset_split_proportions[1] * len(all_files) // 100))
-        indices_test = slice(indices_val.stop, len(all_files))
+        if overfit:
+            # Only consider first element of available data
+            indices_train = slice(0, 1)
+            indices_val = slice(0, 1)
+            indices_test = slice(0, 1)
+        else:
+            # No overfit
+            assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
+            indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
+            indices_val = slice(indices_train.stop,
+                                indices_train.stop +\
+                                    (dataset_split_proportions[1] * len(all_files) // 100))
+            indices_test = slice(indices_val.stop, len(all_files))
 
         # Create datasets
         train_dataset = Hippocampus(all_files[indices_train],

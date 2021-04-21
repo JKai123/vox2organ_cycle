@@ -1,8 +1,21 @@
 
-""" Combining training and test routine """
+""" Combination of raining and subsequent testing. """
 
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
-def train_test_routine():
-    pass
+from utils.train import training_routine
+from utils.test import test_routine
+
+def train_test_routine(hps: dict, experiment_name=None, loglevel='INFO'):
+    """ Run a training and subsequent test routine in one run. """
+
+    # Train
+    experiment_name = training_routine(hps, experiment_name, loglevel)
+
+    # Test
+    test_routine(hps, experiment_name, loglevel)
+
+
+
+

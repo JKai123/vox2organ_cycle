@@ -77,8 +77,13 @@ hyper_ps_default={
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
-        'Jaccard'
+        'Jaccard',
+        'Chamfer'
     ],
+
+    # Main validation metric according to which the best model is determined.
+    # Note: This one must also be part of 'EVAL_METRICS'!
+    'MAIN_EVAL_METRIC': 'Chamfer',
 
     # The number of image dimensions
     'N_DIMS': 3,
