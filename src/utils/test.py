@@ -57,11 +57,19 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
 
     testLogger = logging.getLogger(ExecModes.TEST.name)
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
+    # Directoy where test results are written to
+    test_dir = os.path.join(experiment_dir, "test")
+    if not os.path.isdir(test_dir):
+        os.mkdir(test_dir)
+
     testLogger.info("Testing %s...", experiment_name)
 
     param_file = os.path.join(experiment_dir, "params.json")
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
+
+    # !!! Just for temporal backward compatibility:
+    training_hps = hps
 
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict((k.lower(), v) for k, v in training_hps.items())
@@ -71,14 +79,15 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
     try:
         _, _, test_set =\
-                dataset_split_handler[training_hps['DATASET']](**training_hps_lower)
+                dataset_split_handler[training_hps['DATASET']](save_dir=test_dir, **training_hps_lower)
     except KeyError:
         print(f"Dataset {hps['DATASET']} not known.")
         return
 
     # Use current hps for testing. In particular, the evaluation metrics may be
     # different than during training.
-    evaluator = ModelEvaluator(eval_dataset=test_set, save_dir=experiment_dir,
+    # !!! Set temporally to training_set
+    evaluator = ModelEvaluator(eval_dataset=test_set, save_dir=test_dir,
                                **hps_lower)
 
     # Test models

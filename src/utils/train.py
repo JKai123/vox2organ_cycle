@@ -284,7 +284,9 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
     try:
         training_set,\
                 validation_set,\
-                test_set = dataset_split_handler[hps['DATASET']](**hps_lower)
+                test_set =\
+                dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
+                                                      **hps_lower)
     except KeyError:
         print(f"Dataset {hps['DATASET']} not known.")
         return
