@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from enum import IntEnum
 import os
+import logging
 
 import numpy as np
 import torch
@@ -85,34 +86,47 @@ class ModelEvaluator():
                     results_all[metric].append(res)
 
                 if i < save_meshes: # Store meshes for visual inspection
-                    file_name =\
+                    filename =\
                             self._dataset.get_file_name_from_index(i).split(".")[0]
-                    self.store_meshes(pred, data, file_name, epoch)
+                    self.store_meshes(pred, data, filename, epoch)
 
         # Just consider means over evaluation set
         results = {"Mean " + k: np.mean(v) for k, v in results_all.items()}
 
         return results
 
-    def store_meshes(self, pred, data, file_name, epoch):
+    def store_meshes(self, pred, data, filename, epoch):
         """ Save predicted meshes and ground truth created with marching
         cubes
         """
         _, voxel_label, _ = data # chop
         for c in range(self._n_classes-1):
             # Label
-            gt_file_name = file_name + "_epoch" + str(epoch) +\
-                "_class" + str(c + 1) + "_gt.ply"
-            voxel_label_class = voxel_label.cpu()
-            voxel_label_class[voxel_label != c + 1] = 0
-            gt_mesh = create_mesh_from_voxels(voxel_label_class,
-                                              self._mc_step_size).to_trimesh(process=True)
-            gt_mesh.export(os.path.join(self._mesh_dir, gt_file_name))
+            gt_filename = filename + "_class" + str(c + 1) + "_gt.ply"
+            if not os.path.isfile(gt_filename):
+                # gt file does not exist yet
+                voxel_label_class = voxel_label.cpu()
+                voxel_label_class[voxel_label != c + 1] = 0
+                gt_mesh = create_mesh_from_voxels(voxel_label_class,
+                                                  self._mc_step_size).to_trimesh(process=True)
+                gt_mesh.export(os.path.join(self._mesh_dir, gt_filename))
 
-            # Prediction
-            pred_file_name = file_name + "_epoch" + str(epoch) +\
-                "_class" + str(c + 1) + "_pred.ply"
+            # Mesh prediction
+            pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                "_class" + str(c + 1) + "_meshpred.ply"
             vertices, faces, _, _, _ = pred[c][-1]
             pred_mesh = Mesh(vertices.squeeze().cpu(),
                              faces.squeeze().cpu()).to_trimesh(process=True)
-            pred_mesh.export(os.path.join(self._mesh_dir, pred_file_name))
+            pred_mesh.export(os.path.join(self._mesh_dir, pred_mesh_filename))
+
+            # Voxel prediction
+            pred_voxel_filename = filename + "_epoch" + str(epoch) +\
+                "_class" + str(c + 1) + "_voxelpred.ply"
+            pred_voxel = pred[0][-1][3].argmax(dim=1).squeeze()
+            try:
+                mc_pred_mesh = create_mesh_from_voxels(pred_voxel,
+                                                  self._mc_step_size).to_trimesh(process=True)
+                mc_pred_mesh.export(os.path.join(self._mesh_dir, pred_voxel_filename))
+            except RuntimeError as e:
+                logging.getLogger(ExecModes.TEST.name).warning(\
+                       "In voxel prediction for file: %s: %s ", filename, e)
