@@ -78,7 +78,7 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     if exp_name == 'debug':
         global debug
         debug = True
-    if not debug: # no wanb when debugging
+    if not debug and not mode == ExecModes.TEST: # no wanb when debugging or just testing
         init_wandb_logging(exp_name=exp_name,
                            log_dir=log_dir,
                            wandb_proj_name=proj_name,
