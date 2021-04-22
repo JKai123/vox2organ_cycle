@@ -84,10 +84,11 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     :param str group_name: The group name of the experiment.
     :param dict params: The experiment configuration.
     """
+    if exp_name == 'debug':
+        global debug
+        debug = True
+        loglevel='DEBUG'
     init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
-    # if exp_name == 'debug':
-        # global debug
-        # debug = True
     if not debug and not mode == ExecModes.TEST: # no wanb when debugging or just testing
         init_wandb_logging(exp_name=exp_name,
                            log_dir=log_dir,

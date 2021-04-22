@@ -74,20 +74,13 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
 
     # Get same split as defined during training for testset
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    overfit = False
-    if experiment_name == 'debug':
-        # Overfit on one sample when debugging
-        overfit = True
-
-    _, _, test_set =\
+    training_set, _, test_set =\
             dataset_split_handler[training_hps['DATASET']](save_dir=test_dir,
-                                                           overfit=overfit,
                                                            **training_hps_lower)
     testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be
     # different than during training.
-    # !!! Set temporally to training_set
     evaluator = ModelEvaluator(eval_dataset=test_set, save_dir=test_dir,
                                **hps_lower)
 
@@ -107,16 +100,23 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
                            " of stored models.")
         models_to_epochs = {}
         for mn in model_names:
-            models_to_epochs[mn] = -1
+            models_to_epochs[mn] = -1 # -1 = unknown
+
+    epochs_tested = []
 
     for mn in model_names:
         model_path = os.path.join(experiment_dir, mn)
         epoch = models_to_epochs[mn]
-        testLogger.info("Test model %s stored in training epoch %d",
-                        model_path, epoch)
-        model.load_state_dict(torch.load(model_path))
-        model.eval()
 
-        results = evaluator.evaluate(model, epoch)
+        # Test each epoch that has been stored
+        if epoch not in epochs_tested or epoch == -1:
+            testLogger.info("Test model %s stored in training epoch %d",
+                            model_path, epoch)
+            model.load_state_dict(torch.load(model_path))
+            model.eval()
 
-        write_test_results(results, mn, experiment_dir)
+            results = evaluator.evaluate(model, epoch, save_meshes=len(test_set))
+
+            write_test_results(results, mn, test_dir)
+
+            epochs_tested.append(epoch)

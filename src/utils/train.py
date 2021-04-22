@@ -148,7 +148,7 @@ class Solver():
         losses['TotalLoss'] = loss_total
 
         # log
-        if iteration % self.log_every == 0:
+        if (iteration - 1) % self.log_every == 0:
             log_losses(losses, iteration)
 
         return loss_total
@@ -199,7 +199,7 @@ class Solver():
                 iteration += 1
 
             # Evaluate
-            if epoch % eval_every == 0:
+            if (epoch - 1) % eval_every == 0:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=0)
@@ -219,7 +219,10 @@ class Solver():
         model.eval()
         model.save(os.path.join(self.save_path, "final.model"))
         model.load_state_dict(best_state)
+        model.eval()
         model.save(os.path.join(self.save_path, "best.model"))
+        logging.getLogger(ExecModes.TRAIN.name).info("Best model in epoch"\
+                                                     " %d", best_epoch)
 
         # Save epochs corresponding to models
         epochs_file = os.path.join(self.save_path, "models_to_epochs.json")
@@ -297,15 +300,10 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
 
     ###### Load data ######
     trainLogger.info("Loading dataset %s...", hps['DATASET'])
-    overfit = False
-    if experiment_name == 'debug':
-        # Overfit on one sample when debugging
-        overfit = True
     training_set,\
             validation_set,\
             test_set=\
                 dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
-                                                      overfit=overfit,
                                                       **hps_lower)
 
     trainLogger.info("%d training files.", len(training_set))
