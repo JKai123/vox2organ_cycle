@@ -20,7 +20,7 @@ def vis_mesh():
                         metavar='LIB',
                         type=str,
                         default='pyvista',
-                        help="The library used for visualization, 'open3d' (default) or 'pyvista'.")
+                        help="The library used for visualization, 'open3d' or 'pyvista' (default).")
 
     args = parser.parse_args()
     if os.path.isdir(args.filenames[0]):

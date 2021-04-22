@@ -60,6 +60,7 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d'):
         if os.path.isdir(filenames):
             path = filenames
             filenames = os.listdir(path)
+            filenames.sort()
             filenames = [os.path.join(path, fn) for fn in filenames]
         else:
             filenames = [filenames]
@@ -114,6 +115,7 @@ def show_img_slices_3D(filenames: str, show_label=True):
         if os.path.isdir(filenames):
             path = filenames
             filenames = os.listdir(path)
+            filenames.sort()
             filenames = [os.path.join(path, fn) for fn in filenames]
         else:
             filenames = [filenames]
