@@ -287,6 +287,11 @@ class Voxel2Mesh(nn.Module):
         return voxel2mesh_data
 
     @staticmethod
+    def pred_to_voxel_pred(pred):
+        """ Get the voxel prediction """
+        return pred[0][-1][3].argmax(dim=1).squeeze()
+
+    @staticmethod
     def pred_to_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """

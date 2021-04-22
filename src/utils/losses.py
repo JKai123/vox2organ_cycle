@@ -29,7 +29,7 @@ class MeshLoss(ABC):
     def __str__(self):
         return self.__class__.__name__ + "()"
     def __call__(self, pred_meshes, target):
-        """ Chamfer loss calculation
+        """ Mesh loss calculation
 
         :param pred_meshes: A multidimensional array of predicted meshes of shape
         (S, C), each of type pytorch3d.structures.Meshes
@@ -55,6 +55,8 @@ class MeshLoss(ABC):
         pass
 
 class ChamferLoss(MeshLoss):
+    """ Chamfer distance between the predicted mesh and randomly sampled
+    surface points. """
     def get_loss(self,
                  pred_meshes: pytorch3d.structures.Meshes,
                  target: pytorch3d.structures.Pointclouds):

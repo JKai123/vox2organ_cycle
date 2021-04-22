@@ -133,6 +133,26 @@ class DatasetHandler(torch.utils.data.Dataset):
         """ Return the filename corresponding to an index in the dataset """
         return self._files[index]
 
+    @staticmethod
+    def save_ids(train_ids, val_ids, test_ids, save_dir):
+        """ Save ids to a file """
+        filename = os.path.join(save_dir, "dataset_ids.txt")
+
+        with open(filename, 'w') as f:
+            f.write("##### Training ids #####\n\n")
+            for idx, id_i in enumerate(train_ids):
+                f.write(f"{idx}: {id_i}\n")
+            f.write("\n\n")
+            f.write("##### Validation ids #####\n\n")
+            for idx, id_i in enumerate(val_ids):
+                f.write(f"{idx}: {id_i}\n")
+            f.write("\n\n")
+            f.write("##### Test ids #####\n\n")
+            for idx, id_i in enumerate(test_ids):
+                f.write(f"{idx}: {id_i}\n")
+            f.write("\n\n")
+
+
     def get_item_and_mesh_from_index(self, index):
         """ Return the 3D data plus a mesh """
         raise NotImplementedError
@@ -206,7 +226,7 @@ class Hippocampus(DatasetHandler):
 
     @staticmethod
     def split(raw_data_dir, preprocessed_data_dir, dataset_seed,
-              dataset_split_proportions, patch_size, augment_train, **kwargs):
+              dataset_split_proportions, patch_size, augment_train, save_dir, **kwargs):
         """ Create train, validation, and test split of the Hippocampus data"
 
         :param str raw_data_dir: The raw base folder, contains e.g. subfolders
@@ -217,8 +237,13 @@ class Hippocampus(DatasetHandler):
         :param dataset_split_proportions: The proportions of the dataset
         splits, e.g. (80, 10, 10)
         :patch_size: The patch size of the 3D images.
+        :augment_train: Augment training data.
+        :save_dir: A directory where the split ids can be saved.
+        :overfit: All three splits are the same and contain only one element.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
+
+        overfit = kwargs.get("overfit", False)
 
         # Available files
         all_files = os.listdir(os.path.join(raw_data_dir, "imagesTr"))
@@ -229,12 +254,19 @@ class Hippocampus(DatasetHandler):
         random.Random(dataset_seed).shuffle(all_files)
 
         # Split
-        assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
-        indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
-        indices_val = slice(indices_train.stop,
-                            indices_train.stop +\
-                                (dataset_split_proportions[1] * len(all_files) // 100))
-        indices_test = slice(indices_val.stop, len(all_files))
+        if overfit:
+            # Only consider first element of available data
+            indices_train = slice(0, 1)
+            indices_val = slice(0, 1)
+            indices_test = slice(0, 1)
+        else:
+            # No overfit
+            assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
+            indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
+            indices_val = slice(indices_train.stop,
+                                indices_train.stop +\
+                                    (dataset_split_proportions[1] * len(all_files) // 100))
+            indices_test = slice(indices_val.stop, len(all_files))
 
         # Create datasets
         train_dataset = Hippocampus(all_files[indices_train],
@@ -258,6 +290,10 @@ class Hippocampus(DatasetHandler):
                                   patch_size,
                                   False, # no augment for test
                                   load_mesh='create') # create all mc meshes
+
+        # Save ids to file
+        DatasetHandler.save_ids(all_files[indices_train], all_files[indices_val],
+                         all_files[indices_test], save_dir)
 
         return train_dataset, val_dataset, test_dataset
 
