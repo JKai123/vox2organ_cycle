@@ -322,10 +322,10 @@ class Hippocampus(DatasetHandler):
     def get_item_and_mesh_from_index(self, index: int):
         """ One data item and a corresponding mesh.
         Data is returned in the form
-        (3D input image, 3D voxel label, 3D mesh)
+        (image, voxel label, mesh)
         """
         img, voxel_label = self.get_item_from_index(index)
-        mesh_label = self._get_mesh_from_index(index)
+        mesh_label = self._get_mesh(index, voxel_label)
 
         return img, voxel_label, mesh_label
 
@@ -345,11 +345,17 @@ class Hippocampus(DatasetHandler):
 
         return meshes
 
-    def _get_mesh_from_index(self, index):
-        if self.mesh_labels is not None: # read
+    def _get_mesh(self, index=None, voxel_label=None):
+        if index is None and voxel_label is None:
+            raise RuntimeError("Cannot load mesh with index and voxel label"\
+                               " being 'None'.")
+        if self.mesh_labels is not None and not self._augment: # read
             mesh_label = self.mesh_labels[index]
-        else: # generate
-            mesh_label = create_mesh_from_voxels(self.voxel_labels[index],
+        else:
+            # Generate from given voxel label. Handing in the label directly is
+            # necessary since it may be different from self.voxel_labels[index] due to
+            # augmentation.
+            mesh_label = create_mesh_from_voxels(voxel_label,
                                                    self._mc_step_size)
 
         return mesh_label
