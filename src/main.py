@@ -9,10 +9,10 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.params import hyper_ps_default
 from utils.modes import ExecModes
 from utils.utils import update_dict
-
 from utils.train import training_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
+from utils.losses import ChamferLoss
 
 # Overwrite default parameters
 hyper_ps = {
@@ -21,10 +21,10 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'OPTIM_PARAMS': {'lr': 1e-4},
-    'BATCH_SIZE': 1,
-    'N_EPOCHS': 1,
-    'LOG_EVERY': 1,
+    'N_EPOCHS': 100,
+    'LOG_EVERY': 50,
+    'EVAL_EVERY': 10,
+    'AUGMENT_TRAIN': True,
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -62,6 +62,10 @@ def main(hps):
     argparser.add_argument('--test',
                            action='store_true',
                            help="Test a model.")
+    argparser.add_argument('--resume',
+                           action='store_true',
+                           help="Resume an existing, potentially unfinished"\
+                           " experiment.")
     argparser.add_argument('--log',
                            type=str,
                            dest='loglevel',
@@ -82,6 +86,9 @@ def main(hps):
                            dest='device',
                            default='cuda:0',
                            help="Specify the device for execution.")
+    argparser.add_argument('--overfit',
+                           action='store_true',
+                           help="Overfit on a single training sample.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -103,6 +110,12 @@ def main(hps):
     hps['PROJ_NAME'] = args.proj_name
     hps['GROUP_NAME'] = args.group_name
     hps['DEVICE'] = args.device
+    hps['OVERFIT'] = args.overfit
+
+    if args.exp_name == "debug":
+        # Overfit when debugging
+        hps['OVERFIT'] = True
+
 
     torch.cuda.set_device(args.device)
 
@@ -122,7 +135,7 @@ def main(hps):
     # Run
     routine = mode_handler[mode]
     routine(hps, experiment_name=hps['EXPERIMENT_NAME'],
-            loglevel=hps['LOGLEVEL'])
+            loglevel=hps['LOGLEVEL'], resume=args.resume)
 
 
 if __name__ == '__main__':
