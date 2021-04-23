@@ -19,6 +19,10 @@ from utils.losses import (
 
 hyper_ps_default={
 
+    # >>> Note: Using tuples (...) instead of lists [...] may lead to problems
+    # when resuming broken trainings (json converts tuples to lists when dumping).
+    # Therefore, it is recommended to use lists for parameters here.
+
     # The number of classes to distinguish (including background)
     'N_CLASSES': 2,
 
@@ -34,7 +38,7 @@ hyper_ps_default={
     # Parameters for the optimizer
     'OPTIM_PARAMS': {#
         'lr': 1e-4,
-        'betas': (0.9, 0.999),
+        'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
 
@@ -77,7 +81,8 @@ hyper_ps_default={
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
-        'Jaccard',
+        'JaccardVoxel',
+        # 'JaccardMesh',
         'Chamfer'
     ],
 
@@ -99,13 +104,13 @@ hyper_ps_default={
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj'},
 
     # input should be cubic. Otherwise, input should be padded accordingly.
-    'PATCH_SIZE': (64, 64, 64),
+    'PATCH_SIZE': [64, 64, 64],
 
     # Seed for dataset splitting
     'DATASET_SEED': 1234,
 
     # Proportions of dataset splits
-    'DATASET_SPLIT_PROPORTIONS': (80, 10, 10),
+    'DATASET_SPLIT_PROPORTIONS': [80, 10, 10],
 
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",

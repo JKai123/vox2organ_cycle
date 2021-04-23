@@ -26,6 +26,11 @@ from data.dataset import dataset_split_handler
 from models.model_handler import ModelHandler
 from models.voxel2mesh import Voxel2Mesh
 
+# Model names
+INTERMEDIATE_MODEL_NAME = "intermediate.model"
+BEST_MODEL_NAME = "best.model"
+FINAL_MODEL_NAME = "final.model"
+
 class Solver():
     """
     Solver class for optimizing the weights of neural networks.
@@ -159,7 +164,8 @@ class Solver():
               n_epochs: int,
               batch_size: int,
               early_stop: bool,
-              eval_every: int):
+              eval_every: int,
+              start_epoch: int):
         """
         Training procedure
 
@@ -170,7 +176,10 @@ class Solver():
         :param batch_size: The minibatch size.
         :param early_stop: Enable early stopping.
         :param eval_every: Evaluate the model every n epochs.
+        :param start_epoch: Start at this epoch with counting, should be 1
+        besides previous training is resumed.
         """
+
         best_val_score = -1
         best_epoch = 0
         best_state = None
@@ -186,9 +195,12 @@ class Solver():
         trainLogger.info("Created training loader of length %d",
                     len(training_loader))
 
-        iteration = 1
+        epochs_file = os.path.join(self.save_path, "models_to_epochs.json")
+        models_to_epochs = {}
 
-        for epoch in range(1, n_epochs+1):
+        iteration = (start_epoch - 1) * len(training_loader) + 1
+
+        for epoch in range(start_epoch, n_epochs+1):
             model.train()
 
             # TODO: Change training_set -> training_loader for batch size > 1
@@ -215,39 +227,38 @@ class Solver():
 
             # TODO: Early stopping
 
+            # Save after each epoch
+            model.eval()
+            model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
+            models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
+            with open(epochs_file, 'w') as f:
+                json.dump(models_to_epochs, f)
+            trainLogger.debug("Saved intermediate model from epoch %d.",
+                              epoch)
+
         # Save models
         model.eval()
-        model.save(os.path.join(self.save_path, "final.model"))
-        model.load_state_dict(best_state)
-        model.eval()
-        model.save(os.path.join(self.save_path, "best.model"))
-        logging.getLogger(ExecModes.TRAIN.name).info("Best model in epoch"\
-                                                     " %d", best_epoch)
+        model.save(os.path.join(self.save_path, FINAL_MODEL_NAME))
+        models_to_epochs[FINAL_MODEL_NAME] = epoch
+        if best_state is not None:
+            model.load_state_dict(best_state)
+            model.eval()
+            model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
+            models_to_epochs[BEST_MODEL_NAME] = best_epoch
+            trainLogger.info("Best model in epoch %d", best_epoch)
 
         # Save epochs corresponding to models
-        epochs_file = os.path.join(self.save_path, "models_to_epochs.json")
         with open(epochs_file, 'w') as f:
-            json.dump({"final.model": n_epochs, "best.model": best_epoch}, f)
+            json.dump(models_to_epochs, f)
 
+        trainLogger.info("Saved models at %s", self.save_path)
 
-        logging.getLogger(ExecModes.TRAIN.name).info("Saved models at"\
-                                                     " %s", self.save_path)
-
-def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
-    """
-    A full training routine including setup of experiments etc.
-
-    :param dict hps: Hyperparameters to use.
-    :param str experiment_name (optional): The name of the experiment
-    directory. If None, a name is created automatically.
-    :param lovlevel: The loglevel of the standard logger to use.
-    :return: The name of the experiment.
+def create_exp_directory(experiment_base_dir, experiment_name):
+    """ Create experiment directory and potentially subdirectories for logging
+    etc.
     """
 
-    ###### Prepare training experiment ######
-
-    experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
-
+    # Define name
     if experiment_name is not None:
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
     else:
@@ -264,12 +275,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
             new_id = 1
 
         experiment_name = "exp_" + str(new_id)
-        hps['EXPERIMENT_NAME'] = experiment_name
 
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
-
-    # Lower case param names as input to constructors/functions
-    hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # Create directories
     log_dir = get_log_dir(experiment_dir)
@@ -280,11 +287,55 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
         # Throw error if directory exists already
         os.makedirs(log_dir)
 
-    # Store hyperparameters
-    param_file = os.path.join(experiment_dir, "params.json")
-    hps_to_write = string_dict(hps)
-    with open(param_file, 'w') as f:
-        json.dump(hps_to_write, f)
+    return experiment_name, experiment_dir, log_dir
+
+def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
+                     resume=False):
+    """
+    A full training routine including setup of experiments etc.
+
+    :param dict hps: Hyperparameters to use.
+    :param str experiment_name (optional): The name of the experiment
+    directory. If None, a name is created automatically.
+    :param loglevel: The loglevel of the standard logger to use.
+    :param resume: If true, a previous training is resumed.
+    :return: The name of the experiment.
+    """
+
+    ###### Prepare training experiment ######
+
+    experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
+
+    if not resume:
+        # Create directories
+        experiment_name, experiment_dir, log_dir =\
+                create_exp_directory(experiment_base_dir, experiment_name)
+        hps['EXPERIMENT_NAME'] = experiment_name
+
+        # Store hyperparameters
+        param_file = os.path.join(experiment_dir, "params.json")
+        hps_to_write = string_dict(hps)
+        with open(param_file, 'w') as f:
+            json.dump(hps_to_write, f)
+    else:
+        # Directory already exists if training is resumed
+        experiment_dir = os.path.join(experiment_base_dir, experiment_name)
+        log_dir = get_log_dir(experiment_dir)
+
+        # Read previous config file
+        param_file = os.path.join(experiment_dir, "params.json")
+        with open(param_file, 'r') as f:
+            previous_hps = json.load(f)
+
+        # Check if configs are equal
+        hps_to_write = string_dict(hps)
+        for k_old, v_old in previous_hps.items():
+            if hps_to_write[k_old] != v_old:
+                raise RuntimeError(f"Hyperparameter {k_old} is not equal to the"\
+                                   " experiment that should be resumed.")
+
+    # Lower case param names as input to constructors/functions
+    hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # Configure logging
     init_logging(logger_name=ExecModes.TRAIN.name,
@@ -317,6 +368,21 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         config=hps['MODEL_CONFIG'])
+    if resume:
+        # Load state and epoch
+        model_path = os.path.join(experiment_dir, "intermediate.model")
+        trainLogger.info("Loading model %s...", model_path)
+        model.load_state_dict(torch.load(model_path))
+        epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
+        with open(epochs_file, 'r') as f:
+            models_to_epochs = json.load(f)
+        start_epoch = models_to_epochs[INTERMEDIATE_MODEL_NAME] + 1
+        trainLogger.info("Resuming training from epoch %d", start_epoch)
+    else:
+        # New training
+        start_epoch = 1
+
+    # Evaluation during training on validation set
     evaluator = ModelEvaluator(eval_dataset=validation_set,
                                save_dir=experiment_dir, **hps_lower)
 
@@ -327,8 +393,9 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO'):
                  n_epochs=hps['N_EPOCHS'],
                  batch_size=hps['BATCH_SIZE'],
                  early_stop=hps['EARLY_STOP'],
-                 eval_every=hps['EVAL_EVERY'])
+                 eval_every=hps['EVAL_EVERY'],
+                 start_epoch=start_epoch)
 
-    logging.getLogger(ExecModes.TRAIN.name).info("Training finished.")
+    trainLogger.info("Training finished.")
 
     return experiment_name
