@@ -128,8 +128,8 @@ class ModelEvaluator():
                 voxel_label_class = voxel_label.cpu()
                 voxel_label_class[voxel_label != c + 1] = 0
                 gt_mesh = create_mesh_from_voxels(voxel_label_class,
-                                                  self._mc_step_size).to_trimesh(process=True)
-                gt_mesh.export(os.path.join(self._mesh_dir, gt_filename))
+                                                  self._mc_step_size)
+                gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
 
             # Mesh prediction
             pred_mesh_filename = filename + "_epoch" + str(epoch) +\
@@ -137,8 +137,8 @@ class ModelEvaluator():
             vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
             vertices, faces = vertices[-1][c], faces[-1][c]
             pred_mesh = Mesh(vertices.squeeze().cpu(),
-                             faces.squeeze().cpu()).to_trimesh(process=True)
-            pred_mesh.export(os.path.join(self._mesh_dir, pred_mesh_filename))
+                             faces.squeeze().cpu())
+            pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
 
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\

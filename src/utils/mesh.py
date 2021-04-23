@@ -35,3 +35,6 @@ class Mesh():
                        normals=self.normals,
                        values=self.values,
                        process=process)
+    def store(self, path: str):
+        t_mesh = self.to_trimesh()
+        t_mesh.export(path)
