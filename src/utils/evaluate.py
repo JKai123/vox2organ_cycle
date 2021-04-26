@@ -19,13 +19,21 @@ from models.voxel2mesh import Voxel2Mesh
 
 class EvalMetrics(IntEnum):
     """ Supported evaluation metrics """
-    # Jaccard score/ Intersection over Union
-    Jaccard = 1
+    # Jaccard score/ Intersection over Union from voxel prediction
+    JaccardVoxel = 1
 
     # Chamfer distance between ground truth mesh and predicted mesh
     Chamfer = 2
 
-def Jaccard_score(pred, data, n_classes):
+    # Jaccard score/ Intersection over Union from mesh prediction
+    JaccardMesh = 3
+
+def JaccardMeshScore(pred, data, n_classes):
+    """ Jaccard averaged over classes ignoring background. The volume is
+    rasterized from a mesh using...
+    """
+
+def JaccardVoxelScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)
     _, voxel_label, _ = data # chop
@@ -43,7 +51,7 @@ def Jaccard_score(pred, data, n_classes):
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
 
-def Chamfer_score(pred, data, n_classes):
+def ChamferScore(pred, data, n_classes):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance is computed
@@ -84,8 +92,9 @@ class ModelEvaluator():
             os.mkdir(self._mesh_dir)
 
         self._metricHandler = {
-            EvalMetrics.Jaccard.name: Jaccard_score,
-            EvalMetrics.Chamfer.name: Chamfer_score
+            EvalMetrics.JaccardVoxel.name: JaccardVoxelScore,
+            EvalMetrics.JaccardMesh.name: JaccardMeshScore,
+            EvalMetrics.Chamfer.name: ChamferScore
         }
 
     def evaluate(self, model, epoch, save_meshes=5):
