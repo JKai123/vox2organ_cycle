@@ -50,8 +50,6 @@ def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
 def show_pointcloud(filenames: Union[str, list], backend='open3d'):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d or pyvista.
-    An alternative is based on PyntCloud and pyvista, see
-    'show_pointcloud_pynt'
 
     :param str filenames: A list of files or a directory name.
     :param str backend: 'open3d' or 'pyvista' (default)
