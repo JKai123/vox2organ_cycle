@@ -29,13 +29,15 @@ def write_test_results(results: dict, model_name: str, experiment_dir: str):
     logging.getLogger(ExecModes.TEST.name).info("Test result written to %s",
                                                 res_file)
 
-def test_routine(hps: dict, experiment_name, loglevel='INFO'):
+def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     """ A full testing routine for a trained model
 
     :param dict hps: Hyperparameters to use.
     :param str experiment_name: The experiment id where the trained models can
     be found.
-    :param lovlevel: The loglevel of the standard logger to use.
+    :param loglevel: The loglevel of the standard logger to use.
+    :param resume: Only for compatibility with training but single test routine
+    cannot be resumed.
     """
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
     if experiment_name is None:
@@ -56,6 +58,9 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO'):
                  params=hps_to_write)
 
     testLogger = logging.getLogger(ExecModes.TEST.name)
+    if resume:
+        testLogger.warning("Test routine cannot be resumed, ignoring this"\
+                           " parameter.")
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
     # Directoy where test results are written to
     test_dir = os.path.join(experiment_dir, "test")
