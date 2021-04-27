@@ -82,7 +82,7 @@ hyper_ps_default={
     # options
     'EVAL_METRICS': [
         'JaccardVoxel',
-        # 'JaccardMesh',
+        'JaccardMesh',
         'Chamfer'
     ],
 
