@@ -12,14 +12,14 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 
-from utils.utils import (string_dict,
-                         verts_faces_to_Meshes)
+from utils.utils import string_dict
 from utils.logging import (
     init_logging,
     log_losses,
     get_log_dir,
     log_val_results)
 from utils.modes import ExecModes
+from utils.mesh import verts_faces_to_Meshes
 from utils.evaluate import ModelEvaluator
 from utils.losses import linear_loss_combine, geometric_loss_combine
 from data.dataset import dataset_split_handler
@@ -132,7 +132,7 @@ class Solver():
 
         # Mesh losses
         vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
-        pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
+        pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
         targets = data['surface_points']
         for lf in self.mesh_loss_func:
             losses[str(lf)] = lf(pred_meshes, targets)
@@ -345,7 +345,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
                  mode=ExecModes.TRAIN,
                  proj_name=hps['PROJ_NAME'],
                  group_name=hps['GROUP_NAME'],
-                 params=hps_to_write)
+                 params=hps_to_write,
+                 time_logging=hps['TIME_LOGGING'])
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
     trainLogger.info("Start training '%s'...", experiment_name)
 

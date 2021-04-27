@@ -55,7 +55,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                  mode=ExecModes.TEST,
                  proj_name=hps['PROJ_NAME'],
                  group_name=hps['GROUP_NAME'],
-                 params=hps_to_write)
+                 params=hps_to_write,
+                 time_logging=hps['TIME_LOGGING'])
 
     testLogger = logging.getLogger(ExecModes.TEST.name)
     if resume:
