@@ -295,21 +295,18 @@ class Voxel2Mesh(nn.Module):
     def pred_to_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """
-        C = len(pred) - 1 # ignore background class
-        S = len(pred[0]) - 1 # ignore step 1
+        C = len(pred)
+        S = len(pred[0])
 
-        vertices = []
-        faces = []
+        vertices = np.empty((S,C), object)
+        faces = np.empty((S,C), object)
         for s in range(S):
-            step_verts = []
-            step_faces = []
             for c in range(C):
-                v, f, _, _, _ = pred[c][s+1]
-                step_verts.append(v)
-                step_faces.append(f)
-
-            vertices.append(step_verts)
-            faces.append(step_faces)
+                # No vertices and faces for background
+                if c != 0:
+                    v, f, _, _, _ = pred[c-1][s]
+                    vertices[s,c] = v
+                    faces[s,c] = f
 
         return vertices, faces
 
