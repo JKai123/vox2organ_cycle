@@ -10,7 +10,7 @@ import logging
 
 import json
 
-from utils.utils import string_dict
+from utils.utils import string_dict, update_dict
 from utils.train import create_exp_directory, Solver
 from utils.modes import ExecModes
 from utils.logging import init_logging
@@ -41,10 +41,10 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     hps['EXPERIMENT_NAME'] = experiment_name
 
     # Get a list of possible values for the parameter to tune
-    param_to_tune = hps['PARAM_TO_TUNE']
-    hps[param_to_tune] = 'will be tuned'
-    param_possibilities = possible_values[param_to_tune]()
-    param_possibilities.sort()
+    params_to_tune = hps['PARAMS_TO_TUNE']
+    for p in params_to_tune:
+        hps[p] = 'will be tuned'
+    param_possibilities = get_all_possibilities(params_to_tune)
 
     # Configure logging
     hps_to_write = string_dict(hps)
@@ -62,7 +62,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
                  time_logging=hps['TIME_LOGGING'])
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
     trainLogger.info("Start tuning experiment '%s'...", experiment_name)
-    trainLogger.info("Parameter under consideration: %s", param_to_tune)
+    trainLogger.info("Parameter under consideration: %s", params_to_tune)
     trainLogger.info("%d possible choices", len(param_possibilities))
 
     ###### Load data ######
@@ -83,7 +83,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     ###### Training with each configuration ######
     results = {
-        "Parameter": param_to_tune,
+        "Parameter": params_to_tune,
         "All results": {}
     }
 
@@ -91,9 +91,12 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     best_choice = None
 
     for i, choice in enumerate(param_possibilities):
-        hps[param_to_tune] = choice
 
-        trainLogger.debug("Choice: %s", str(choice))
+        # Update params with current choice
+        hps = update_dict(hps, choice)
+
+        trainLogger.info("Choice: %s, %d/%d", str(choice), i+1,
+                         len(param_possibilities))
 
         # Lower case param names as input to constructors/functions
         hps_lower = dict((k.lower(), v) for k, v in hps.items())
@@ -141,6 +144,21 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     return experiment_name
 
+def get_all_possibilities(params_to_tune):
+    """ Get a dict for each possible configuration containing the parameter
+    names as keys and the values of the parameters as values."""
+    possibilities_per_param = {}
+    for p in params_to_tune:
+        if p not in possible_values:
+            raise RuntimeError(f"Parameter {p} unknown.")
+        param_possibilities = possible_values[p]()
+        param_possibilities.sort()
+        possibilities_per_param[p] = param_possibilities
+
+    all_perms = create_permutations_of_param_choices(possibilities_per_param)
+
+    return all_perms
+
 def get_mesh_loss_func_weights():
     n_losses = 4 # Should be equal to the number of losses used
     possible_values_per_weight = [1.0, 0.5, 0.1, 0.01]
@@ -152,8 +170,34 @@ def get_mesh_loss_func_weights():
     weights_list = [w for w in weights_list\
                     if(w[0] > w[1] and w[0] > w[2] and w[0] > w[3])]
 
+    return weights_list
+
+def get_voxel_loss_func_weights():
+    n_losses = 1 # Should be equal to the number of losses used
+    possible_values_per_weight = [1.0, 0.5, 0.1]
+
+    weights_list = create_permutations(n_losses, possible_values_per_weight)
 
     return weights_list
+
+def create_permutations_of_param_choices(params_and_possibilities: dict):
+    """ Create a dict for each permutation of parameters such that every
+    possibility to combine params_and_possibilities is covered.
+    """
+    k = list(params_and_possibilities)[0]
+    if len(params_and_possibilities) == 1:
+        v = params_and_possibilities[k]
+        perm = [{k: v_i} for v_i in v]
+    else:
+        perm = []
+        v = params_and_possibilities.pop(k)
+        subperm = create_permutations_of_param_choices(params_and_possibilities)
+        for sub_p in subperm:
+            sub_p_new = copy.deepcopy(sub_p)
+            for v_i in v:
+                sub_p_new[k] = v_i
+                perm.append(copy.deepcopy(sub_p_new))
+    return perm
 
 def create_permutations(n_positions, possibilities_per_position):
     """ Create a list of all permutations from 'n_positions' where each has one
@@ -171,5 +215,6 @@ def create_permutations(n_positions, possibilities_per_position):
     return perm
 
 possible_values = {
-    'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights
+    'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights,
+    'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights
 }

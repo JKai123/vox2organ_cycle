@@ -136,6 +136,7 @@ def write_img_if_debug(img_1: np.ndarray, img_2: np.ndarray):
     """
     file_1 = "../misc/img_1.nii.gz"
     file_2 = "../misc/img_2.nii.gz"
+    debug = True
     if debug:
         img_1 = nib.Nifti1Image(img_1, np.eye(4))
         nib.save(img_1, file_1)

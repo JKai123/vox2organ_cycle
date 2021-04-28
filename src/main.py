@@ -32,6 +32,8 @@ hyper_ps = {
         # 'JaccardVoxel',
         'JaccardMesh'
     ],
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -73,7 +75,8 @@ def main(hps):
     argparser.add_argument('--tune',
                            default=None,
                            type=str,
-                           dest='param_to_tune',
+                           dest='params_to_tune',
+                           nargs='+',
                            help="Specify the name of a parameter to tune.")
     argparser.add_argument('--resume',
                            action='store_true',
@@ -128,7 +131,7 @@ def main(hps):
     hps['DEVICE'] = args.device
     hps['OVERFIT'] = args.overfit
     hps['TIME_LOGGING'] = args.time
-    hps['PARAM_TO_TUNE'] = args.param_to_tune
+    hps['PARAMS_TO_TUNE'] = args.params_to_tune
 
     if args.exp_name == "debug":
         # Overfit when debugging
@@ -139,7 +142,7 @@ def main(hps):
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
 
-    if args.param_to_tune is not None:
+    if args.params_to_tune is not None:
         mode = ExecModes.TUNE
     else:
         if args.train and not args.test:
