@@ -19,7 +19,6 @@ from utils.utils import (
     unnormalize_vertices,
     sample_inner_volume_in_voxel)
 from utils.logging import (
-    write_array_if_debug,
     write_img_if_debug,
     measure_time)
 from models.voxel2mesh import Voxel2Mesh
@@ -40,32 +39,20 @@ def JaccardMeshScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
-    _, voxel_target, mesh_target = data
+    _, voxel_target, _ = data
     shape = torch.tensor(voxel_target.shape)[None]
     vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
-    pred_voxels = [None] # None for background class 0
-    target_voxels = [None] # None for background class 0
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
     for c in range(1, n_classes):
         # Only mesh of last step considered
         unnorm_verts = unnormalize_vertices(vertices[-1][c].squeeze(), shape)
         pv = Mesh(unnorm_verts,
                   faces[-1][c]).get_occupied_voxels(shape.squeeze().cpu().numpy())
-        pred_voxels.append(pv)
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
         # Potentially overwrites previous class prediction if overlapping
         voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = c
 
-        # Coords of ground truth voxels corresponding to the respective class
-        tv = (voxel_target == (c)).nonzero(as_tuple=False)
-        tv = torch.flip(tv, dims=[1])  # convert z,y,x -> x, y, z
-        tv = tv.cpu().numpy()
-        target_voxels.append(tv)
-
-        write_array_if_debug(pv, tv)
-
     # Strip off one layer of voxels
-    # TODO: Move into Mesh.get_occupied_voxels
     voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)
     write_img_if_debug(voxel_pred_inner.cpu().numpy(),
                        voxel_target.cpu().numpy())
