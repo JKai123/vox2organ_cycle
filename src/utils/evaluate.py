@@ -14,7 +14,13 @@ from pytorch3d.loss import chamfer_distance
 
 from utils.modes import ExecModes
 from utils.mesh import Mesh
-from utils.utils import create_mesh_from_voxels, verts_faces_to_Meshes
+from utils.utils import (
+    create_mesh_from_voxels,
+    unnormalize_vertices,
+    sample_inner_volume_in_voxel)
+from utils.logging import (
+    write_img_if_debug,
+    measure_time)
 from models.voxel2mesh import Voxel2Mesh
 
 class EvalMetrics(IntEnum):
@@ -28,19 +34,81 @@ class EvalMetrics(IntEnum):
     # Jaccard score/ Intersection over Union from mesh prediction
     JaccardMesh = 3
 
+@measure_time
 def JaccardMeshScore(pred, data, n_classes):
-    """ Jaccard averaged over classes ignoring background. The volume is
-    rasterized from a mesh using...
+    """ Jaccard averaged over classes ignoring background. The mesh prediction
+    is compared against the voxel ground truth.
     """
+    _, voxel_target, _ = data
+    shape = torch.tensor(voxel_target.shape)[None]
+    vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+    voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
+    for c in range(1, n_classes):
+        # Only mesh of last step considered
+        unnorm_verts = unnormalize_vertices(vertices[-1][c].squeeze(), shape)
+        pv = Mesh(unnorm_verts,
+                  faces[-1][c]).get_occupied_voxels(shape.squeeze().cpu().numpy())
+        pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
+        # Potentially overwrites previous class prediction if overlapping
+        voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = c
 
+    # Strip off one layer of voxels
+    voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)
+    write_img_if_debug(voxel_pred_inner.cpu().numpy(),
+                       voxel_target.cpu().numpy())
+
+    # j_coo = Jaccard_from_Coords(pred_voxels, target_voxels, n_classes)
+    j_vox = Jaccard(voxel_pred_inner.cuda(), voxel_target.cuda(), n_classes)
+
+    return j_vox
+
+@measure_time
 def JaccardVoxelScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)
     _, voxel_label, _ = data # chop
+
+    return Jaccard(voxel_pred, voxel_label, n_classes)
+
+@measure_time
+def Jaccard_from_Coords(pred, target, n_classes):
+    """ Jaccard/ Intersection over Union from lists of occupied voxels. This
+    necessarily implies that all occupied voxels belong to one class.
+
+    Attention: This function is usally a lot slower than 'Jaccard' (probably
+    because it does not exploit cuda).
+
+    :param pred: Shape (C, V, 3)
+    :param target: Shape (C, V, 3)
+    :param n_classes: C
+    """
     ious = []
+    # Ignoring background class 0
     for c in range(1, n_classes):
-        pred_idxs = voxel_pred == c
-        target_idxs = voxel_label == c
+        if isinstance(pred[c], torch.Tensor):
+            pred[c] = pred[c].cpu().numpy()
+        if isinstance(target[c], torch.Tensor):
+            target[c] = target[c].cpu().numpy()
+        intersection = 0
+        for co in pred[c]:
+            if any(np.equal(target[c], co).all(1)):
+                intersection += 1
+
+        union = pred[c].shape[0] + target[c].shape[0] - intersection
+
+        # +1 for smoothing (no division by 0)
+        ious.append(float(intersection + 1) / float(union + 1))
+
+    return np.sum(ious)/(n_classes - 1)
+
+@measure_time
+def Jaccard(pred, target, n_classes):
+    """ Jaccard/Intersection over Union from 3D voxel volumes """
+    ious = []
+    # Ignoring background class 0
+    for c in range(1, n_classes):
+        pred_idxs = pred == c
+        target_idxs = target == c
         intersection = pred_idxs[target_idxs].long().sum().data.cpu()
         union = pred_idxs.long().sum().data.cpu() + \
                     target_idxs.long().sum().data.cpu() -\
@@ -62,7 +130,7 @@ def ChamferScore(pred, data, n_classes):
     _, _, gt_mesh = data # chop
     gt_vertices = gt_mesh.vertices.cuda()[None] # currently only one class
     chamfer_scores = []
-    for c in range(n_classes - 1):
+    for c in range(1, n_classes):
         pred_vertices = pred_vertices[-1][c] # only consider last mesh step
         chamfer_scores.append(chamfer_distance(pred_vertices,
                                                gt_vertices)[0].cpu().item())
@@ -129,20 +197,20 @@ class ModelEvaluator():
         cubes
         """
         _, voxel_label, _ = data # chop
-        for c in range(self._n_classes-1):
+        for c in range(1, self._n_classes):
             # Label
-            gt_filename = filename + "_class" + str(c + 1) + "_gt.ply"
+            gt_filename = filename + "_class" + str(c) + "_gt.ply"
             if not os.path.isfile(gt_filename):
                 # gt file does not exist yet
                 voxel_label_class = voxel_label.cpu()
-                voxel_label_class[voxel_label != c + 1] = 0
+                voxel_label_class[voxel_label != c] = 0
                 gt_mesh = create_mesh_from_voxels(voxel_label_class,
                                                   self._mc_step_size)
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
 
             # Mesh prediction
             pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                "_class" + str(c + 1) + "_meshpred.ply"
+                "_class" + str(c) + "_meshpred.ply"
             vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
             vertices, faces = vertices[-1][c], faces[-1][c]
             pred_mesh = Mesh(vertices.squeeze().cpu(),
@@ -151,7 +219,7 @@ class ModelEvaluator():
 
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                "_class" + str(c + 1) + "_voxelpred.ply"
+                "_class" + str(c) + "_voxelpred.ply"
             pred_voxel = Voxel2Mesh.pred_to_voxel_pred(pred)
             try:
                 mc_pred_mesh = create_mesh_from_voxels(pred_voxel,

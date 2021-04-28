@@ -25,6 +25,7 @@ from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2mesh.file_handle import read_obj 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
 from utils.modes import ExecModes
+from utils.logging import measure_time
 
 from models.u_net import UNetLayer
 
@@ -116,7 +117,7 @@ class Voxel2Mesh(nn.Module):
 
 
  
-  
+    @measure_time 
     def forward(self, data):
          
         x = data['x'] 
@@ -280,7 +281,8 @@ class Voxel2Mesh(nn.Module):
                        'vertices_mc': data[2].vertices.cuda(),
                        'faces_mc': data[2].faces.cuda(),
                        'surface_points': surface_points_normalized_all,
-                       'unpool':[0, 1, 1, 1, 1]}
+                       'unpool':[0, 1, 0, 1, 0]}
+                       # 'unpool':[0, 1, 1, 1, 1]}
         else:
             raise ValueError("Unknown execution mode.")
 
@@ -295,21 +297,18 @@ class Voxel2Mesh(nn.Module):
     def pred_to_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """
-        C = len(pred) - 1 # ignore background class
-        S = len(pred[0]) - 1 # ignore step 1
+        C = len(pred)
+        S = len(pred[0])
 
-        vertices = []
-        faces = []
+        vertices = np.empty((S,C), object)
+        faces = np.empty((S,C), object)
         for s in range(S):
-            step_verts = []
-            step_faces = []
             for c in range(C):
-                v, f, _, _, _ = pred[c][s+1]
-                step_verts.append(v)
-                step_faces.append(f)
-
-            vertices.append(step_verts)
-            faces.append(step_faces)
+                # No vertices and faces for background
+                if c != 0:
+                    v, f, _, _, _ = pred[c-1][s]
+                    vertices[s,c] = v
+                    faces[s,c] = f
 
         return vertices, faces
 

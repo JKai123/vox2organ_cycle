@@ -14,8 +14,6 @@ import nibabel as nib
 import torch
 import torch.nn.functional as F
 
-from pytorch3d.structures import Meshes
-
 from skimage import measure
 
 from plyfile import PlyData
@@ -89,6 +87,13 @@ def normalize_vertices(vertices, shape):
     assert shape.shape[0] == 1, "first dim of shape should be length 1"
 
     return 2*(vertices/(torch.max(shape)-1) - 0.5)
+
+def unnormalize_vertices(vertices, shape):
+    """ Inverse of 'normalize vertices' """
+    assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
+    assert shape.shape[0] == 1, "first dim of shape should be length 1"
+
+    return (0.5 * vertices + 0.5) * (torch.max(shape) - 1)
 
 def create_mesh_from_voxels(volume, mc_step_size):
     """ Convert a voxel volume to mesh using marching cubes
@@ -189,27 +194,30 @@ def sample_outer_surface_in_voxel(volume):
     vertices.
     """
     a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))[0]
-    b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3, 1), stride=1, padding=(0, 1, 0))[0]
+    b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))[0]
     c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))[0]
-    border, _ = torch.max(torch.cat([a,b,c],dim=0),dim=0)
+    border, _ = torch.max(torch.cat([a,b,c], dim=0), dim=0)
     surface = border - volume.float()
     return surface.long()
 
-def verts_faces_to_Meshes(verts, faces, ndim):
-    """ Convert lists of vertices and faces to lists of
-    pytorch3d.structures.Meshes
 
-    :param verts: Lists of vertices.
-    :param faces: Lists of faces.
-    :param ndim: The list dimensions.
-    :returns: A list of Meshes of dimension n_dim.
+def sample_inner_volume_in_voxel(volume):
+    """ Samples an inner volume in 3D given a volume representation of the
+    objects. This can be seen as 'stripping off' one layer of pixels.
+
+    Attention: 'sample_inner_volume_in_voxel' and
+    'sample_outer_surface_in_voxel' are not inverse to each other since
+    several volumes can lead to the same inner volume.
     """
-    meshes = []
-    for v, f in zip(verts, faces):
-        if ndim > 1:
-            meshes.append(verts_faces_to_Meshes(v, f, ndim-1))
-        else:
-            meshes.append(Meshes(verts=list(v), faces=list(f)))
-
-    return meshes
-
+    neg_volume = -1 * volume # max --> min
+    neg_volume_a = F.pad(neg_volume, (0,0,0,0,1,1)) # Zero-pad
+    a = F.max_pool3d(neg_volume_a[None,None].float(), kernel_size=(3,1,1), stride=1)[0]
+    neg_volume_b = F.pad(neg_volume, (0,0,1,1,0,0)) # Zero-pad
+    b = F.max_pool3d(neg_volume_b[None,None].float(), kernel_size=(1,3,1), stride=1)[0]
+    neg_volume_c = F.pad(neg_volume, (1,1,0,0,0,0)) # Zero-pad
+    c = F.max_pool3d(neg_volume_c[None,None].float(), kernel_size=(1,1,3), stride=1)[0]
+    border, _ = torch.max(torch.cat([a,b,c], dim=0), dim=0)
+    border = -1 * border
+    inner_volume = torch.logical_and(volume, border)
+    # Seems to lead to problems if volume.dtype == torch.uint8
+    return inner_volume.type(volume.dtype)

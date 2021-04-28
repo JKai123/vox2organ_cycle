@@ -82,13 +82,13 @@ hyper_ps_default={
     # options
     'EVAL_METRICS': [
         'JaccardVoxel',
-        # 'JaccardMesh',
+        'JaccardMesh',
         'Chamfer'
     ],
 
     # Main validation metric according to which the best model is determined.
     # Note: This one must also be part of 'EVAL_METRICS'!
-    'MAIN_EVAL_METRIC': 'Chamfer',
+    'MAIN_EVAL_METRIC': 'JaccardMesh',
 
     # The number of image dimensions
     'N_DIMS': 3,
