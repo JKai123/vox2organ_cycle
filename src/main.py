@@ -10,21 +10,28 @@ from utils.params import hyper_ps_default
 from utils.modes import ExecModes
 from utils.utils import update_dict
 from utils.train import training_routine
+from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.losses import ChamferLoss
 
 # Overwrite default parameters
 hyper_ps = {
+    # Overwriting std values from utils.params
     #######################
     'EXPERIMENT_NAME': None,  # Attention: "debug" overwrites previous dir"
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 100,
-    'LOG_EVERY': 50,
+    'N_EPOCHS': 10,
+    'LOG_EVERY': 130,
     'EVAL_EVERY': 10,
-    'AUGMENT_TRAIN': True,
+    'AUGMENT_TRAIN': False,
+    'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
+    'EVAL_METRICS': [
+        # 'JaccardVoxel',
+        'JaccardMesh'
+    ],
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -34,7 +41,8 @@ hyper_ps = {
 mode_handler = {
     ExecModes.TRAIN.value: training_routine,
     ExecModes.TEST.value: test_routine,
-    ExecModes.TRAIN_TEST.value: train_test_routine
+    ExecModes.TRAIN_TEST.value: train_test_routine,
+    ExecModes.TUNE.value: tuning_routine
 }
 
 
@@ -62,6 +70,11 @@ def main(hps):
     argparser.add_argument('--test',
                            action='store_true',
                            help="Test a model.")
+    argparser.add_argument('--tune',
+                           default=None,
+                           type=str,
+                           dest='param_to_tune',
+                           help="Specify the name of a parameter to tune.")
     argparser.add_argument('--resume',
                            action='store_true',
                            help="Resume an existing, potentially unfinished"\
@@ -89,6 +102,9 @@ def main(hps):
     argparser.add_argument('--overfit',
                            action='store_true',
                            help="Overfit on a single training sample.")
+    argparser.add_argument('--time',
+                           action='store_true',
+                           help="Measure time of some functions.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -111,26 +127,30 @@ def main(hps):
     hps['GROUP_NAME'] = args.group_name
     hps['DEVICE'] = args.device
     hps['OVERFIT'] = args.overfit
+    hps['TIME_LOGGING'] = args.time
+    hps['PARAM_TO_TUNE'] = args.param_to_tune
 
     if args.exp_name == "debug":
         # Overfit when debugging
         hps['OVERFIT'] = True
-
 
     torch.cuda.set_device(args.device)
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
 
-    if args.train and not args.test:
-        mode = ExecModes.TRAIN.value
-    if args.test and not args.train:
-        mode = ExecModes.TEST.value
-    if args.train and args.test:
-        mode = ExecModes.TRAIN_TEST.value
-    if not args.test and not args.train:
-        print("Please use either --train or --test or both.")
-        return
+    if args.param_to_tune is not None:
+        mode = ExecModes.TUNE
+    else:
+        if args.train and not args.test:
+            mode = ExecModes.TRAIN.value
+        if args.test and not args.train:
+            mode = ExecModes.TEST.value
+        if args.train and args.test:
+            mode = ExecModes.TRAIN_TEST.value
+        if not args.test and not args.train:
+            print("Please use either --train or --test or both.")
+            return
 
     # Run
     routine = mode_handler[mode]

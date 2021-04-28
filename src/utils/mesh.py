@@ -51,12 +51,22 @@ class Mesh():
         t_mesh = self.to_trimesh()
         t_mesh.export(path)
 
-    def get_occupied_voxels(self):
-        "Get the occupied voxels of the mesh """
+    def get_occupied_voxels(self, shape):
+        "Get the occupied voxels of the mesh lying within 'shape'"""
+        assert len(shape) == 3, "Shape should represent 3 dimensions."
+
         voxelized = self.to_trimesh().voxelized(1.0).fill()
         # Coords = trimesh coords + translation
-        vox_occupied = voxelized.sparse_indices +\
-            np.around(voxelized.translation).astype(int)
+        vox_occupied = np.around(voxelized.sparse_indices +\
+            voxelized.translation).astype(int)
+
+        # 0 <= coords < shape
+        vox_occupied = [vo for vo in vox_occupied\
+                        if (vo >= 0).all() and (vo < shape).all()]
+        vox_occupied = np.asarray(vox_occupied)
+        if vox_occupied.ndim < 2:
+            # Bug?
+            breakpoint()
 
         return vox_occupied
 

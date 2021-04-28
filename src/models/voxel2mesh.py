@@ -25,6 +25,7 @@ from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2mesh.file_handle import read_obj 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
 from utils.modes import ExecModes
+from utils.logging import measure_time
 
 from models.u_net import UNetLayer
 
@@ -116,7 +117,7 @@ class Voxel2Mesh(nn.Module):
 
 
  
-  
+    @measure_time 
     def forward(self, data):
          
         x = data['x'] 
@@ -280,7 +281,8 @@ class Voxel2Mesh(nn.Module):
                        'vertices_mc': data[2].vertices.cuda(),
                        'faces_mc': data[2].faces.cuda(),
                        'surface_points': surface_points_normalized_all,
-                       'unpool':[0, 1, 1, 1, 1]}
+                       'unpool':[0, 1, 0, 1, 0]}
+                       # 'unpool':[0, 1, 1, 1, 1]}
         else:
             raise ValueError("Unknown execution mode.")
 

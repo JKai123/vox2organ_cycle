@@ -35,6 +35,7 @@ class EvalMetrics(IntEnum):
     # Jaccard score/ Intersection over Union from mesh prediction
     JaccardMesh = 3
 
+@measure_time
 def JaccardMeshScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
@@ -48,7 +49,8 @@ def JaccardMeshScore(pred, data, n_classes):
     for c in range(1, n_classes):
         # Only mesh of last step considered
         unnorm_verts = unnormalize_vertices(vertices[-1][c].squeeze(), shape)
-        pv = Mesh(unnorm_verts, faces[-1][c]).get_occupied_voxels()
+        pv = Mesh(unnorm_verts,
+                  faces[-1][c]).get_occupied_voxels(shape.squeeze().cpu().numpy())
         pred_voxels.append(pv)
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
         # Potentially overwrites previous class prediction if overlapping
@@ -68,11 +70,12 @@ def JaccardMeshScore(pred, data, n_classes):
     write_img_if_debug(voxel_pred_inner.cpu().numpy(),
                        voxel_target.cpu().numpy())
 
-    j_coo = Jaccard_from_Coords(pred_voxels, target_voxels, n_classes)
+    # j_coo = Jaccard_from_Coords(pred_voxels, target_voxels, n_classes)
     j_vox = Jaccard(voxel_pred_inner.cuda(), voxel_target.cuda(), n_classes)
 
     return j_vox
 
+@measure_time
 def JaccardVoxelScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)

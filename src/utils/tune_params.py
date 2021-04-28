@@ -1,0 +1,175 @@
+
+""" Hyperparameter tuning """
+
+__author__ = "Fabi Bongratz"
+__email__ = "fabi.bongratz@gmail.com"
+
+import os
+import copy
+import logging
+
+import json
+
+from utils.utils import string_dict
+from utils.train import create_exp_directory, Solver
+from utils.modes import ExecModes
+from utils.logging import init_logging
+from utils.evaluate import ModelEvaluator
+from models.model_handler import ModelHandler
+from data.dataset import dataset_split_handler
+
+def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
+    """
+    A hyperparameter sweep.
+
+    :param dict hps: Hyperparameters to use.
+    :param str experiment_name (optional): The name of the experiment
+    directory. If None, a name is created automatically.
+    :param loglevel: The loglevel of the standard logger to use.
+    :return: The name of the experiment.
+    """
+    ###### Prepare tuning experiment ######
+
+    experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
+
+    # Only consider few epochs when tuning parameters
+    hps['N_EPOCHS'] = 10
+
+    # Create directories
+    experiment_name, experiment_dir, log_dir =\
+            create_exp_directory(experiment_base_dir, experiment_name)
+    hps['EXPERIMENT_NAME'] = experiment_name
+
+    # Get a list of possible values for the parameter to tune
+    param_to_tune = hps['PARAM_TO_TUNE']
+    hps[param_to_tune] = 'will be tuned'
+    param_possibilities = possible_values[param_to_tune]()
+    param_possibilities.sort()
+
+    # Configure logging
+    hps_to_write = string_dict(hps)
+    param_file = os.path.join(experiment_dir, "params.json")
+    with open(param_file, 'w') as f:
+        json.dump(hps_to_write, f)
+    init_logging(logger_name=ExecModes.TRAIN.name,
+                 exp_name=experiment_name,
+                 log_dir=log_dir,
+                 loglevel=loglevel,
+                 mode=ExecModes.TUNE,
+                 proj_name=hps['PROJ_NAME'],
+                 group_name=hps['GROUP_NAME'],
+                 params=hps_to_write,
+                 time_logging=hps['TIME_LOGGING'])
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Start tuning experiment '%s'...", experiment_name)
+    trainLogger.info("Parameter under consideration: %s", param_to_tune)
+    trainLogger.info("%d possible choices", len(param_possibilities))
+
+    ###### Load data ######
+    hps_lower = dict((k.lower(), v) for k, v in hps.items())
+    trainLogger.info("Loading dataset %s...", hps['DATASET'])
+    training_set,\
+            validation_set,\
+            test_set=\
+                dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
+                                                      **hps_lower)
+    trainLogger.info("%d training files.", len(training_set))
+    trainLogger.info("%d validation files.", len(validation_set))
+    trainLogger.info("%d test files.", len(test_set))
+
+    # Evaluation during training on validation set
+    evaluator = ModelEvaluator(eval_dataset=validation_set,
+                               save_dir=experiment_dir, **hps_lower)
+
+    ###### Training with each configuration ######
+    results = {
+        "Parameter": param_to_tune,
+        "All results": {}
+    }
+
+    best_score = 0.0
+    best_choice = None
+
+    for i, choice in enumerate(param_possibilities):
+        hps[param_to_tune] = choice
+
+        trainLogger.debug("Choice: %s", str(choice))
+
+        # Lower case param names as input to constructors/functions
+        hps_lower = dict((k.lower(), v) for k, v in hps.items())
+
+        model = ModelHandler[hps['ARCHITECTURE']].value(\
+                                            ndims=hps['N_DIMS'],
+                                            num_classes=hps['N_CLASSES'],
+                                            patch_shape=hps['PATCH_SIZE'],
+                                            config=hps['MODEL_CONFIG'])
+        # New training
+        start_epoch = 1
+
+        solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
+
+        # Final validation score is the value of interest
+        final_val_score = solver.train(model=model,
+                     training_set=training_set,
+                     n_epochs=hps['N_EPOCHS'],
+                     batch_size=hps['BATCH_SIZE'],
+                     early_stop=hps['EARLY_STOP'],
+                     eval_every=hps['EVAL_EVERY'],
+                     start_epoch=start_epoch,
+                     save_models=False) # No model saving when tuning
+
+        if final_val_score > best_score or i == 0:
+            best_score = final_val_score
+            best_choice = choice
+
+        results["All results"][str(choice)] = final_val_score
+
+        # Save intermediate results
+        intermediate_file = os.path.join(experiment_dir, 'intermediate_tuning_results.json')
+        with open(intermediate_file, 'w') as f:
+            json.dump(results, f)
+
+    # Finalize
+    results["Best score"] = best_score
+    results["Best choice"] = best_choice
+    results_file = os.path.join(experiment_dir, 'tuning_results.json')
+    with open(results_file, 'w') as f:
+        json.dump(results, f)
+    trainLogger.info("Tuning results written to %s", results_file)
+
+    trainLogger.info("Tuning finished.")
+
+    return experiment_name
+
+def get_mesh_loss_func_weights():
+    n_losses = 4 # Should be equal to the number of losses used
+    possible_values_per_weight = [1.0, 0.5, 0.1, 0.01]
+
+    weights_list = create_permutations(n_losses, possible_values_per_weight)
+
+    # Reduce possibilities by assuming that Chamfer should get the highest
+    # weight in every case
+    weights_list = [w for w in weights_list\
+                    if(w[0] > w[1] and w[0] > w[2] and w[0] > w[3])]
+
+
+    return weights_list
+
+def create_permutations(n_positions, possibilities_per_position):
+    """ Create a list of all permutations from 'n_positions' where each has one
+    of 'possibilities_per_position' values.
+    """
+    if n_positions == 1:
+        perm = [[p] for p in possibilities_per_position]
+    else:
+        perm = []
+        subperm = create_permutations(n_positions-1, possibilities_per_position)
+        for sub_p in subperm:
+            sub_p_new = copy.deepcopy(sub_p)
+            for p in possibilities_per_position:
+                perm.append(sub_p_new + [p])
+    return perm
+
+possible_values = {
+    'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights
+}

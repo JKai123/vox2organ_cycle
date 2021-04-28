@@ -15,6 +15,8 @@ import nibabel as nib
 
 from utils.modes import ExecModes
 
+# global variables
+use_wandb = True
 debug = False
 log_time = False
 
@@ -29,7 +31,7 @@ def log_losses(losses, iteration):
     for k, v in losses.items():
         trainLogger.info("%s: %.5f", k, v)
 
-    if not debug:
+    if use_wandb:
         wandb.log(losses, step=iteration)
 
 def log_val_results(val_results, iteration):
@@ -39,7 +41,7 @@ def log_val_results(val_results, iteration):
     for k, v in val_results.items():
         trainLogger.info("%s: %.5f", k, v)
 
-    if not debug:
+    if use_wandb:
         wandb.log(val_results, step=iteration)
 
 def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
@@ -90,13 +92,19 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     :param dict params: The experiment configuration.
     :param bool measure_time: Enable time measurement for some functions.
     """
+    # no wanb when debugging or not in training mode
+    global use_wandb
+    global debug
     if exp_name == 'debug':
-        global debug
+        use_wandb = False
         debug = True
         loglevel='DEBUG'
 
+    if mode != ExecModes.TRAIN:
+        use_wandb = False
+
     init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
-    if not debug and not mode == ExecModes.TEST: # no wanb when debugging or just testing
+    if use_wandb:
         init_wandb_logging(exp_name=exp_name,
                            log_dir=log_dir,
                            wandb_proj_name=proj_name,
@@ -143,7 +151,7 @@ def measure_time(func):
             return_value = func(*args, **kwargs)
             toc = time.perf_counter()
             time_elapsed = toc - tic
-            logging.getLogger("TIME").debug("Function %s takes %.5f s",
+            logging.getLogger("TIME").info("Function %s takes %.5f s",
                                             func.__name__, time_elapsed)
 
         else:

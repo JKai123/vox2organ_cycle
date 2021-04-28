@@ -11,6 +11,7 @@ class ExecModes(IntEnum):
     TRAIN = 1
     TEST = 2
     TRAIN_TEST = 3
+    TUNE = 4
 
 class DataModes(IntEnum):
     """ Modes for data """

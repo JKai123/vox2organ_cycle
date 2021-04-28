@@ -153,7 +153,7 @@ class Solver():
         losses['TotalLoss'] = loss_total
 
         # log
-        if (iteration - 1) % self.log_every == 0:
+        if iteration % self.log_every == 0:
             log_losses(losses, iteration)
 
         return loss_total
@@ -165,7 +165,8 @@ class Solver():
               batch_size: int,
               early_stop: bool,
               eval_every: int,
-              start_epoch: int):
+              start_epoch: int,
+              save_models: bool=True):
         """
         Training procedure
 
@@ -178,6 +179,7 @@ class Solver():
         :param eval_every: Evaluate the model every n epochs.
         :param start_epoch: Start at this epoch with counting, should be 1
         besides previous training is resumed.
+        :param save_models: Save the final and best model.
         """
 
         best_val_score = -1
@@ -211,7 +213,7 @@ class Solver():
                 iteration += 1
 
             # Evaluate
-            if (epoch - 1) % eval_every == 0:
+            if epoch % eval_every == 0 or epoch == n_epochs:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=0)
@@ -220,7 +222,7 @@ class Solver():
                 # Main validation score
                 # Attention: smaller = better is assumed!
                 main_val_score = val_results[self.main_eval_metric]
-                if main_val_score < best_val_score or epoch == 1:
+                if main_val_score > best_val_score or epoch == 1:
                     best_val_score = main_val_score
                     best_state = model.state_dict()
                     best_epoch = epoch
@@ -228,30 +230,35 @@ class Solver():
             # TODO: Early stopping
 
             # Save after each epoch
-            model.eval()
-            model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
-            models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
-            with open(epochs_file, 'w') as f:
-                json.dump(models_to_epochs, f)
-            trainLogger.debug("Saved intermediate model from epoch %d.",
-                              epoch)
+            if save_models:
+                model.eval()
+                model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
+                models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
+                with open(epochs_file, 'w') as f:
+                    json.dump(models_to_epochs, f)
+                trainLogger.debug("Saved intermediate model from epoch %d.",
+                                  epoch)
 
         # Save models
-        model.eval()
-        model.save(os.path.join(self.save_path, FINAL_MODEL_NAME))
-        models_to_epochs[FINAL_MODEL_NAME] = epoch
-        if best_state is not None:
-            model.load_state_dict(best_state)
+        if save_models:
             model.eval()
-            model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
-            models_to_epochs[BEST_MODEL_NAME] = best_epoch
-            trainLogger.info("Best model in epoch %d", best_epoch)
+            model.save(os.path.join(self.save_path, FINAL_MODEL_NAME))
+            models_to_epochs[FINAL_MODEL_NAME] = epoch
+            if best_state is not None:
+                model.load_state_dict(best_state)
+                model.eval()
+                model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
+                models_to_epochs[BEST_MODEL_NAME] = best_epoch
+                trainLogger.info("Best model in epoch %d", best_epoch)
 
-        # Save epochs corresponding to models
-        with open(epochs_file, 'w') as f:
-            json.dump(models_to_epochs, f)
+            # Save epochs corresponding to models
+            with open(epochs_file, 'w') as f:
+                json.dump(models_to_epochs, f)
 
-        trainLogger.info("Saved models at %s", self.save_path)
+            trainLogger.info("Saved models at %s", self.save_path)
+
+        # Return last main validation score
+        return main_val_score
 
 def create_exp_directory(experiment_base_dir, experiment_name):
     """ Create experiment directory and potentially subdirectories for logging
