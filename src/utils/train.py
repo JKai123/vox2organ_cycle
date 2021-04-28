@@ -193,7 +193,8 @@ class Solver():
 
         self.optim = self.optim_class(model.parameters(), **self.optim_params)
 
-        training_loader = DataLoader(training_set, batch_size=batch_size)
+        training_loader = DataLoader(training_set, batch_size=batch_size,
+                                     shuffle=True)
         trainLogger.info("Created training loader of length %d",
                     len(training_loader))
 
@@ -206,7 +207,7 @@ class Solver():
             model.train()
 
             # TODO: Change training_set -> training_loader for batch size > 1
-            for iter_in_epoch, data in enumerate(training_set):
+            for iter_in_epoch, data in enumerate(training_loader):
                 # Step
                 loss = self.training_step(model, data, iteration)
 
