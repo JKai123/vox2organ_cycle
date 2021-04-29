@@ -39,7 +39,7 @@ def JaccardMeshScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
-    _, voxel_target, _ = data
+    input_img, voxel_target = data['x'].squeeze(), data['y_voxels'].squeeze()
     shape = torch.tensor(voxel_target.shape)[None]
     vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
@@ -54,8 +54,12 @@ def JaccardMeshScore(pred, data, n_classes):
 
     # Strip off one layer of voxels
     voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)
+    write_img_if_debug(input_img.cpu().numpy(),
+                       "../misc/voxel_input_img.nii.gz")
     write_img_if_debug(voxel_pred_inner.cpu().numpy(),
-                       voxel_target.cpu().numpy())
+                       "../misc/voxel_pred_inner_img.nii.gz")
+    write_img_if_debug(voxel_target.cpu().numpy(),
+                       "../misc/voxel_target_img_eval.nii.gz")
 
     # j_coo = Jaccard_from_Coords(pred_voxels, target_voxels, n_classes)
     j_vox = Jaccard(voxel_pred_inner.cuda(), voxel_target.cuda(), n_classes)
@@ -66,7 +70,7 @@ def JaccardMeshScore(pred, data, n_classes):
 def JaccardVoxelScore(pred, data, n_classes):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)
-    _, voxel_label, _ = data # chop
+    voxel_label = data['y_voxels'].squeeze()
 
     return Jaccard(voxel_pred, voxel_label, n_classes)
 
@@ -173,13 +177,17 @@ class ModelEvaluator():
         with torch.no_grad():
             for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
                 data = self._dataset.get_item_and_mesh_from_index(i)
+                write_img_if_debug(data[1].cpu().numpy(),
+                                   "../misc/raw_voxel_target_img.nii.gz")
+                write_img_if_debug(data[0].cpu().numpy(),
+                                   "../misc/raw_voxel_input_img_eval.nii.gz")
                 data_voxel2mesh = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
                                                                   self._n_classes,
                                                                   ExecModes.TEST)
                 pred = model(data_voxel2mesh)
 
                 for metric in self._eval_metrics:
-                    res = self._metricHandler[metric](pred, data, self._n_classes)
+                    res = self._metricHandler[metric](pred, data_voxel2mesh, self._n_classes)
                     results_all[metric].append(res)
 
                 if i < save_meshes: # Store meshes for visual inspection

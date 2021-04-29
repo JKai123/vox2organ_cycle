@@ -17,6 +17,7 @@ from utils.logging import (
     init_logging,
     log_losses,
     get_log_dir,
+    write_img_if_debug,
     log_val_results)
 from utils.modes import ExecModes
 from utils.mesh import verts_faces_to_Meshes
@@ -120,20 +121,24 @@ class Solver():
 
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # make data compatible
-        data = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
+        data_voxel2mesh = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
                                                self.n_classes,
                                                ExecModes.TRAIN)
-        pred = model(data)
+        write_img_if_debug(data_voxel2mesh['x'].cpu().squeeze().numpy(),
+                           "../misc/voxel_input_img_train.nii.gz")
+        write_img_if_debug(data_voxel2mesh['y_voxels'].cpu().squeeze().numpy(),
+                           "../misc/voxel_target_img_train.nii.gz")
+        pred = model(data_voxel2mesh)
 
         losses = {}
         # Voxel losses
         for lf in self.voxel_loss_func:
-            losses[str(lf)] = lf(pred[0][-1][3], data['y_voxels'])
+            losses[str(lf)] = lf(pred[0][-1][3], data_voxel2mesh['y_voxels'])
 
         # Mesh losses
         vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
         pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
-        targets = data['surface_points']
+        targets = data_voxel2mesh['surface_points']
         for lf in self.mesh_loss_func:
             losses[str(lf)] = lf(pred_meshes, targets)
 

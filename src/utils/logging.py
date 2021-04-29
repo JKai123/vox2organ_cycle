@@ -95,7 +95,7 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     # no wanb when debugging or not in training mode
     global use_wandb
     global debug
-    if exp_name == 'debug':
+    if exp_name == 'debug' or loglevel == 'DEBUG':
         use_wandb = False
         debug = True
         loglevel='DEBUG'
@@ -131,17 +131,12 @@ def write_array_if_debug(data_1, data_2):
         np.save(file_1, data_1)
         np.save(file_2, data_2)
 
-def write_img_if_debug(img_1: np.ndarray, img_2: np.ndarray):
+def write_img_if_debug(img: np.ndarray, path: str):
     """ Write data if debug mode is on.
     """
-    file_1 = "../misc/img_1.nii.gz"
-    file_2 = "../misc/img_2.nii.gz"
-    debug = True
     if debug:
-        img_1 = nib.Nifti1Image(img_1, np.eye(4))
-        nib.save(img_1, file_1)
-        img_2 = nib.Nifti2Image(img_2, np.eye(4))
-        nib.save(img_2, file_2)
+        img = nib.Nifti1Image(img, np.eye(4))
+        nib.save(img, path)
 
 def measure_time(func):
     """ Decorator for time measurement """
