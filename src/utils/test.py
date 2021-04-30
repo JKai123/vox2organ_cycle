@@ -98,7 +98,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                                         ndims=training_hps['N_DIMS'],
                                         num_classes=training_hps['N_CLASSES'],
                                         patch_shape=training_hps['PATCH_SIZE'],
-                                        **training_hps_lower['model_config']).float().cuda()
+                                        **model_config).float().cuda()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
