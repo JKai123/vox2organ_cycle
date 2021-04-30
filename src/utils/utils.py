@@ -179,7 +179,9 @@ def crop_slices(shape1, shape2):
     return slices
 
 def crop_and_merge(tensor1, tensor2):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    """ Crops tensor1 such that it fits the shape of tensor2 and concatenates
+    both along channel dimension.
+    From https://github.com/cvlab-epfl/voxel2mesh """
 
     slices = crop_slices(tensor1.size(), tensor2.size())
     slices[0] = slice(None)
@@ -221,3 +223,8 @@ def sample_inner_volume_in_voxel(volume):
     inner_volume = torch.logical_and(volume, border)
     # Seems to lead to problems if volume.dtype == torch.uint8
     return inner_volume.type(volume.dtype)
+
+def normalize_max_one(data):
+    """ Normalize the input such that the maximum value is 1. """
+    max_value = float(data.max())
+    return data / max_value
