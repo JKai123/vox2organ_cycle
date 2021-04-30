@@ -48,9 +48,13 @@ def JaccardMeshScore(pred, data, n_classes):
         unnorm_verts = unnormalize_vertices(vertices[-1][c].squeeze(), shape)
         pv = Mesh(unnorm_verts,
                   faces[-1][c]).get_occupied_voxels(shape.squeeze().cpu().numpy())
-        pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-        # Potentially overwrites previous class prediction if overlapping
-        voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = c
+        if pv is not None:
+            pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
+            # Potentially overwrites previous class prediction if overlapping
+            voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = c
+        else:
+            # No mesh in the valid range predicted --> keep zeros
+            pass
 
     # Strip off one layer of voxels
     voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)

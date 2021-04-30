@@ -65,8 +65,8 @@ class Mesh():
                         if (vo >= 0).all() and (vo < shape).all()]
         vox_occupied = np.asarray(vox_occupied)
         if vox_occupied.ndim < 2:
-            # Bug?
-            breakpoint()
+            # No occupied voxels in the given shape
+            vox_occupied = None
 
         return vox_occupied
 
