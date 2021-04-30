@@ -109,13 +109,14 @@ class Solver():
         :param iteration: The training iteration (used for logging)
         :returns: The overall (weighted) loss.
         """
-        self.optim.zero_grad()
         loss_total = self.compute_loss(model, data, iteration)
         loss_total.backward()
-        self.optim.step()
 
-        logging.getLogger(ExecModes.TRAIN.name).debug("Completed backward"\
-                                                      " pass.")
+        # Accumulate gradients
+        if iteration % 5 == 0:
+            self.optim.step()
+            self.optim.zero_grad()
+            logging.getLogger(ExecModes.TRAIN.name).debug("Updated parameters.")
 
         return loss_total
 
@@ -129,6 +130,7 @@ class Solver():
         write_img_if_debug(data_voxel2mesh['y_voxels'].cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
         pred = model(data_voxel2mesh)
+        pred_voxel = Voxel2Mesh.pred_to_voxel_pred(pred)
 
         losses = {}
         # Voxel losses
@@ -197,6 +199,7 @@ class Solver():
         trainLogger.info("Training on device %s", self.device)
 
         self.optim = self.optim_class(model.parameters(), **self.optim_params)
+        self.optim.zero_grad()
 
         training_loader = DataLoader(training_set, batch_size=batch_size,
                                      shuffle=True)
@@ -213,6 +216,8 @@ class Solver():
 
             # TODO: Change training_set -> training_loader for batch size > 1
             for iter_in_epoch, data in enumerate(training_loader):
+                if iteration % self.log_every == 0:
+                    trainLogger.info("Iteration: %d", iteration)
                 # Step
                 loss = self.training_step(model, data, iteration)
 
@@ -222,7 +227,7 @@ class Solver():
             if epoch % eval_every == 0 or epoch == n_epochs:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
-                                                      save_meshes=0)
+                                                      save_meshes=5)
                 log_val_results(val_results, iteration)
 
                 # Main validation score
@@ -349,6 +354,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
 
     # Lower case param names as input to constructors/functions
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
+    model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
     # Configure logging
     init_logging(logger_name=ExecModes.TRAIN.name,
@@ -381,7 +387,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
                                         ndims=hps['N_DIMS'],
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
-                                        config=hps['MODEL_CONFIG'])
+                                        **model_config)
     if resume:
         # Load state and epoch
         model_path = os.path.join(experiment_dir, "intermediate.model")

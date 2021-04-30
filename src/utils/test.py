@@ -77,12 +77,15 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict((k.lower(), v) for k, v in training_hps.items())
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
+    model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
     # Get same split as defined during training for testset
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
     training_set, _, test_set =\
             dataset_split_handler[training_hps['DATASET']](save_dir=test_dir,
                                                            **training_hps_lower)
+    ### TMP!!!
+    # test_set = training_set
     testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be
@@ -95,7 +98,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                                         ndims=training_hps['N_DIMS'],
                                         num_classes=training_hps['N_CLASSES'],
                                         patch_shape=training_hps['PATCH_SIZE'],
-                                        config=training_hps['MODEL_CONFIG']).float().cuda()
+                                        **training_hps_lower['model_config']).float().cuda()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
