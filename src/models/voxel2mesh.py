@@ -26,21 +26,23 @@ from utils.utils_voxel2mesh.file_handle import read_obj
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
 from utils.modes import ExecModes
 from utils.logging import measure_time
+from utils.mesh import verts_faces_to_Meshes
 
 from models.u_net import UNetLayer
+from models.base_model import V2MModel
 
 
   
  
  
-class Voxel2Mesh(nn.Module):
+class Voxel2Mesh(V2MModel):
     """ Voxel2Mesh  """
  
-    def __init__(self, ndims, num_classes, patch_shape, config):
+    def __init__(self, ndims, num_classes, patch_shape, num_input_channels,
+                first_layer_channels, steps, graph_conv_layer_count,
+                 mesh_template, **kwargs):
         super(Voxel2Mesh, self).__init__()
 
-        self.config = config
-          
         self.max_pool = nn.MaxPool3d(2) if ndims == 3 else nn.MaxPool2d(2) 
         self.num_classes = num_classes
 
@@ -49,9 +51,9 @@ class Voxel2Mesh(nn.Module):
  
 
         '''  Down layers '''
-        down_layers = [UNetLayer(config['NUM_INPUT_CHANNELS'], config['FIRST_LAYER_CHANNELS'], ndims)]
-        for i in range(1, config['STEPS'] + 1):
-            graph_conv_layer = UNetLayer(config['FIRST_LAYER_CHANNELS'] * 2 ** (i - 1), config['FIRST_LAYER_CHANNELS'] * 2 ** i, ndims)
+        down_layers = [UNetLayer(num_input_channels, first_layer_channels, ndims)]
+        for i in range(1, steps + 1):
+            graph_conv_layer = UNetLayer(first_layer_channels * 2 ** (i - 1), first_layer_channels * 2 ** i, ndims)
             down_layers.append(graph_conv_layer)
         self.down_layers = down_layers
         self.encoder = nn.Sequential(*down_layers)
@@ -60,8 +62,8 @@ class Voxel2Mesh(nn.Module):
         ''' Up layers ''' 
         self.skip_count = []
         self.latent_features_coount = []
-        for i in range(config['STEPS']+1):
-            self.skip_count += [config['FIRST_LAYER_CHANNELS'] * 2 ** (config['STEPS']-i)] 
+        for i in range(steps+1):
+            self.skip_count += [first_layer_channels * 2 ** (steps-i)] 
             self.latent_features_coount += [32]
 
         dim = 3
@@ -69,22 +71,22 @@ class Voxel2Mesh(nn.Module):
         up_std_conv_layers = []
         up_f2f_layers = []
         up_f2v_layers = []
-        for i in range(config['STEPS']+1):
+        for i in range(steps+1):
             graph_unet_layers = []
             feature2vertex_layers = []
-            skip = LearntNeighbourhoodSampling(patch_shape, config['STEPS'], self.skip_count[i], i)
+            skip = LearntNeighbourhoodSampling(patch_shape, steps, self.skip_count[i], i)
             # lyr = Feature2VertexLayer(self.skip_count[i])
             if i == 0:
                 grid_upconv_layer = None
                 grid_unet_layer = None
                 for k in range(self.num_classes-1):
-                    graph_unet_layers += [Features2Features(self.skip_count[i] + dim, self.latent_features_coount[i], hidden_layer_count=config['GRAPH_CONV_LAYER_COUNT'])] # , graph_conv=GraphConv
+                    graph_unet_layers += [Features2Features(self.skip_count[i] + dim, self.latent_features_coount[i], hidden_layer_count=graph_conv_layer_count)] # , graph_conv=GraphConv
 
             else:
-                grid_upconv_layer = ConvTransposeLayer(in_channels=config['FIRST_LAYER_CHANNELS']   * 2**(config['STEPS'] - i+1), out_channels=config['FIRST_LAYER_CHANNELS'] * 2**(config['STEPS']-i), kernel_size=2, stride=2)
-                grid_unet_layer = UNetLayer(config['FIRST_LAYER_CHANNELS'] * 2**(config['STEPS'] - i + 1), config['FIRST_LAYER_CHANNELS'] * 2**(config['STEPS']-i), ndims, config['BATCH_NORM'])
+                grid_upconv_layer = ConvTransposeLayer(in_channels=first_layer_channels   * 2**(steps - i+1), out_channels=first_layer_channels * 2**(steps-i), kernel_size=2, stride=2)
+                grid_unet_layer = UNetLayer(first_layer_channels * 2**(steps - i + 1), first_layer_channels * 2**(steps-i), ndims)
                 for k in range(self.num_classes-1):
-                    graph_unet_layers += [Features2Features(self.skip_count[i] + self.latent_features_coount[i-1] + dim, self.latent_features_coount[i], hidden_layer_count=config['GRAPH_CONV_LAYER_COUNT'])] #, graph_conv=GraphConv if i < config['STEPS'] else GraphConvNoNeighbours
+                    graph_unet_layers += [Features2Features(self.skip_count[i] + self.latent_features_coount[i-1] + dim, self.latent_features_coount[i], hidden_layer_count=graph_conv_layer_count)] #, graph_conv=GraphConv if i < steps else GraphConvNoNeighbours
 
             for k in range(self.num_classes-1):
                 feature2vertex_layers += [Feature2VertexLayer(self.latent_features_coount[i], 3)] 
@@ -106,10 +108,10 @@ class Voxel2Mesh(nn.Module):
 
         ''' Final layer (for voxel decoder)'''
         self.final_layer =\
-            ConvLayer(in_channels=config['FIRST_LAYER_CHANNELS'],
+            ConvLayer(in_channels=first_layer_channels,
                       out_channels=self.num_classes, kernel_size=1)
 
-        sphere_path=config['MESH_TEMPLATE']
+        sphere_path=mesh_template
         sphere_vertices, sphere_faces = read_obj(sphere_path)
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
         self.sphere_vertices = sphere_vertices/torch.sqrt(torch.sum(sphere_vertices**2,dim=1)[:,None])[None]
@@ -183,9 +185,9 @@ class Voxel2Mesh(nn.Module):
                 deltaV = feature2vertex(latent_features, A, D, vertices, faces)
                 vertices = vertices + deltaV 
                 
-                if do_unpool == 1: # changed do_unpool[0] -> do_unpool
+                # if do_unpool == 1: # changed do_unpool[0] -> do_unpool
                     # Discard the vertices that were introduced from the uniform unpool and didn't deform much
-                    vertices, faces, latent_features, sphere_vertices = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, N_prev)
+                    # vertices, faces, latent_features, sphere_vertices = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, N_prev)
 
                 
 
@@ -250,11 +252,17 @@ class Voxel2Mesh(nn.Module):
 
 
     @staticmethod
-    def convert_data_to_voxel2mesh_data(data, n_classes, mode):
+    def convert_data(data, n_classes, mode):
         """ Convert data such that it's compatible with the original voxel2mesh
         implementation from above. Code is an assembly of parts from
         https://github.com/cvlab-epfl/voxel2mesh
         """
+        # No batching possible
+        if data[0].ndim == 4:
+            data[0] = data[0].squeeze()
+        if data[1].ndim == 4:
+            data[1] = data[1].squeeze()
+
         shape = torch.tensor(data[1].shape)[None]
         surface_points_normalized_all = []
         for c in range(1, n_classes):
@@ -290,8 +298,13 @@ class Voxel2Mesh(nn.Module):
 
     @staticmethod
     def pred_to_voxel_pred(pred):
-        """ Get the voxel prediction """
+        """ Get the voxel prediction with argmax over classes applied """
         return pred[0][-1][3].argmax(dim=1).squeeze()
+
+    @staticmethod
+    def pred_to_raw_voxel_pred(pred):
+        """ Get the voxel prediction per class """
+        return pred[0][-1][3]
 
     @staticmethod
     def pred_to_verts_and_faces(pred):
@@ -311,5 +324,15 @@ class Voxel2Mesh(nn.Module):
                     faces[s,c] = f
 
         return vertices, faces
+
+    @staticmethod
+    def pred_to_pred_meshes(pred):
+        """ Create valid prediction meshes """
+        vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+        # Ignore step 0 and class 0
+        pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
+
+        return pred_meshes
+
 
 

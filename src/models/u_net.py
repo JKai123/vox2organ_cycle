@@ -7,7 +7,7 @@ class UNetLayer(nn.Module):
     """ U-Net Layer
     Implementation taken from https://github.com/cvlab-epfl/voxel2mesh
     """
-    def __init__(self, num_channels_in, num_channels_out, ndims, batch_norm=False):
+    def __init__(self, num_channels_in, num_channels_out, ndims):
 
         super(UNetLayer, self).__init__()
 

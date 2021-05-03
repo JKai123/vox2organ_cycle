@@ -101,7 +101,10 @@ hyper_ps_default={
         'STEPS': 4,
         'BATCH_NORM': True,
         'GRAPH_CONV_LAYER_COUNT': 4,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj'},
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
+        'UNPOOL_INDICES': [0,1,0,1,0],
+        'USE_ADOPTIVE_UNPOOL': False
+    },
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],

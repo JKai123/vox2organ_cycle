@@ -25,7 +25,6 @@ from utils.evaluate import ModelEvaluator
 from utils.losses import linear_loss_combine, geometric_loss_combine
 from data.dataset import dataset_split_handler
 from models.model_handler import ModelHandler
-from models.voxel2mesh import Voxel2Mesh
 
 # Model names
 INTERMEDIATE_MODEL_NAME = "intermediate.model"
@@ -59,6 +58,8 @@ class Solver():
     :param str device: The device for execution, e.g. 'cuda:0'.
     :param str main_eval_metric: The main evaluation metric according to which
     the best model is determined.
+    :param architecture_class: The model architecture providing data conversion
+    methods etc.
 
     """
 
@@ -113,7 +114,7 @@ class Solver():
         loss_total.backward()
 
         # Accumulate gradients
-        if iteration % 5 == 0:
+        if iteration % 1 == 0:
             self.optim.step()
             self.optim.zero_grad()
             logging.getLogger(ExecModes.TRAIN.name).debug("Updated parameters.")
@@ -122,25 +123,25 @@ class Solver():
 
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # make data compatible
-        data_voxel2mesh = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
+        model_data = model.__class__.convert_data(data,
                                                self.n_classes,
                                                ExecModes.TRAIN)
-        write_img_if_debug(data_voxel2mesh['x'].cpu().squeeze().numpy(),
+        write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
                            "../misc/voxel_input_img_train.nii.gz")
-        write_img_if_debug(data_voxel2mesh['y_voxels'].cpu().squeeze().numpy(),
+        write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
-        pred = model(data_voxel2mesh)
-        pred_voxel = Voxel2Mesh.pred_to_voxel_pred(pred)
+        pred = model(model_data)
+        pred_voxel = model.__class__.pred_to_voxel_pred(pred)
 
         losses = {}
         # Voxel losses
         for lf in self.voxel_loss_func:
-            losses[str(lf)] = lf(pred[0][-1][3], data_voxel2mesh['y_voxels'])
+            losses[str(lf)] = lf(model.__class__.pred_to_raw_voxel_pred(pred),
+                                 model_data['y_voxels'])
 
         # Mesh losses
-        vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
-        pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
-        targets = data_voxel2mesh['surface_points']
+        pred_meshes = model.__class__.pred_to_pred_meshes(pred)
+        targets = model_data['surface_points']
         for lf in self.mesh_loss_func:
             losses[str(lf)] = lf(pred_meshes, targets)
 
@@ -214,7 +215,6 @@ class Solver():
         for epoch in range(start_epoch, n_epochs+1):
             model.train()
 
-            # TODO: Change training_set -> training_loader for batch size > 1
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     trainLogger.info("Iteration: %d", iteration)

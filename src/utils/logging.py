@@ -27,7 +27,6 @@ def log_losses(losses, iteration):
     """ Logging with wandb and std logging """
     losses = {k: v.detach() for k, v in losses.items()}
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    trainLogger.info("Iteration: %d", iteration)
     for k, v in losses.items():
         trainLogger.info("%s: %.5f", k, v)
 

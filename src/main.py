@@ -24,16 +24,23 @@ hyper_ps = {
     #######################
     # Learning
     'N_EPOCHS': 10,
-    'LOG_EVERY': 130,
-    'EVAL_EVERY': 10,
+    'LOG_EVERY': 50,
+    'EVAL_EVERY': 50,
+    'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
+    'DATASET_SEED': 1532,
     'EVAL_METRICS': [
-        # 'JaccardVoxel',
+        'JaccardVoxel',
         'JaccardMesh'
     ],
-    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    'OPTIM_PARAMS': {#
+        'lr': 1e-4,
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0},
+    'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.5],
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -132,6 +139,10 @@ def main(hps):
     hps['OVERFIT'] = args.overfit
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
+
+    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
+        raise ValueError("Original voxel2mesh only allows for batch size 1."\
+                         " Try voxel2meshplusplus for larger batch size.")
 
     if args.exp_name == "debug":
         # Overfit when debugging

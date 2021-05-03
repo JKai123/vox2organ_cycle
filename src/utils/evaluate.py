@@ -21,7 +21,6 @@ from utils.utils import (
 from utils.logging import (
     write_img_if_debug,
     measure_time)
-from models.voxel2mesh import Voxel2Mesh
 
 class EvalMetrics(IntEnum):
     """ Supported evaluation metrics """
@@ -35,13 +34,13 @@ class EvalMetrics(IntEnum):
     JaccardMesh = 3
 
 @measure_time
-def JaccardMeshScore(pred, data, n_classes):
+def JaccardMeshScore(pred, data, n_classes, model_class):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
     input_img, voxel_target = data['x'].squeeze(), data['y_voxels'].squeeze()
     shape = torch.tensor(voxel_target.shape)[None]
-    vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+    vertices, faces = model_class.pred_to_verts_and_faces(pred)
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
     for c in range(1, n_classes):
         # Only mesh of last step considered
@@ -71,9 +70,9 @@ def JaccardMeshScore(pred, data, n_classes):
     return j_vox
 
 @measure_time
-def JaccardVoxelScore(pred, data, n_classes):
+def JaccardVoxelScore(pred, data, n_classes, model_class):
     """ Jaccard averaged over classes ignoring background """
-    voxel_pred = Voxel2Mesh.pred_to_voxel_pred(pred)
+    voxel_pred = model_class.pred_to_voxel_pred(pred)
     voxel_label = data['y_voxels'].squeeze()
 
     return Jaccard(voxel_pred, voxel_label, n_classes)
@@ -127,19 +126,18 @@ def Jaccard(pred, target, n_classes):
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
 
-def ChamferScore(pred, data, n_classes):
+def ChamferScore(pred, data, n_classes, model_class):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance is computed
     between the predicted loss and randomly sampled surface points, here the
     Chamfer distance is computed between the predicted mesh and the ground
     truth mesh. """
-    pred_vertices, _ = Voxel2Mesh.pred_to_verts_and_faces(pred)
-    _, _, gt_mesh = data # chop
-    gt_vertices = gt_mesh.vertices.cuda()[None] # currently only one class
+    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
+    gt_vertices = data['vertices_mc']
     chamfer_scores = []
     for c in range(1, n_classes):
-        pred_vertices = pred_vertices[-1][c] # only consider last mesh step
+        pred_vertices = pred_vertices[-1][c].squeeze() # only consider last mesh step
         chamfer_scores.append(chamfer_distance(pred_vertices,
                                                gt_vertices)[0].cpu().item())
 
@@ -175,6 +173,7 @@ class ModelEvaluator():
 
     def evaluate(self, model, epoch, save_meshes=5):
         results_all = {}
+        model_class = model.__class__
         for m in self._eval_metrics:
             results_all[m] = []
         # Iterate over data split
@@ -182,40 +181,45 @@ class ModelEvaluator():
             for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
                 data = self._dataset.get_item_and_mesh_from_index(i)
                 write_img_if_debug(data[1].cpu().numpy(),
-                                   "../misc/raw_voxel_target_img.nii.gz")
+                                   "../misc/raw_voxel_target_img_eval.nii.gz")
                 write_img_if_debug(data[0].cpu().numpy(),
                                    "../misc/raw_voxel_input_img_eval.nii.gz")
-                data_voxel2mesh = Voxel2Mesh.convert_data_to_voxel2mesh_data(data,
-                                                                  self._n_classes,
-                                                                  ExecModes.TEST)
-                pred = model(data_voxel2mesh)
+                model_data = model_class.convert_data(data,
+                                                           self._n_classes,
+                                                           ExecModes.TEST)
+                pred = model(model_data)
 
                 for metric in self._eval_metrics:
-                    res = self._metricHandler[metric](pred, data_voxel2mesh, self._n_classes)
+                    res = self._metricHandler[metric](pred, model_data,
+                                                      self._n_classes,
+                                                      model_class)
                     results_all[metric].append(res)
 
                 if i < save_meshes: # Store meshes for visual inspection
                     filename =\
                             self._dataset.get_file_name_from_index(i).split(".")[0]
-                    self.store_meshes(pred, data, filename, epoch)
+                    self.store_meshes(pred, model_data, filename, epoch,
+                                      model_class)
 
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
 
         return results
 
-    def store_meshes(self, pred, data, filename, epoch):
+    def store_meshes(self, pred, data, filename, epoch, model_class):
         """ Save predicted meshes and ground truth created with marching
         cubes
         """
-        _, voxel_label, _ = data # chop
+        voxel_label = data['y_voxels']
+        # Voxel prediction
+        voxel_pred = model_class.pred_to_voxel_pred(pred)
         for c in range(1, self._n_classes):
             # Label
             gt_filename = filename + "_class" + str(c) + "_gt.ply"
             if not os.path.isfile(gt_filename):
                 # gt file does not exist yet
-                voxel_label_class = voxel_label.cpu()
-                voxel_label_class[voxel_label != c] = 0
+                voxel_label_class = voxel_label.squeeze()
+                voxel_label_class[voxel_label_class != c] = 0
                 gt_mesh = create_mesh_from_voxels(voxel_label_class,
                                                   self._mc_step_size)
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
@@ -223,7 +227,7 @@ class ModelEvaluator():
             # Mesh prediction
             pred_mesh_filename = filename + "_epoch" + str(epoch) +\
                 "_class" + str(c) + "_meshpred.ply"
-            vertices, faces = Voxel2Mesh.pred_to_verts_and_faces(pred)
+            vertices, faces = model_class.pred_to_verts_and_faces(pred)
             vertices, faces = vertices[-1][c], faces[-1][c]
             pred_mesh = Mesh(vertices.squeeze().cpu(),
                              faces.squeeze().cpu())
@@ -232,11 +236,17 @@ class ModelEvaluator():
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\
                 "_class" + str(c) + "_voxelpred.ply"
-            pred_voxel = Voxel2Mesh.pred_to_voxel_pred(pred)
             try:
-                mc_pred_mesh = create_mesh_from_voxels(pred_voxel,
+                voxel_pred_class = voxel_pred.squeeze()
+                voxel_pred_class[voxel_pred_class != c] = 0
+                mc_pred_mesh = create_mesh_from_voxels(voxel_pred_class,
                                                   self._mc_step_size).to_trimesh(process=True)
                 mc_pred_mesh.export(os.path.join(self._mesh_dir, pred_voxel_filename))
+            except ValueError as e:
+                logging.getLogger(ExecModes.TEST.name).warning(\
+                       "In voxel prediction for file: %s: %s."\
+                       " This means usually that the prediction is all 1.",
+                                                               filename, e)
             except RuntimeError as e:
                 logging.getLogger(ExecModes.TEST.name).warning(\
                        "In voxel prediction for file: %s: %s ", filename, e)
