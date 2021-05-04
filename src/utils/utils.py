@@ -237,3 +237,9 @@ def normalize_max_one(data):
     """ Normalize the input such that the maximum value is 1. """
     max_value = float(data.max())
     return data / max_value
+
+def normalize_plus_minus_one(data):
+    """ Normalize the input such that the values are in [-1,1]. """
+    max_value = float(data.max())
+    assert data.min() >= 0 and max_value > 0, "Elements should be ge 0."
+    return 2 * ((data / max_value) - 0.5)

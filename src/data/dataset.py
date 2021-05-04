@@ -22,7 +22,7 @@ from elasticdeform import deform_random_grid
 import trimesh
 
 from utils.modes import DataModes, ExecModes
-from utils.utils import create_mesh_from_voxels, normalize_max_one
+from utils.utils import create_mesh_from_voxels, normalize_plus_minus_one
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
@@ -208,7 +208,7 @@ class Hippocampus(DatasetHandler):
         # NORMALIZE images (hippocampus data varies several orders of
         # magnitude)!
         for i, d in enumerate(self.data):
-            self.data[i] = normalize_max_one(d)
+            self.data[i] = normalize_plus_minus_one(d)
 
         self.voxel_labels = self._load_data3D(folder="labelsTr")
         # Ignore distinction between anterior and posterior hippocampus
