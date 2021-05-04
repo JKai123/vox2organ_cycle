@@ -340,11 +340,12 @@ class Voxel2MeshPlusPlus(V2MModel):
         torch.save(self.state_dict(), path)
 
     @staticmethod
+    @measure_time
     def convert_data(data, n_classes, mode):
         """ Convert data such that it's compatible with the above voxel2mesh
         implementation.
         """
-        x, y = data[0], data[1] # chop
+        x, y = data[0].cuda(), data[1].cuda() # chop
         if x.ndim == 3:
             x = x[None]
         if y.ndim == 3:
@@ -379,13 +380,13 @@ class Voxel2MeshPlusPlus(V2MModel):
                 [Pointclouds(surface_points_normalized_batch)]
 
         if mode == ExecModes.TRAIN:
-            voxel2mesh_data = {'x': x.float().cuda().unsqueeze(1),
-                    'y_voxels': y.long().cuda(),
+            voxel2mesh_data = {'x': x.float().unsqueeze(1),
+                    'y_voxels': y.long(),
                     'surface_points': surface_points_normalized_all
                     }
         elif mode == ExecModes.TEST:
-            voxel2mesh_data = {'x': x.float().cuda().unsqueeze(1),
-                       'y_voxels': y.long().cuda(),
+            voxel2mesh_data = {'x': x.float().unsqueeze(1),
+                       'y_voxels': y.long(),
                        'vertices_mc': data[2].vertices.cuda(),
                        'faces_mc': data[2].faces.cuda(),
                        'surface_points': surface_points_normalized_all

@@ -18,6 +18,7 @@ from utils.logging import (
     init_logging,
     log_losses,
     get_log_dir,
+    measure_time,
     write_img_if_debug,
     log_val_results)
 from utils.modes import ExecModes
@@ -104,6 +105,7 @@ class Solver():
         self.main_eval_metric = main_eval_metric
         self.accumulate_ngrad = accumulate_n_gradients
 
+    @measure_time
     def training_step(self, model, data, iteration):
         """ One training step.
 
@@ -123,6 +125,7 @@ class Solver():
 
         return loss_total
 
+    @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # make data compatible
         model_data = model.__class__.convert_data(data,

@@ -250,8 +250,8 @@ class Voxel2Mesh(V2MModel):
 
         torch.save(self.state_dict(), path)
 
-
     @staticmethod
+    @measure_time
     def convert_data(data, n_classes, mode):
         """ Convert data such that it's compatible with the original voxel2mesh
         implementation from above. Code is an assembly of parts from
