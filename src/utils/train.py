@@ -6,6 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import logging
+from copy import deepcopy
 
 import json
 import torch
@@ -58,8 +59,7 @@ class Solver():
     :param str device: The device for execution, e.g. 'cuda:0'.
     :param str main_eval_metric: The main evaluation metric according to which
     the best model is determined.
-    :param architecture_class: The model architecture providing data conversion
-    methods etc.
+    :param int accumulate_n_gradients: Gradient accumulation of n gradients.
 
     """
 
@@ -78,6 +78,7 @@ class Solver():
                  n_sample_points,
                  device,
                  main_eval_metric,
+                 accumulate_n_gradients,
                  **kwargs):
 
         self.n_classes = n_classes
@@ -101,6 +102,7 @@ class Solver():
         self.n_sample_points = n_sample_points
         self.device = device
         self.main_eval_metric = main_eval_metric
+        self.accumulate_ngrad = accumulate_n_gradients
 
     def training_step(self, model, data, iteration):
         """ One training step.
@@ -114,7 +116,7 @@ class Solver():
         loss_total.backward()
 
         # Accumulate gradients
-        if iteration % 1 == 0:
+        if iteration % self.accumulate_ngrad == 0:
             self.optim.step()
             self.optim.zero_grad()
             logging.getLogger(ExecModes.TRAIN.name).debug("Updated parameters.")
@@ -237,7 +239,7 @@ class Solver():
                 main_val_score = val_results[self.main_eval_metric]
                 if main_val_score > best_val_score or epoch == 1:
                     best_val_score = main_val_score
-                    best_state = model.state_dict()
+                    best_state = deepcopy(model.state_dict())
                     best_epoch = epoch
 
             # TODO: Early stopping

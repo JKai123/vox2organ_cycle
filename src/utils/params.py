@@ -29,6 +29,9 @@ hyper_ps_default={
     # The batch size used during training
     'BATCH_SIZE': 1,
 
+    # Accumulate n gradients before doing a backward pass
+    'ACCUMULATE_N_GRADIENTS': 1,
+
     # The number of training epochs
     'N_EPOCHS': 5,
 

@@ -26,7 +26,7 @@ hyper_ps = {
     'N_EPOCHS': 1000,
     'LOG_EVERY': 50,
     'EVAL_EVERY': 50,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 5,
     'AUGMENT_TRAIN': False,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'EVAL_METRICS': [
