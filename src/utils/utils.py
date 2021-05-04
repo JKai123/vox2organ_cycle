@@ -86,8 +86,7 @@ def normalize_vertices(vertices, shape):
     assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
     assert shape.shape[0] == 1, "first dim of shape should be length 1"
 
-    normalized = 2*(vertices/(torch.max(shape)-1) - 0.5)
-    return normalized
+    return 2*(vertices/(torch.max(shape)-1) - 0.5)
 
 def unnormalize_vertices(vertices, shape):
     """ Inverse of 'normalize vertices' """
@@ -197,16 +196,18 @@ def sample_outer_surface_in_voxel(volume):
     vertices.
     """
     if volume.ndim == 3:
-        a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))[0]
-        b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))[0]
-        c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))[0]
+        a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))
+        b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))
+        c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))
     elif volume.ndim == 4:
-        a = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))[0]
-        b = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))[0]
-        c = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))[0]
+        a = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))
+        b = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))
+        c = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))
     else:
         raise NotImplementedError
     border, _ = torch.max(torch.cat([a,b,c], dim=1), dim=1)
+    if volume.ndim == 3: # back to original shape
+        border = border.squeeze()
     surface = border - volume.float()
     return surface.long()
 

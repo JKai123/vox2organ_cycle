@@ -262,9 +262,9 @@ class Hippocampus(DatasetHandler):
         # Split
         if overfit:
             # Only consider first element of available data
-            indices_train = slice(0, 5)
-            indices_val = slice(0, 5)
-            indices_test = slice(0, 5)
+            indices_train = slice(0, 1)
+            indices_val = slice(0, 1)
+            indices_test = slice(0, 1)
         else:
             # No overfit
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."

@@ -132,6 +132,8 @@ class Solver():
                            "../misc/voxel_target_img_train.nii.gz")
         pred = model(model_data)
         pred_voxel = model.__class__.pred_to_voxel_pred(pred)
+        write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
+                           "../misc/voxel_pred_img_train.nii.gz")
 
         losses = {}
         # Voxel losses

@@ -58,9 +58,9 @@ def JaccardMeshScore(pred, data, n_classes, model_class):
     # Strip off one layer of voxels
     voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)
     write_img_if_debug(input_img.cpu().numpy(),
-                       "../misc/voxel_input_img.nii.gz")
+                       "../misc/voxel_input_img_eval.nii.gz")
     write_img_if_debug(voxel_pred_inner.cpu().numpy(),
-                       "../misc/voxel_pred_inner_img.nii.gz")
+                       "../misc/mesh_pred_img_eval.nii.gz")
     write_img_if_debug(voxel_target.cpu().numpy(),
                        "../misc/voxel_target_img_eval.nii.gz")
 

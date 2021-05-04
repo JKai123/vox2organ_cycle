@@ -23,7 +23,7 @@ from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2mesh.file_handle import read_obj
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
 from utils.modes import ExecModes
-from utils.logging import measure_time
+from utils.logging import measure_time, write_scatter_plot_if_debug
 from utils.mesh import verts_faces_to_Meshes
 
 from models.u_net import UNetLayer
@@ -365,6 +365,10 @@ class Voxel2MeshPlusPlus(V2MModel):
             for b in range(batch_size):
                 points = surface_points_normalized[batch_ids == b]
                 points = torch.flip(points, dims=[1]).float() # convert z,y,x -> x, y, z
+
+                # debug
+                write_scatter_plot_if_debug(points,
+                                            "../misc/surface_points.png")
                 perm = torch.randperm(len(points))
                 point_count = 3000
                 # randomly pick 3000 points

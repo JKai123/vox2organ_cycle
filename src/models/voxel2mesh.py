@@ -25,7 +25,7 @@ from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2mesh.file_handle import read_obj 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
 from utils.modes import ExecModes
-from utils.logging import measure_time
+from utils.logging import measure_time, write_scatter_plot_if_debug
 from utils.mesh import verts_faces_to_Meshes
 
 from models.u_net import UNetLayer
@@ -258,18 +258,20 @@ class Voxel2Mesh(V2MModel):
         https://github.com/cvlab-epfl/voxel2mesh
         """
         # No batching possible
-        if data[0].ndim == 4:
-            data[0] = data[0].squeeze()
-        if data[1].ndim == 4:
-            data[1] = data[1].squeeze()
+        x = data[0].squeeze()
+        y = data[1].squeeze()
 
-        shape = torch.tensor(data[1].shape)[None]
+        shape = torch.tensor(y.shape)[None]
         surface_points_normalized_all = []
         for c in range(1, n_classes):
-            y_outer = sample_outer_surface_in_voxel((data[1]==c).long())
+            y_outer = sample_outer_surface_in_voxel((y==c).long())
             surface_points = torch.nonzero(y_outer)
             surface_points = torch.flip(surface_points, dims=[1]).float()  # convert z,y,x -> x, y, z
             surface_points_normalized = normalize_vertices(surface_points, shape)
+
+            # debug
+            write_scatter_plot_if_debug(surface_points_normalized,
+                                        "../misc/surface_points.png")
 
             perm = torch.randperm(len(surface_points_normalized))
             point_count = 3000
@@ -278,14 +280,14 @@ class Voxel2Mesh(V2MModel):
                 [Pointclouds([surface_points_normalized[\
                                     perm[:np.min([len(perm), point_count])]].cuda()])]
         if mode == ExecModes.TRAIN:
-            voxel2mesh_data = {'x': data[0].float().cuda()[None][None],
-                    'y_voxels': data[1].long().cuda()[None],
+            voxel2mesh_data = {'x': x.float().cuda()[None][None],
+                    'y_voxels': y.long().cuda()[None],
                     'surface_points': surface_points_normalized_all,
                     'unpool':[0, 1, 0, 1, 0]
                     }
         elif mode == ExecModes.TEST:
-            voxel2mesh_data = {'x': data[0].float().cuda()[None][None],
-                       'y_voxels': data[1].long().cuda()[None],
+            voxel2mesh_data = {'x': x.float().cuda()[None][None],
+                       'y_voxels': y.long().cuda()[None],
                        'vertices_mc': data[2].vertices.cuda(),
                        'faces_mc': data[2].faces.cuda(),
                        'surface_points': surface_points_normalized_all,

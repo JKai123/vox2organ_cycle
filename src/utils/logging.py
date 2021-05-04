@@ -13,6 +13,9 @@ import wandb
 import numpy as np
 import nibabel as nib
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 from utils.modes import ExecModes
 
 # global variables
@@ -136,6 +139,17 @@ def write_img_if_debug(img: np.ndarray, path: str):
     if debug:
         img = nib.Nifti1Image(img, np.eye(4))
         nib.save(img, path)
+
+def write_scatter_plot_if_debug(points, path: str):
+    """ Write a screenshot of a 3d scatter plot """
+    if debug:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(points[:,0],
+                   points[:,1],
+                   points[:,2])
+        plt.savefig(path)
+        plt.close()
 
 def measure_time(func):
     """ Decorator for time measurement """

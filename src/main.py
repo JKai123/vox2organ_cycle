@@ -23,13 +23,12 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 10,
+    'N_EPOCHS': 1000,
     'LOG_EVERY': 50,
     'EVAL_EVERY': 50,
     'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'DATASET_SEED': 1532,
     'EVAL_METRICS': [
         'JaccardVoxel',
         'JaccardMesh'
