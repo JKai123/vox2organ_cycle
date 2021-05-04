@@ -9,6 +9,7 @@ import time
 import logging
 import functools
 
+import torch
 import wandb
 import numpy as np
 import nibabel as nib
@@ -142,6 +143,8 @@ def write_img_if_debug(img: np.ndarray, path: str):
 
 def write_scatter_plot_if_debug(points, path: str):
     """ Write a screenshot of a 3d scatter plot """
+    if isinstance(points, torch.Tensor):
+        points = points.cpu()
     if debug:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
