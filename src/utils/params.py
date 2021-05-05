@@ -63,7 +63,7 @@ hyper_ps_default={
     # The weights for the mesh loss functions
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
-    # The number of sample points for the mesh loss computaiton if done as by
+    # The number of sample points for the mesh loss computation if done as by
     # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
     # of the voxel ground truth
     'N_SAMPLE_POINTS': 3000,
