@@ -20,6 +20,7 @@ from utils.logging import (
     get_log_dir,
     measure_time,
     write_img_if_debug,
+    log_deltaV,
     log_val_results)
 from utils.modes import ExecModes
 from utils.mesh import verts_faces_to_Meshes
@@ -131,14 +132,22 @@ class Solver():
         model_data = model.__class__.convert_data(data,
                                                self.n_classes,
                                                ExecModes.TRAIN)
+        pred = model(model_data)
+
+        # Log
         write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
                            "../misc/voxel_input_img_train.nii.gz")
         write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
-        pred = model(model_data)
-        pred_voxel = model.__class__.pred_to_voxel_pred(pred)
-        write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
+        write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
                            "../misc/voxel_pred_img_train.nii.gz")
+        if iteration % self.log_every == 0:
+            try:
+                # Mean over steps, classes, and batch
+                disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
+                log_deltaV(disps, iteration)
+            except NotImplementedError:
+                pass
 
         losses = {}
         # Voxel losses
