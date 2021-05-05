@@ -37,6 +37,28 @@ def log_losses(losses, iteration):
     if use_wandb:
         wandb.log(losses, step=iteration)
 
+def log_deltaV(coords, iteration):
+    """ Logging with wandb and std logging """
+    deltaV_avg = coords.norm(dim=1).mean().detach().cpu()
+
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Average displacement: %.5f", deltaV_avg)
+
+    if use_wandb:
+        wandb.log({"Avg_displacement": deltaV_avg}, step=iteration)
+
+def log_coords(coords, iteration):
+    """ Logging with wandb and std logging """
+    avg_coords = coords.mean(dim=(0,1)).detach().cpu()
+
+    trainLogger = logging.getLogger(ExecModes.TEST.name)
+    trainLogger.info("Average coordinates: {}", avg_coords)
+
+    if use_wandb:
+        wandb.log({"Coord_x": avg_coords[0],
+                   "Coord_y": avg_coords[1],
+                   "Coord_z": avg_coords[2]}, step=iteration)
+
 def log_val_results(val_results, iteration):
     """ Logging with wandb and std logging """
     val_results = {"Val_" + k: v for k, v in val_results.items()}

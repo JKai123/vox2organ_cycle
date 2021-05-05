@@ -45,3 +45,9 @@ class V2MModel(Module, ABC):
     def pred_to_pred_meshes(pred):
         """ Get the pytorch3d mesh predictions """
         pass
+
+    @staticmethod
+    @abstractmethod
+    def pred_to_displacements(pred):
+        """ Get the displacements of vertices per step and class """
+        pass

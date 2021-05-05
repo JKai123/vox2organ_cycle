@@ -336,5 +336,9 @@ class Voxel2Mesh(V2MModel):
 
         return pred_meshes
 
+    @staticmethod
+    def pred_to_displacements(pred):
+        raise NotImplementedError
+
 
 

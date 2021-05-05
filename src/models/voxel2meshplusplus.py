@@ -213,6 +213,7 @@ class Voxel2MeshPlusPlus(V2MModel):
             # See definition of the prediction at the end of the function
             pred[k] = [[temp_meshes.clone(),
                         temp_meshes.clone(),
+                        None,
                         None]]
 
         # Iterate over decoder steps
@@ -293,6 +294,7 @@ class Voxel2MeshPlusPlus(V2MModel):
                 # Move vertices
                 deltaV_packed = feature2vertex(latent_features_packed,
                                                edges_packed)
+                deltaV_padded = deltaV_packed.view(batch_size, N_new, -1)
                 vertices_packed = new_meshes.verts_packed()[:,-3:]
                 vertices_packed = vertices_packed + deltaV_packed
 
@@ -325,8 +327,10 @@ class Voxel2MeshPlusPlus(V2MModel):
                 # [ - batch of pytorch3d prediction Meshes with the last 3 features
                 #     being the actual coordinates
                 #   - batch of pytorch3d template Meshes (primarily for debugging)
-                #   - batch of voxel predictions]
-                pred[k] += [[new_meshes, new_temp_meshes, voxel_pred]]
+                #   - batch of voxel predictions,
+                #   - batch of displacements]
+                pred[k] += [[new_meshes, new_temp_meshes, voxel_pred,
+                             deltaV_padded]]
 
         return pred
 
@@ -397,6 +401,28 @@ class Voxel2MeshPlusPlus(V2MModel):
         return voxel2mesh_data
 
     @staticmethod
+    def pred_to_displacements(pred):
+        """ Get the vertex displacements of shape (S,C)
+        """
+        C = len(pred)
+        S = len(pred[1])
+
+        displacements = []
+        for s in range(S):
+            if s > 0: # No displacements for step 0
+                ds = []
+                for c in range(C):
+                    # No vertices for background
+                    if c != 0:
+                        _, _, _, disps = pred[c][s]
+                        # Mean over vertices since t|V| can vary among steps
+                        ds.append(disps.mean(dim=1, keepdim=True))
+                displacements.append(torch.stack(ds))
+        displacements = torch.stack(displacements)
+
+        return displacements
+
+    @staticmethod
     def pred_to_voxel_pred(pred):
         """ Get the voxel prediction with argmax over classes applied """
         return pred[-1][-1][2].argmax(dim=1).squeeze()
@@ -419,7 +445,7 @@ class Voxel2MeshPlusPlus(V2MModel):
             for c in range(C):
                 # No vertices and faces for background
                 if c != 0:
-                    meshes, _, _ = pred[c][s]
+                    meshes, _, _, _ = pred[c][s]
                     vertices[s,c] = meshes.verts_padded()[:,:,-3:]
                     faces[s,c] = meshes.faces_padded()
 
