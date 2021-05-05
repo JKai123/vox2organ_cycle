@@ -95,6 +95,14 @@ def augment_data(img, label):
     if np.random.rand(1) > 0.5:
         img, label = np.rot90(img, 1, [2,0]), np.rot90(label, 1, [2,0])
 
+    # Flip
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 0), np.flip(label, 0)
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 1), np.flip(label, 1)
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 2), np.flip(label, 2)
+
     # Elastic deformation
     img, label = deform_random_grid([img, label], sigma=1, points=3,
                                     order=[3, 0])
