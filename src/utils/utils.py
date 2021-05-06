@@ -243,3 +243,8 @@ def normalize_plus_minus_one(data):
     max_value = float(data.max())
     assert data.min() >= 0 and max_value > 0, "Elements should be ge 0."
     return 2 * ((data / max_value) - 0.5)
+
+def normalize_min_max(data):
+    """ Min- max normalization into [0,1] """
+    min_value = float(data.min())
+    return (data - min_value) / (data.max() - min_value)
