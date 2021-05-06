@@ -253,10 +253,13 @@ class Solver():
                     best_val_score = main_val_score
                     best_state = deepcopy(model.state_dict())
                     best_epoch = epoch
+                    if save_models:
+                        model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
+                        models_to_epochs[BEST_MODEL_NAME] = best_epoch
 
             # TODO: Early stopping
 
-            # Save after each epoch
+            # Save intermediate model after each epoch
             if save_models:
                 model.eval()
                 model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
@@ -266,16 +269,12 @@ class Solver():
                 trainLogger.debug("Saved intermediate model from epoch %d.",
                                   epoch)
 
-        # Save models
+        # Save final model
         if save_models:
             model.eval()
             model.save(os.path.join(self.save_path, FINAL_MODEL_NAME))
             models_to_epochs[FINAL_MODEL_NAME] = epoch
             if best_state is not None:
-                model.load_state_dict(best_state)
-                model.eval()
-                model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
-                models_to_epochs[BEST_MODEL_NAME] = best_epoch
                 trainLogger.info("Best model in epoch %d", best_epoch)
 
             # Save epochs corresponding to models
