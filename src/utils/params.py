@@ -72,7 +72,7 @@ hyper_ps_default={
     # e.g. 'linear' weighted average, 'geometric' mean
     'LOSS_AVERAGING': 'linear',
 
-    # Log losses etc. every n iterations
+    # Log losses etc. every n iterations or 'epoch'
     'LOG_EVERY': 1,
 
     # Evaluate model every n epochs

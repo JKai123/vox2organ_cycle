@@ -24,9 +24,11 @@ hyper_ps = {
     #######################
     # Learning
     'N_EPOCHS': 1000,
-    'LOG_EVERY': 50,
-    'EVAL_EVERY': 50,
-    'BATCH_SIZE': 5,
+    'EVAL_EVERY': 10,
+    'LOG_EVERY': 'epoch',
+    'BATCH_SIZE': 1,
+    'BATCH_NORM': False, # Only for Feature2Vertex layers!
+    'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': False,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'EVAL_METRICS': [
@@ -38,8 +40,11 @@ hyper_ps = {
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
-    'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.5],
+    'DATASET_SEED': 1532,
+    # CE
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
+    # Chamfer, Laplacian, NormalConsistency, Edge
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -143,9 +148,9 @@ def main(hps):
         raise ValueError("Original voxel2mesh only allows for batch size 1."\
                          " Try voxel2meshplusplus for larger batch size.")
 
-    if args.exp_name == "debug":
-        # Overfit when debugging
-        hps['OVERFIT'] = True
+    # if args.exp_name == "debug":
+        # # Overfit when debugging
+        # hps['OVERFIT'] = True
 
     torch.cuda.set_device(args.device)
 

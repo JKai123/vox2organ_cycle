@@ -223,6 +223,12 @@ class Solver():
         trainLogger.info("Created training loader of length %d",
                     len(training_loader))
 
+        # Logging every epoch
+        log_was_epoch = False
+        if self.log_every == 'epoch':
+            log_was_epoch = True
+            self.log_every = len(training_loader)
+
         epochs_file = os.path.join(self.save_path, "models_to_epochs.json")
         models_to_epochs = {}
 
@@ -243,7 +249,7 @@ class Solver():
             if epoch % eval_every == 0 or epoch == n_epochs:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
-                                                      save_meshes=5)
+                                                      save_meshes=0)
                 log_val_results(val_results, iteration)
 
                 # Main validation score
@@ -282,6 +288,9 @@ class Solver():
                 json.dump(models_to_epochs, f)
 
             trainLogger.info("Saved models at %s", self.save_path)
+
+            if log_was_epoch:
+                self.log_every = 'epoch'
 
         # Return last main validation score
         return main_val_score
