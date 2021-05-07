@@ -29,6 +29,9 @@ hyper_ps_default={
     # The batch size used during training
     'BATCH_SIZE': 1,
 
+    # Accumulate n gradients before doing a backward pass
+    'ACCUMULATE_N_GRADIENTS': 1,
+
     # The number of training epochs
     'N_EPOCHS': 5,
 
@@ -60,7 +63,7 @@ hyper_ps_default={
     # The weights for the mesh loss functions
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
-    # The number of sample points for the mesh loss computaiton if done as by
+    # The number of sample points for the mesh loss computation if done as by
     # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
     # of the voxel ground truth
     'N_SAMPLE_POINTS': 3000,
@@ -69,7 +72,7 @@ hyper_ps_default={
     # e.g. 'linear' weighted average, 'geometric' mean
     'LOSS_AVERAGING': 'linear',
 
-    # Log losses etc. every n iterations
+    # Log losses etc. every n iterations or 'epoch'
     'LOG_EVERY': 1,
 
     # Evaluate model every n epochs
@@ -101,7 +104,10 @@ hyper_ps_default={
         'STEPS': 4,
         'BATCH_NORM': True,
         'GRAPH_CONV_LAYER_COUNT': 4,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj'},
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
+        'UNPOOL_INDICES': [0,1,0,1,0],
+        'USE_ADOPTIVE_UNPOOL': False
+    },
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],

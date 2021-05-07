@@ -100,12 +100,13 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
         # Lower case param names as input to constructors/functions
         hps_lower = dict((k.lower(), v) for k, v in hps.items())
+        model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
         model = ModelHandler[hps['ARCHITECTURE']].value(\
                                             ndims=hps['N_DIMS'],
                                             num_classes=hps['N_CLASSES'],
                                             patch_shape=hps['PATCH_SIZE'],
-                                            config=hps['MODEL_CONFIG'])
+                                            **model_config)
         # New training
         start_epoch = 1
 

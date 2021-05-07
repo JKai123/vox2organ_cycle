@@ -50,8 +50,10 @@ def uniform_unpool(vertices_, faces_, identical_face_batch=True):
         if identical_face_batch:
             new_vertices_all = new_vertices_all[0].repeat(batch_size, 1, 1)
             new_faces_all = new_faces_all[0].repeat(batch_size, 1, 1)
-            break
+            return new_vertices_all, new_faces_all
 
+    new_vertices_all = torch.cat(new_vertices_all, dim=0)
+    new_faces_all = torch.cat(new_faces_all, dim=0)
     return new_vertices_all, new_faces_all
 
 

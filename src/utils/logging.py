@@ -9,9 +9,13 @@ import time
 import logging
 import functools
 
+import torch
 import wandb
 import numpy as np
 import nibabel as nib
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 from utils.modes import ExecModes
 
@@ -27,12 +31,33 @@ def log_losses(losses, iteration):
     """ Logging with wandb and std logging """
     losses = {k: v.detach() for k, v in losses.items()}
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    trainLogger.info("Iteration: %d", iteration)
     for k, v in losses.items():
         trainLogger.info("%s: %.5f", k, v)
 
     if use_wandb:
         wandb.log(losses, step=iteration)
+
+def log_deltaV(coords, iteration):
+    """ Logging with wandb and std logging """
+    deltaV_avg = coords.norm(dim=1).mean().detach().cpu()
+
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Average displacement: %.5f", deltaV_avg)
+
+    if use_wandb:
+        wandb.log({"Avg_displacement": deltaV_avg}, step=iteration)
+
+def log_coords(coords, iteration):
+    """ Logging with wandb and std logging """
+    avg_coords = coords.mean(dim=(0,1)).detach().cpu()
+
+    trainLogger = logging.getLogger(ExecModes.TEST.name)
+    trainLogger.info("Average coordinates: {}", avg_coords)
+
+    if use_wandb:
+        wandb.log({"Coord_x": avg_coords[0],
+                   "Coord_y": avg_coords[1],
+                   "Coord_z": avg_coords[2]}, step=iteration)
 
 def log_val_results(val_results, iteration):
     """ Logging with wandb and std logging """
@@ -95,7 +120,7 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     # no wanb when debugging or not in training mode
     global use_wandb
     global debug
-    if exp_name == 'debug':
+    if exp_name == 'debug' or loglevel == 'DEBUG':
         use_wandb = False
         debug = True
         loglevel='DEBUG'
@@ -131,17 +156,25 @@ def write_array_if_debug(data_1, data_2):
         np.save(file_1, data_1)
         np.save(file_2, data_2)
 
-def write_img_if_debug(img_1: np.ndarray, img_2: np.ndarray):
+def write_img_if_debug(img: np.ndarray, path: str):
     """ Write data if debug mode is on.
     """
-    file_1 = "../misc/img_1.nii.gz"
-    file_2 = "../misc/img_2.nii.gz"
-    debug = True
     if debug:
-        img_1 = nib.Nifti1Image(img_1, np.eye(4))
-        nib.save(img_1, file_1)
-        img_2 = nib.Nifti2Image(img_2, np.eye(4))
-        nib.save(img_2, file_2)
+        img = nib.Nifti1Image(img, np.eye(4))
+        nib.save(img, path)
+
+def write_scatter_plot_if_debug(points, path: str):
+    """ Write a screenshot of a 3d scatter plot """
+    if isinstance(points, torch.Tensor):
+        points = points.cpu()
+    if debug:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(points[:,0],
+                   points[:,1],
+                   points[:,2])
+        plt.savefig(path)
+        plt.close()
 
 def measure_time(func):
     """ Decorator for time measurement """

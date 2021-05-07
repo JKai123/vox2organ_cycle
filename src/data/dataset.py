@@ -10,6 +10,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import random
+import logging
 from enum import IntEnum
 
 import numpy as np
@@ -20,8 +21,8 @@ from elasticdeform import deform_random_grid
 
 import trimesh
 
-from utils.modes import DataModes
-from utils.utils import create_mesh_from_voxels
+from utils.modes import DataModes, ExecModes
+from utils.utils import create_mesh_from_voxels, normalize_min_max
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
@@ -93,6 +94,14 @@ def augment_data(img, label):
         img, label = np.rot90(img, 1, [1,2]), np.rot90(label, 1, [1,2])
     if np.random.rand(1) > 0.5:
         img, label = np.rot90(img, 1, [2,0]), np.rot90(label, 1, [2,0])
+
+    # Flip
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 0), np.flip(label, 0)
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 1), np.flip(label, 1)
+    if np.random.rand(1) > 0.5:
+        img, label = np.flip(img, 2), np.flip(label, 2)
 
     # Elastic deformation
     img, label = deform_random_grid([img, label], sigma=1, points=3,
@@ -204,6 +213,11 @@ class Hippocampus(DatasetHandler):
         self.patch_size = patch_size
 
         self.data = self._load_data3D(folder="imagesTr")
+        # NORMALIZE images (hippocampus data varies several orders of
+        # magnitude)!
+        for i, d in enumerate(self.data):
+            self.data[i] = normalize_min_max(d)
+
         self.voxel_labels = self._load_data3D(folder="labelsTr")
         # Ignore distinction between anterior and posterior hippocampus
         for vl in self.voxel_labels:
@@ -256,9 +270,9 @@ class Hippocampus(DatasetHandler):
         # Split
         if overfit:
             # Only consider first element of available data
-            indices_train = slice(0, 1)
-            indices_val = slice(0, 1)
-            indices_test = slice(0, 1)
+            indices_train = slice(0, 5)
+            indices_val = slice(0, 5)
+            indices_test = slice(0, 5)
         else:
             # No overfit
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
@@ -316,6 +330,9 @@ class Hippocampus(DatasetHandler):
         # Fit patch size
         img = img_with_patch_size(img, self.patch_size, False)
         voxel_label = img_with_patch_size(voxel_label, self.patch_size, True)
+
+        logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
+                                                      self._files[index])
 
         return img, voxel_label
 

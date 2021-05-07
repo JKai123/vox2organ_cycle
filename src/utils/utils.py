@@ -179,7 +179,9 @@ def crop_slices(shape1, shape2):
     return slices
 
 def crop_and_merge(tensor1, tensor2):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    """ Crops tensor1 such that it fits the shape of tensor2 and concatenates
+    both along channel dimension.
+    From https://github.com/cvlab-epfl/voxel2mesh """
 
     slices = crop_slices(tensor1.size(), tensor2.size())
     slices[0] = slice(None)
@@ -193,10 +195,19 @@ def sample_outer_surface_in_voxel(volume):
     objects. This is used in wickramasinghe 2020 as ground truth for mesh
     vertices.
     """
-    a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))[0]
-    b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))[0]
-    c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))[0]
-    border, _ = torch.max(torch.cat([a,b,c], dim=0), dim=0)
+    if volume.ndim == 3:
+        a = F.max_pool3d(volume[None,None].float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))
+        b = F.max_pool3d(volume[None,None].float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))
+        c = F.max_pool3d(volume[None,None].float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))
+    elif volume.ndim == 4:
+        a = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(3,1,1), stride=1, padding=(1, 0, 0))
+        b = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,3,1), stride=1, padding=(0, 1, 0))
+        c = F.max_pool3d(volume.unsqueeze(1).float(), kernel_size=(1,1,3), stride=1, padding=(0, 0, 1))
+    else:
+        raise NotImplementedError
+    border, _ = torch.max(torch.cat([a,b,c], dim=1), dim=1)
+    if volume.ndim == 3: # back to original shape
+        border = border.squeeze()
     surface = border - volume.float()
     return surface.long()
 
@@ -221,3 +232,19 @@ def sample_inner_volume_in_voxel(volume):
     inner_volume = torch.logical_and(volume, border)
     # Seems to lead to problems if volume.dtype == torch.uint8
     return inner_volume.type(volume.dtype)
+
+def normalize_max_one(data):
+    """ Normalize the input such that the maximum value is 1. """
+    max_value = float(data.max())
+    return data / max_value
+
+def normalize_plus_minus_one(data):
+    """ Normalize the input such that the values are in [-1,1]. """
+    max_value = float(data.max())
+    assert data.min() >= 0 and max_value > 0, "Elements should be ge 0."
+    return 2 * ((data / max_value) - 0.5)
+
+def normalize_min_max(data):
+    """ Min- max normalization into [0,1] """
+    min_value = float(data.min())
+    return (data - min_value) / (data.max() - min_value)

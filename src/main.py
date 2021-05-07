@@ -23,18 +23,28 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 10,
-    'LOG_EVERY': 130,
-    'EVAL_EVERY': 10,
-    'AUGMENT_TRAIN': False,
+    'N_EPOCHS': 2000,
+    'EVAL_EVERY': 100,
+    'LOG_EVERY': 'epoch',
+    'BATCH_SIZE': 15,
+    'BATCH_NORM': False, # Only for Feature2Vertex layers!
+    'ACCUMULATE_N_GRADIENTS': 1,
+    'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'EVAL_METRICS': [
-        # 'JaccardVoxel',
+        'JaccardVoxel',
         'JaccardMesh'
     ],
-    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
+    'OPTIM_PARAMS': {#
+        'lr': 1e-4,
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0},
+    'DATASET_SEED': 1532,
+    # CE
+    'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
+    # Chamfer, Laplacian, NormalConsistency, Edge
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
-
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
@@ -57,9 +67,10 @@ def main(hps):
     argparser.add_argument('architecture',
                            nargs='?',
                            type=str,
-                           default="voxel2mesh",
+                           default="voxel2meshplusplus",
                            help="The name of the algorithm. Supported:\n"
-                           "- voxel2mesh")
+                           "- voxel2mesh\n"
+                           "- voxel2meshplusplus")
     argparser.add_argument('dataset',
                            nargs='?',
                            type=str,
@@ -132,6 +143,10 @@ def main(hps):
     hps['OVERFIT'] = args.overfit
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
+
+    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
+        raise ValueError("Original voxel2mesh only allows for batch size 1."\
+                         " Try voxel2meshplusplus for larger batch size.")
 
     if args.exp_name == "debug":
         # Overfit when debugging
