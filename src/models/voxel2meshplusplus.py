@@ -10,15 +10,14 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from pytorch3d.structures import Meshes, Pointclouds
-from pytorch3d.ops import GraphConv
 
 from utils.utils import (
     crop_and_merge,
     sample_outer_surface_in_voxel,
     normalize_vertices)
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    Features2Features,
-    Feature2VertexLayer)
+    Feature2VertexLayer,
+    Features2Features)
 from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2mesh.file_handle import read_obj
 from utils.utils_voxel2mesh.unpooling import uniform_unpool, adoptive_unpool
@@ -134,8 +133,7 @@ class Voxel2MeshPlusPlus(V2MModel):
                 for _ in range(1, self.num_classes):
                     graph_unet_layers += [Features2Features(self.skip_count[i] + self.latent_features_count[i-1] + dim,
                                                             self.latent_features_count[i],
-                                                            hidden_layer_count=graph_conv_layer_count,
-                                                            graph_conv=GraphConv)]
+                                                            hidden_layer_count=graph_conv_layer_count)]
 
             for _ in range(1, self.num_classes):
                 feature2vertex_layers +=\
