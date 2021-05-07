@@ -249,7 +249,7 @@ class Solver():
             if epoch % eval_every == 0 or epoch == n_epochs:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
-                                                      save_meshes=0)
+                                                      save_meshes=5)
                 log_val_results(val_results, iteration)
 
                 # Main validation score
