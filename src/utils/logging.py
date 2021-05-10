@@ -47,6 +47,15 @@ def log_deltaV(coords, iteration):
     if use_wandb:
         wandb.log({"Avg_displacement": deltaV_avg}, step=iteration)
 
+def log_epoch(epoch: int, iteration: int):
+    """ Logging with wandb and std logging """
+
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Epoch: %d", epoch)
+
+    if use_wandb:
+        wandb.log({"epoch": epoch}, step=iteration)
+
 def log_coords(coords, iteration):
     """ Logging with wandb and std logging """
     avg_coords = coords.mean(dim=(0,1)).detach().cpu()

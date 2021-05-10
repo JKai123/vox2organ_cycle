@@ -17,6 +17,7 @@ from utils.utils import string_dict
 from utils.logging import (
     init_logging,
     log_losses,
+    log_epoch,
     get_log_dir,
     measure_time,
     write_img_if_debug,
@@ -239,7 +240,9 @@ class Solver():
 
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
-                    trainLogger.info("Iteration: %d", iteration)
+                    trainLogger.info("Iteration: %d / %d", iteration,
+                                     len(training_loader))
+                    log_epoch(epoch, iteration)
                 # Step
                 loss = self.training_step(model, data, iteration)
 
