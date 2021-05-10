@@ -131,9 +131,11 @@ class Voxel2MeshPlusPlus(V2MModel):
                                             first_layer_channels * 2**(steps-i),
                                             ndims)
                 for _ in range(1, self.num_classes):
-                    graph_unet_layers += [Features2Features(self.skip_count[i] + self.latent_features_count[i-1] + dim,
-                                                            self.latent_features_count[i],
-                                                            hidden_layer_count=graph_conv_layer_count)]
+                    graph_unet_layers += [Features2Features(
+                        self.skip_count[i] + self.latent_features_count[i-1] + dim,
+                        self.latent_features_count[i],
+                        hidden_layer_count=graph_conv_layer_count,
+                        batch_norm=batch_norm)]
 
             for _ in range(1, self.num_classes):
                 feature2vertex_layers +=\

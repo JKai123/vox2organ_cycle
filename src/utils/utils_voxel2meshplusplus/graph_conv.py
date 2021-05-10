@@ -13,6 +13,8 @@ import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
 from torch_geometric.nn import GCNConv, ChebConv
 
+from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
+
 class GraphConvNorm(GraphConv):
     """ Wrapper for pytorch3d.ops.GraphConv that normalizes the features
     w.r.t. the degree of the vertices.
@@ -42,21 +44,32 @@ class Features2Features(nn.Module):
     """ A graph conv block """
 
     def __init__(self, in_features, out_features, hidden_layer_count,
-                 GC=GraphConv):
-        # TODO: batch norm?
+                 batch_norm=False, GC=GraphConv):
         super().__init__()
 
         self.gconv_first = GC(in_features, out_features)
+        if batch_norm:
+            self.bn_first = nn.BatchNorm1d(out_features)
+        else:
+            self.bn_first = IdLayer()
         gconv_hidden = []
         for _ in range(hidden_layer_count):
-            gconv_hidden += [GC(out_features, out_features)]
+            gc_layer = GC(out_features, out_features)
+            if batch_norm:
+                bn_layer = nn.BatchNorm1d(out_features)
+            else:
+                bn_layer = IdLayer() # Id
+
+            gconv_hidden += [nn.Sequential(gc_layer, bn_layer)]
+
         self.gconv_hidden = nn.Sequential(*gconv_hidden)
         self.gconv_last = GC(out_features, out_features)
 
     def forward(self, features, edges):
-        features = F.relu(self.gconv_first(features, edges))
-        for gconv_hidden in self.gconv_hidden:
-            features = F.relu(gconv_hidden(features, edges))
+        # Conv --> Norm --> ReLU
+        features = F.relu(self.bn_first(self.gconv_first(features, edges)))
+        for gconv, bn in self.gconv_hidden:
+            features = F.relu(bn(gconv(features, edges)))
         return self.gconv_last(features, edges)
 
 class Feature2VertexLayer(nn.Module):
@@ -66,27 +79,28 @@ class Feature2VertexLayer(nn.Module):
     def __init__(self, in_features, hidden_layer_count, batch_norm=False,
                  GC=GraphConvNorm):
         super().__init__()
-        self.batch_norm = batch_norm
-        self.layers = []
+        self.feature_layers = []
         for i in range(hidden_layer_count, 1, -1):
             layer_in_features = i * in_features // hidden_layer_count
             layer_out_features = (i-1) * in_features // hidden_layer_count
-            self.layers += [GC(layer_in_features, layer_out_features)]
-            if self.batch_norm:
-                self.layers += [nn.BatchNorm1d(layer_out_features)]
+            gc_layer = GC(layer_in_features, layer_out_features)
+            if batch_norm:
+                bn_layer = nn.BatchNorm1d(layer_out_features)
+            else:
+                bn_layer = IdLayer() # Id
 
-        self.gconv_layers = nn.Sequential(*self.layers)
+            layer = nn.Sequential(gc_layer, bn_layer)
+            self.feature_layers.append(layer)
+
+        self.feature_layers = nn.Sequential(*self.feature_layers)
 
         # Output of F2V should be 3D coordinates
         self.gconv_last = GC(in_features // hidden_layer_count, 3)
 
     def forward(self, features, edges):
-        for layer in self.layers:
-            if isinstance(layer, (GraphConv, GCNConv, ChebConv)):
-                features = layer(features, edges)
-            elif isinstance(layer, nn.BatchNorm1d):
-                features = layer(features)
-            else:
-                raise ValueError("Unknown layer type.")
-            features = F.relu(features)
+        for conv_layer, bn in self.feature_layers:
+            # Conv --> Norm --> ReLU
+            features = conv_layer(features, edges)
+            features = F.relu(bn(features))
+
         return self.gconv_last(features, edges)

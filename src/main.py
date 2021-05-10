@@ -23,12 +23,12 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 1000,
+    'N_EPOCHS': 2000,
     'EVAL_EVERY': 50,
     'LOG_EVERY': 'epoch',
     'BATCH_SIZE': 15,
     'ACCUMULATE_N_GRADIENTS': 1,
-    'AUGMENT_TRAIN': False,
+    'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'EVAL_METRICS': [
         'JaccardVoxel',
@@ -46,7 +46,7 @@ hyper_ps = {
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
     'MODEL_CONFIG': {
-        'BATCH_NORM': False, # Only for Feature2Vertex layers!
+        'BATCH_NORM': True, # Only for Feature2Vertex layers!
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
     },
