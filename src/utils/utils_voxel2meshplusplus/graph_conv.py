@@ -47,6 +47,9 @@ class Features2Features(nn.Module):
                  batch_norm=False, GC=GraphConv):
         super().__init__()
 
+        # Only make a residual layer if #input features = #output features
+        self.is_residual = in_features == out_features
+
         self.gconv_first = GC(in_features, out_features)
         if batch_norm:
             self.bn_first = nn.BatchNorm1d(out_features)
@@ -66,10 +69,17 @@ class Features2Features(nn.Module):
         self.gconv_last = GC(out_features, out_features)
 
     def forward(self, features, edges):
+        res = features
         # Conv --> Norm --> ReLU
         features = F.relu(self.bn_first(self.gconv_first(features, edges)))
-        for gconv, bn in self.gconv_hidden:
-            features = F.relu(bn(gconv(features, edges)))
+        for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
+            # Adding residual before last relu
+            if i == len(self.gconv_hidden) and self.is_residual:
+                features = bn(gconf(features, edges)) + res
+                features = F.relu(features)
+            else:
+                features = F.relu(bn(gconv(features, edges)))
+
         return self.gconv_last(features, edges)
 
 class Feature2VertexLayer(nn.Module):
