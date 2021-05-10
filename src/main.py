@@ -23,13 +23,12 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 2000,
-    'EVAL_EVERY': 100,
+    'N_EPOCHS': 1000,
+    'EVAL_EVERY': 50,
     'LOG_EVERY': 'epoch',
     'BATCH_SIZE': 15,
-    'BATCH_NORM': False, # Only for Feature2Vertex layers!
     'ACCUMULATE_N_GRADIENTS': 1,
-    'AUGMENT_TRAIN': True,
+    'AUGMENT_TRAIN': False,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'EVAL_METRICS': [
         'JaccardVoxel',
@@ -45,6 +44,12 @@ hyper_ps = {
     'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
     # Chamfer, Laplacian, NormalConsistency, Edge
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    # Model
+    'MODEL_CONFIG': {
+        'BATCH_NORM': False, # Only for Feature2Vertex layers!
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
+        'UNPOOL_INDICES': [0,1,0,1,0],
+    },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
