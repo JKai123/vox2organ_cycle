@@ -240,8 +240,7 @@ class Solver():
 
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
-                    trainLogger.info("Iteration: %d / %d", iteration,
-                                     len(training_loader))
+                    trainLogger.info("Iteration: %d", iteration)
                     log_epoch(epoch, iteration)
                 # Step
                 loss = self.training_step(model, data, iteration)
