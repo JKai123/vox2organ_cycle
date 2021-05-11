@@ -15,7 +15,7 @@ from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.losses import ChamferLoss
 
-# Overwrite default parameters
+# Overwrite default parameters for a common training procedure
 hyper_ps = {
     # Overwriting std values from utils.params
     #######################
@@ -54,6 +54,16 @@ hyper_ps = {
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
 }
+
+# Overwrite params for overfitting (fewer epochs, no augmentation, smaller
+# dataset)
+hyper_ps_overfit = {
+    # Learning
+    'N_EPOCHS': 1000,
+    'BATCH_SIZE': 5,
+    'AUGMENT_TRAIN': False,
+}
+
 
 mode_handler = {
     ExecModes.TRAIN.value: training_routine,
@@ -161,6 +171,10 @@ def main(hps):
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
+
+    # Update again for overfitting
+    if hps['OVERFIT']:
+        hps = update_dict(hps, hyper_ps_overfit)
 
     if args.params_to_tune is not None:
         mode = ExecModes.TUNE
