@@ -225,13 +225,22 @@ class ModelEvaluator():
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
 
             # Mesh prediction
-            pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                "_class" + str(c) + "_meshpred.ply"
+            show_all_steps = False
             vertices, faces = model_class.pred_to_verts_and_faces(pred)
-            vertices, faces = vertices[-1][c], faces[-1][c]
-            pred_mesh = Mesh(vertices.squeeze().cpu(),
-                             faces.squeeze().cpu())
-            pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+            if show_all_steps:
+                # Visualize meshes of all steps
+                for s, (v, f) in enumerate(zip(vertices[:,c], faces[:,c])):
+                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                            "_class" + str(c) + "_step" + str(s) + "_meshpred.ply"
+                        pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
+                        pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+            else:
+                # Only visualize last step
+                pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                    "_class" + str(c) + "_meshpred.ply"
+                v, s = vertices[-1][c], faces[-1][c]
+                pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
+                pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
 
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\
