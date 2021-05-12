@@ -12,6 +12,7 @@ import json
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler, autocast
 
 from utils.utils import string_dict
 from utils.logging import (
@@ -88,6 +89,7 @@ class Solver():
         self.optim_class = optimizer_class
         self.optim_params = optim_params
         self.optim = None # defined for each training separately
+        self.scaler = GradScaler() # for mixed precision
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
         self.voxel_loss_func_weights = voxel_loss_func_weights
@@ -117,11 +119,12 @@ class Solver():
         :returns: The overall (weighted) loss.
         """
         loss_total = self.compute_loss(model, data, iteration)
-        loss_total.backward()
+        self.scaler.scale(loss_total).backward()
 
         # Accumulate gradients
         if iteration % self.accumulate_ngrad == 0:
-            self.optim.step()
+            self.scaler.step(self.optim)
+            self.scaler.update()
             self.optim.zero_grad()
             logging.getLogger(ExecModes.TRAIN.name).debug("Updated parameters.")
 
@@ -133,7 +136,8 @@ class Solver():
         model_data = model.__class__.convert_data(data,
                                                self.n_classes,
                                                ExecModes.TRAIN)
-        pred = model(model_data)
+        with autocast():
+            pred = model(model_data)
 
         # Log
         write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
@@ -151,31 +155,32 @@ class Solver():
                 pass
 
         losses = {}
-        # Voxel losses
-        for lf in self.voxel_loss_func:
-            losses[str(lf)] = lf(model.__class__.pred_to_raw_voxel_pred(pred),
-                                 model_data['y_voxels'])
+        with autocast():
+            # Voxel losses
+            for lf in self.voxel_loss_func:
+                losses[str(lf)] = lf(model.__class__.pred_to_raw_voxel_pred(pred),
+                                     model_data['y_voxels'])
 
-        # Mesh losses
-        pred_meshes = model.__class__.pred_to_pred_meshes(pred)
-        targets = model_data['surface_points']
-        for lf in self.mesh_loss_func:
-            losses[str(lf)] = lf(pred_meshes, targets)
+            # Mesh losses
+            pred_meshes = model.__class__.pred_to_pred_meshes(pred)
+            targets = model_data['surface_points']
+            for lf in self.mesh_loss_func:
+                losses[str(lf)] = lf(pred_meshes, targets)
 
-        # Merge loss weights into one list
-        combined_loss_weights = self.voxel_loss_func_weights +\
-                self.mesh_loss_func_weights
+            # Merge loss weights into one list
+            combined_loss_weights = self.voxel_loss_func_weights +\
+                    self.mesh_loss_func_weights
 
-        if self.loss_averaging == 'linear':
-            loss_total = linear_loss_combine(losses.values(),
-                                             combined_loss_weights)
-        elif self.loss_averaging == 'geometric':
-            loss_total = geometric_loss_combine(losses.values(),
-                                                combined_loss_weights)
-        else:
-            raise ValueError("Unknown loss averaging.")
+            if self.loss_averaging == 'linear':
+                loss_total = linear_loss_combine(losses.values(),
+                                                 combined_loss_weights)
+            elif self.loss_averaging == 'geometric':
+                loss_total = geometric_loss_combine(losses.values(),
+                                                    combined_loss_weights)
+            else:
+                raise ValueError("Unknown loss averaging.")
 
-        losses['TotalLoss'] = loss_total
+            losses['TotalLoss'] = loss_total
 
         # log
         if iteration % self.log_every == 0:
