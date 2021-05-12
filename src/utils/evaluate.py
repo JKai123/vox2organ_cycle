@@ -238,7 +238,7 @@ class ModelEvaluator():
                 # Only visualize last step
                 pred_mesh_filename = filename + "_epoch" + str(epoch) +\
                     "_class" + str(c) + "_meshpred.ply"
-                v, s = vertices[-1][c], faces[-1][c]
+                v, f = vertices[-1][c], faces[-1][c]
                 pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
                 pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
 
