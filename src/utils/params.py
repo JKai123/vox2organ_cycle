@@ -48,6 +48,9 @@ hyper_ps_default={
     # Data augmentation
     'AUGMENT_TRAIN': False,
 
+    # Whether or not to use Pytorch's automatic mixed precision
+    'MIXED_PRECISION': False,
+
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
 

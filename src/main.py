@@ -30,6 +30,7 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
+    'MIXED_PRECISION': True,
     'EVAL_METRICS': [
         'JaccardVoxel',
         'JaccardMesh'

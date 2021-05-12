@@ -105,6 +105,13 @@ class LearntNeighbourhoodSampling(nn.Module):
 
     def forward(self, voxel_features, vertices):
 
+        # Avoid bug related to automatic mixed precision, see also
+        # https://github.com/pytorch/pytorch/issues/42218
+        if voxel_features.dtype != torch.float32:
+            voxel_features = voxel_features.float()
+        if vertices.dtype != torch.float32:
+            vertices = vertices.float()
+
         B, N, _ = vertices.shape
         center = vertices[:, :, None, None]
         features = F.grid_sample(voxel_features, center, mode='bilinear', padding_mode='border', align_corners=True)

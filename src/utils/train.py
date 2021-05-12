@@ -64,6 +64,8 @@ class Solver():
     :param str main_eval_metric: The main evaluation metric according to which
     the best model is determined.
     :param int accumulate_n_gradients: Gradient accumulation of n gradients.
+    :param bool mixed_precision: Whether or not to use automatic mixed
+    precision.
 
     """
 
@@ -83,6 +85,7 @@ class Solver():
                  device,
                  main_eval_metric,
                  accumulate_n_gradients,
+                 mixed_precision,
                  **kwargs):
 
         self.n_classes = n_classes
@@ -108,6 +111,7 @@ class Solver():
         self.device = device
         self.main_eval_metric = main_eval_metric
         self.accumulate_ngrad = accumulate_n_gradients
+        self.mixed_precision = mixed_precision
 
     @measure_time
     def training_step(self, model, data, iteration):
@@ -119,12 +123,20 @@ class Solver():
         :returns: The overall (weighted) loss.
         """
         loss_total = self.compute_loss(model, data, iteration)
-        self.scaler.scale(loss_total).backward()
+
+        if self.mixed_precision:
+            self.scaler.scale(loss_total).backward()
+        else:
+            loss_total.backward()
 
         # Accumulate gradients
         if iteration % self.accumulate_ngrad == 0:
-            self.scaler.step(self.optim)
-            self.scaler.update()
+            if self.mixed_precision:
+                self.scaler.step(self.optim)
+                self.scaler.update()
+            else:
+                self.optim.step()
+
             self.optim.zero_grad()
             logging.getLogger(ExecModes.TRAIN.name).debug("Updated parameters.")
 
@@ -136,7 +148,7 @@ class Solver():
         model_data = model.__class__.convert_data(data,
                                                self.n_classes,
                                                ExecModes.TRAIN)
-        with autocast():
+        with autocast(self.mixed_precision):
             pred = model(model_data)
 
         # Log
@@ -155,7 +167,7 @@ class Solver():
                 pass
 
         losses = {}
-        with autocast():
+        with autocast(self.mixed_precision):
             # Voxel losses
             for lf in self.voxel_loss_func:
                 losses[str(lf)] = lf(model.__class__.pred_to_raw_voxel_pred(pred),
