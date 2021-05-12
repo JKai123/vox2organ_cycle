@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from pytorch3d.structures import Meshes, Pointclouds
+from torch.cuda.amp import autocast
 
 from utils.utils import (
     crop_and_merge,
@@ -239,89 +240,94 @@ class Voxel2MeshPlusPlus(V2MModel):
             else:
                 raise ValueError("Unknown behavior")
 
-            # Iterate over classes ignoring background class 0
-            for k in range(1, self.num_classes):
+            # Avoid bug related to automatic mixed precision, see also
+            # https://github.com/pytorch/pytorch/issues/42218
+            with autocast(enabled=False):
+                # Iterate over classes ignoring background class 0
+                for k in range(1, self.num_classes):
 
-                # Load mesh information from previous iteration for class k
-                prev_meshes = pred[k][i][0]
-                vertices_padded = prev_meshes.verts_padded()[:,:,-3:] # (B,V,3)
-                latent_features_padded = prev_meshes.verts_padded()[:,:,:-3] # (B,V,latent_features_count)
-                faces_padded = prev_meshes.faces_padded() # (B,F,3)
+                    # Load mesh information from previous iteration for class k
+                    prev_meshes = pred[k][i][0]
+                    vertices_padded = prev_meshes.verts_padded()[:,:,-3:] # (B,V,3)
+                    latent_features_padded = prev_meshes.verts_padded()[:,:,:-3] # (B,V,latent_features_count)
+                    faces_padded = prev_meshes.faces_padded() # (B,F,3)
 
-                # Load template from previous step
-                temp_meshes = pred[k][i][1]
-                temp_vertices_padded = temp_meshes.verts_padded() # (B,V,3)
-                graph_unet_layer = up_f2f_layers[k]
-                feature2vertex = up_f2v_layers[k]
+                    # Load template from previous step
+                    temp_meshes = pred[k][i][1]
+                    temp_vertices_padded = temp_meshes.verts_padded() # (B,V,3)
+                    graph_unet_layer = up_f2f_layers[k]
+                    feature2vertex = up_f2v_layers[k]
 
-                if do_unpool == 1:
-                    faces_prev = faces_padded
-                    _, N_prev, _ = vertices_padded.shape
+                    if do_unpool == 1:
+                        faces_prev = faces_padded
+                        _, N_prev, _ = vertices_padded.shape
 
-                    # Get candidate vertices using uniform unpool
-                    vertices_padded,\
-                            faces_padded_new = uniform_unpool(vertices_padded,
-                                                  faces_padded,
-                                                  identical_face_batch=False)
-                    latent_features_padded, _ = uniform_unpool(latent_features_padded,
-                                                  faces_padded,
-                                                  identical_face_batch=False)
-                    temp_vertices_padded, _ = uniform_unpool(temp_vertices_padded,
-                                                  faces_padded,
-                                                  identical_face_batch=True)
-                    faces_padded = faces_padded_new
+                        # Get candidate vertices using uniform unpool
+                        vertices_padded,\
+                                faces_padded_new = uniform_unpool(vertices_padded,
+                                                      faces_padded,
+                                                      identical_face_batch=False)
+                        latent_features_padded, _ = uniform_unpool(latent_features_padded,
+                                                      faces_padded,
+                                                      identical_face_batch=False)
+                        temp_vertices_padded, _ = uniform_unpool(temp_vertices_padded,
+                                                      faces_padded,
+                                                      identical_face_batch=True)
+                        faces_padded = faces_padded_new
 
-                # Latent features of vertices
-                skipped_features = skip_connection(x[:, :skip_amount],
-                                                   vertices_padded)
-                if latent_features_padded.nelement() > 0:
-                    latent_features_padded = torch.cat([latent_features_padded,
-                                                 skipped_features,
-                                                 vertices_padded], dim=2)
-                else:
-                    # First decoder step: No latent features from previous step
-                    latent_features_padded = torch.cat([skipped_features,
-                                                 vertices_padded], dim=2)
+                    # Latent features of vertices
+                    skipped_features = skip_connection(
+                        # Cast x to float32 (comes from autocast region)
+                        x[:,:skip_amount].float(), vertices_padded
+                    )
+                    if latent_features_padded.nelement() > 0:
+                        latent_features_padded = torch.cat([latent_features_padded,
+                                                     skipped_features,
+                                                     vertices_padded], dim=2)
+                    else:
+                        # First decoder step: No latent features from previous step
+                        latent_features_padded = torch.cat([skipped_features,
+                                                     vertices_padded], dim=2)
 
-                # New latent features
-                N_new = latent_features_padded.shape[1]
-                new_meshes = Meshes(latent_features_padded, faces_padded)
-                edges_packed = new_meshes.edges_packed()
-                latent_features_packed = new_meshes.verts_packed()
-                latent_features_packed =\
-                    graph_unet_layer(latent_features_packed, edges_packed)
+                    # New latent features
+                    N_new = latent_features_padded.shape[1]
+                    new_meshes = Meshes(latent_features_padded, faces_padded)
+                    edges_packed = new_meshes.edges_packed()
+                    latent_features_packed = new_meshes.verts_packed()
+                    latent_features_packed =\
+                        graph_unet_layer(latent_features_packed, edges_packed)
 
-                # Move vertices
-                deltaV_packed = feature2vertex(latent_features_packed,
-                                               edges_packed)
-                deltaV_padded = deltaV_packed.view(batch_size, N_new, -1)
-                vertices_packed = new_meshes.verts_packed()[:,-3:]
-                vertices_packed = vertices_packed + deltaV_packed
+                    # Move vertices
+                    deltaV_packed = feature2vertex(latent_features_packed,
+                                                   edges_packed)
+                    deltaV_padded = deltaV_packed.view(batch_size, N_new, -1)
+                    vertices_packed = new_meshes.verts_packed()[:,-3:]
+                    vertices_packed = vertices_packed + deltaV_packed
 
-                # Latent features = (latent features, vertex positions)
-                latent_features_packed = torch.cat([latent_features_packed,
-                                                   vertices_packed], dim=1)
-                # !Requires all meshes to have the same number of vertices!
-                latent_features_padded =\
-                    latent_features_packed.view(batch_size, N_new, -1)
+                    # Latent features = (latent features, vertex positions)
+                    latent_features_packed = torch.cat([latent_features_packed,
+                                                       vertices_packed], dim=1)
+                    # !Requires all meshes to have the same number of vertices!
+                    latent_features_padded =\
+                        latent_features_packed.view(batch_size, N_new, -1)
 
-                # Final meshes
-                new_meshes = Meshes(latent_features_padded,
-                                    new_meshes.faces_padded())
+                    # Final meshes
+                    new_meshes = Meshes(latent_features_padded,
+                                        new_meshes.faces_padded())
 
-                if do_unpool == 1 and self.use_adoptive_unpool:
-                    raise NotImplementedError("Adoptive unpooling changes the"\
-                                              " number of vertices for each"\
-                                              " mesh which is currently"\
-                                              " expected to lead to problems.")
-                    # Discard the vertices that were introduced from the uniform unpool and didn't deform much
-                    # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, N_prev)
+                    if do_unpool == 1 and self.use_adoptive_unpool:
+                        raise NotImplementedError("Adoptive unpooling changes the"\
+                                                  " number of vertices for each"\
+                                                  " mesh which is currently"\
+                                                  " expected to lead to problems.")
+                        # Discard the vertices that were introduced from the uniform unpool and didn't deform much
+                        # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, N_prev)
 
-                # Voxel prediction
-                voxel_pred = self.final_layer(x) if i == len(self.up_std_conv_layers) - 1 else None
+                    # Voxel prediction
+                    voxel_pred = self.final_layer(x.float()) if i == len(self.up_std_conv_layers) - 1 else None
 
-                # Template meshes
-                new_temp_meshes = Meshes(temp_vertices_padded, faces_padded)
+                    # Template meshes
+                    new_temp_meshes = Meshes(temp_vertices_padded, faces_padded)
 
                 # pred for one class at one decoder step has the form
                 # [ - batch of pytorch3d prediction Meshes with the last 3 features

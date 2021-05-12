@@ -19,11 +19,13 @@ from abc import ABC, abstractmethod
 
 import torch
 import pytorch3d.structures
+from pytorch3d.structures import Meshes
 from pytorch3d.loss import (chamfer_distance,
                             mesh_edge_loss,
                             mesh_laplacian_smoothing,
                             mesh_normal_consistency)
 from pytorch3d.ops import sample_points_from_meshes
+from torch.cuda.amp import autocast
 
 class MeshLoss(ABC):
     def __str__(self):
@@ -68,7 +70,14 @@ class LaplacianLoss(MeshLoss):
     def get_loss(self,
                  pred_meshes: pytorch3d.structures.Meshes,
                  target: pytorch3d.structures.Pointclouds=None):
-        return mesh_laplacian_smoothing(pred_meshes, method='uniform')
+        # Method does not support autocast
+        with autocast(enabled=False):
+            loss = mesh_laplacian_smoothing(
+                Meshes(pred_meshes.verts_padded().float(),
+                       pred_meshes.faces_padded().float()),
+                method='uniform'
+            )
+        return loss
 
 class NormalConsistencyLoss(MeshLoss):
     def get_loss(self,

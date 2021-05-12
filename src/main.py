@@ -160,10 +160,6 @@ def main(hps):
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
 
-    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
-        raise ValueError("Original voxel2mesh only allows for batch size 1."\
-                         " Try voxel2meshplusplus for larger batch size.")
-
     if args.exp_name == "debug":
         # Overfit when debugging
         hps['OVERFIT'] = True
@@ -189,6 +185,14 @@ def main(hps):
         if not args.test and not args.train:
             print("Please use either --train or --test or both.")
             return
+
+    if hps['ARCHITECTURE'] == "voxel2mesh" and hps['MIXED_PRECISION']:
+        raise ValueError("Mixed precision is not supported for original"\
+                         " voxel2mesh.")
+    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
+        raise ValueError("Original voxel2mesh only allows for batch size 1."\
+                         " Try voxel2meshplusplus for larger batch size.")
+
 
     # Run
     routine = mode_handler[mode]
