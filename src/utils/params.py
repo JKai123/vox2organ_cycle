@@ -63,7 +63,9 @@ hyper_ps_default={
                        NormalConsistencyLoss(),
                        EdgeLoss()],
 
-    # The weights for the mesh loss functions
+    # The weights for the mesh loss functions, given are the values from
+    # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
+    # [0.3, 0.05, 0.46, 0.16]
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
     # The number of sample points for the mesh loss computation if done as by
@@ -103,6 +105,8 @@ hyper_ps_default={
     # (from https://github.com/cvlab-epfl/voxel2mesh)
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
+        'ENCODER_CHANNELS': [16, 32, 64, 128, 256],
+        'DECODER_CHANNELS': [128, 64, 32, 16],
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
         'BATCH_NORM': True,
