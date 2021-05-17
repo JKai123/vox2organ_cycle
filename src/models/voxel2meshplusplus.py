@@ -26,8 +26,9 @@ from utils.modes import ExecModes
 from utils.logging import measure_time, write_scatter_plot_if_debug
 from utils.mesh import verts_faces_to_Meshes
 
-from models.u_net import UNetLayer
+from models.u_net import UNetLayer, ResidualUNet
 from models.base_model import V2MModel
+from models.graph_net import GraphDecoder
 
 class Voxel2MeshPlusPlus(V2MModel):
     """ Voxel2MeshPlusPlus
@@ -463,5 +464,139 @@ class Voxel2MeshPlusPlus(V2MModel):
         vertices, faces = Voxel2MeshPlusPlus.pred_to_verts_and_faces(pred)
         # Ignore step 0 and class 0
         pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
+
+        return pred_meshes
+
+
+class Voxel2MeshPlusPlusGeneric(V2MModel):
+    """ Voxel2MeshPlusPlus with features taken either from the encoder or the
+    decoder. The primary reference for this implementation is
+    https://arxiv.org/abs/2102.07899.
+
+    :param num_classes: Number of classes to distinguish
+    :param patch_shape: The shape of the input patches, e.g. (64, 64, 64)
+    :param num_input_channels: The number of channels of the input image.
+    :param encoder_channels: The number of channels of the encoder
+    :param decoder_channels: The number of channels of the decoder
+    :param graph_conv_layer_count: The number of hidden layers in the
+    feature-to-feature block
+    :param batch_norm: Whether or not to apply batch norm at layers.
+    :param mesh_template: The mesh template that is deformed thoughout a
+    forward pass.
+    :param unpool_indices: Indicates the steps at which unpooling is performed. This
+    has no impact on the model architecture and can be changed even after
+    training.
+    :param adoptive_unpool: Discard vertices that did not deform much to reduce
+    number of vertices where appropriate (e.g. where curvature is low)
+    :param use_voxel_decoder: Whether to apply a voxel decoder (for
+    segmentation)
+    """
+
+    def __init__(self,
+                 num_classes: int,
+                 patch_shape,
+                 num_input_channels,
+                 encoder_channels,
+                 decoder_channels,
+                 graph_channels,
+                 batch_norm,
+                 mesh_template,
+                 unpool_indices,
+                 use_adoptive_unpool,
+                 use_voxel_decoder
+                 ):
+        super().__init__()
+
+        # Voxel network
+        self.voxel_net = ResidualUNet(num_classes,
+                                      num_input_channels,
+                                      patch_shape,
+                                      encoder_channels,
+                                      decoder_channels)
+        # Graph network
+        self.graph_net = GraphDecoder(batch_norm,
+                                      mesh_template,
+                                      unpool_indices,
+                                      use_adoptive_unpool,
+                                      graph_channels,
+                                      skip_channels=encoder_channels)
+
+    @measure_time
+    def forward(self, data):
+        x = data['x']
+
+        encoder_skips, decoder_skips, seg_out = self.voxel_net(x)
+        pred_meshes, pred_deltaV = self.graph_net(encoder_skips)
+
+        # pred has the form
+        # ( - batch of pytorch3d prediction Meshes with the last 3 features
+        #     being the actual coordinates
+        #   - batch of voxel predictions,
+        #   - batch of displacements)
+        pred = (pred_meshes, seg_out, pred_deltaV)
+
+        return pred
+
+    def save(self, path):
+        """ Save model with its parameters to the given path.
+        Conventionally the path should end with "*.model".
+
+        :param str path: The path where the model should be saved.
+        """
+
+        torch.save(self.state_dict(), path)
+
+    @staticmethod
+    @measure_time
+    def convert_data(data, n_classes, mode):
+        """ Convert data such that it's compatible with the above voxel2mesh
+        implementation. Currently, it's the same as for Voxel2MeshPlusPlus but
+        it may change in the future.
+        """
+        return Voxel2MeshPlusPlus.convert_data(data, n_classes, mode)
+
+    @staticmethod
+    def pred_to_displacements(pred):
+        """ Get the vertex displacements of shape (S,C)
+        """
+        # No displacements for step 0
+        displacements = pred[2][1:]
+        # Mean over vertices since t|V| can vary among steps
+        displacements = [d.mean(dim=1, keepdim=True) for d in displacements]
+        displacements = torch.stack(displacements).unsqueeze(1)
+
+        return displacements
+
+    @staticmethod
+    def pred_to_voxel_pred(pred):
+        """ Get the voxel prediction with argmax over classes applied """
+        return pred[1][-1].argmax(dim=1).squeeze()
+
+    @staticmethod
+    def pred_to_raw_voxel_pred(pred):
+        """ Get the voxel prediction per class """
+        return pred[1][-1]
+
+    @staticmethod
+    def pred_to_verts_and_faces(pred):
+        """ Get the vertices and faces of shape (S,C)
+        """
+        C = 2
+        S = len(pred[0])
+
+        vertices = np.empty((S,C), object)
+        faces = np.empty((S,C), object)
+        meshes, _, _ = pred[0]
+        for s, m in enumerate(meshes):
+            vertices[s,1] = m.verts_padded()[:,:,-3:]
+            faces[s,1] = m.faces_padded()
+
+        return vertices, faces
+
+    @staticmethod
+    def pred_to_pred_meshes(pred):
+        """ Create valid prediction meshes of shape (S,C) """
+        # Ignore step 0 and class 0
+        pred_meshes = [[ms] for ms in pred[0][1:]]
 
         return pred_meshes
