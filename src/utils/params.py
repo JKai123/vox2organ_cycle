@@ -106,10 +106,12 @@ hyper_ps_default={
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'ENCODER_CHANNELS': [16, 32, 64, 128, 256],
-        'DECODER_CHANNELS': [128, 64, 32, 16],
+        'DECODER_CHANNELS': [128, 64, 32, 16], # Voxel decoder
+        'GRAPH_CHANNELS': [32, 32, 32, 32, 32], # Graph decoder
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
         'BATCH_NORM': True,
+        # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
