@@ -75,7 +75,7 @@ class Features2Features(nn.Module):
         for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
             # Adding residual before last relu
             if i == len(self.gconv_hidden) and self.is_residual:
-                features = bn(gconf(features, edges)) + res
+                features = bn(gconv(features, edges)) + res
                 features = F.relu(features)
             else:
                 features = F.relu(bn(gconv(features, edges)))
@@ -114,3 +114,49 @@ class Feature2VertexLayer(nn.Module):
             features = F.relu(bn(features))
 
         return self.gconv_last(features, edges)
+
+class Features2FeaturesResidual(nn.Module):
+    """ A residual graph conv block consisting of 'hidden_layer_count' many graph convs """
+
+    def __init__(self, in_features, out_features, hidden_layer_count,
+                 batch_norm=False, GC=GraphConv):
+        super().__init__()
+
+        self.out_features = out_features
+
+        self.gconv_first = GC(in_features, out_features)
+        if batch_norm:
+            self.bn_first = nn.BatchNorm1d(out_features)
+        else:
+            self.bn_first = IdLayer()
+
+        gconv_hidden = []
+        for _ in range(hidden_layer_count):
+            gc_layer = GC(out_features, out_features)
+            if batch_norm:
+                bn_layer = nn.BatchNorm1d(out_features)
+            else:
+                bn_layer = IdLayer() # Id
+
+            gconv_hidden += [nn.Sequential(gc_layer, bn_layer)]
+
+        self.gconv_hidden = nn.Sequential(*gconv_hidden)
+
+    def forward(self, features, edges):
+        if features.shape[-1] == self.out_features:
+            res = features
+        else:
+            res = F.interpolate(features.unsqueeze(1), self.out_features,
+                                mode='nearest').squeeze(1)
+
+        # Conv --> Norm --> ReLU
+        features = F.relu(self.bn_first(self.gconv_first(features, edges)))
+        for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
+            # Adding residual before last relu
+            if i == len(self.gconv_hidden):
+                features = bn(gconv(features, edges)) + res
+                features = F.relu(features)
+            else:
+                features = F.relu(bn(gconv(features, edges)))
+
+        return features
