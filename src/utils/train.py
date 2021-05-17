@@ -27,7 +27,9 @@ from utils.logging import (
 from utils.modes import ExecModes
 from utils.mesh import verts_faces_to_Meshes
 from utils.evaluate import ModelEvaluator
-from utils.losses import linear_loss_combine, geometric_loss_combine
+from utils.losses import (
+    all_linear_loss_combine,
+    voxel_linear_mesh_geometric_loss_combine)
 from data.dataset import dataset_split_handler
 from models.model_handler import ModelHandler
 
@@ -168,27 +170,26 @@ class Solver():
 
         losses = {}
         with autocast(self.mixed_precision):
-            # Voxel losses
-            for lf in self.voxel_loss_func:
-                losses[str(lf)] = lf(model.__class__.pred_to_raw_voxel_pred(pred),
-                                     model_data['y_voxels'])
-
-            # Mesh losses
-            pred_meshes = model.__class__.pred_to_pred_meshes(pred)
-            targets = model_data['surface_points']
-            for lf in self.mesh_loss_func:
-                losses[str(lf)] = lf(pred_meshes, targets)
-
-            # Merge loss weights into one list
-            combined_loss_weights = self.voxel_loss_func_weights +\
-                    self.mesh_loss_func_weights
-
             if self.loss_averaging == 'linear':
-                loss_total = linear_loss_combine(losses.values(),
-                                                 combined_loss_weights)
+                losses, loss_total = all_linear_loss_combine(
+                    self.voxel_loss_func,
+                    self.voxel_loss_func_weights,
+                    model.__class__.pred_to_raw_voxel_pred(pred),
+                    model_data['y_voxels'],
+                    self.mesh_loss_func,
+                    self.mesh_loss_func_weights,
+                    model.__class__.pred_to_pred_meshes(pred),
+                    model_data['surface_points'])
             elif self.loss_averaging == 'geometric':
-                loss_total = geometric_loss_combine(losses.values(),
-                                                    combined_loss_weights)
+                losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
+                    self.voxel_loss_func,
+                    self.voxel_loss_func_weights,
+                    model.__class__.pred_to_raw_voxel_pred(pred),
+                    model_data['y_voxels'],
+                    self.mesh_loss_func,
+                    self.mesh_loss_func_weights,
+                    model.__class__.pred_to_pred_meshes(pred),
+                    model_data['surface_points'])
             else:
                 raise ValueError("Unknown loss averaging.")
 
@@ -268,7 +269,7 @@ class Solver():
             if epoch % eval_every == 0 or epoch == n_epochs:
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
-                                                      save_meshes=5)
+                                                      save_meshes=0)
                 log_val_results(val_results, iteration)
 
                 # Main validation score
