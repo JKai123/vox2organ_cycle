@@ -160,3 +160,29 @@ class Features2FeaturesResidual(nn.Module):
                 features = F.relu(bn(gconv(features, edges)))
 
         return features
+
+class Features2FeaturesSimple(nn.Module):
+    """ A simple graph conv + batch norm (optional) + ReLU """
+
+    def __init__(self, in_features, out_features,
+                 batch_norm=False, GC=GraphConv):
+        super().__init__()
+
+        self.gconv = GC(in_features, out_features)
+        if batch_norm:
+            self.bn = nn.BatchNorm1d(out_features)
+        else:
+            self.bn = IdLayer()
+
+    def forward(self, features, edges):
+        # Conv --> Norm --> ReLU
+        return F.relu(self.bn(self.gconv(features, edges)))
+
+class GraphIdLayer(nn.Module):
+    """ Graph identity layer """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, features, edges):
+        return features

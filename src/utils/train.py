@@ -23,6 +23,7 @@ from utils.logging import (
     measure_time,
     write_img_if_debug,
     log_deltaV,
+    log_model_tensorboard_if_debug,
     log_val_results)
 from utils.modes import ExecModes
 from utils.mesh import verts_faces_to_Meshes
@@ -151,7 +152,7 @@ class Solver():
                                                self.n_classes,
                                                ExecModes.TRAIN)
         with autocast(self.mixed_precision):
-            pred = model(model_data)
+            pred = model(model_data['x'])
 
         # Log
         write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
@@ -230,6 +231,9 @@ class Solver():
         best_state = None
 
         model.float().to(self.device)
+        # Cannot log graph due to Meshes objects
+        # log_model_tensorboard_if_debug(model,
+                                       # training_set[0][0][None,None].cuda())
 
         trainLogger = logging.getLogger(ExecModes.TRAIN.name)
         trainLogger.info("Training on device %s", self.device)
@@ -428,7 +432,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     ###### Training ######
 
     model = ModelHandler[hps['ARCHITECTURE']].value(\
-                                        ndims=hps['N_DIMS'],
+                                        ndims=hps['NDIMS'],
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         **model_config)

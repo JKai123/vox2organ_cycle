@@ -187,7 +187,7 @@ class ModelEvaluator():
                 model_data = model_class.convert_data(data,
                                                            self._n_classes,
                                                            ExecModes.TEST)
-                pred = model(model_data)
+                pred = model(model_data['x'])
 
                 for metric in self._eval_metrics:
                     res = self._metricHandler[metric](pred, model_data,

@@ -95,7 +95,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
     # Test models
     model = ModelHandler[training_hps['ARCHITECTURE']].value(\
-                                        ndims=training_hps['N_DIMS'],
+                                        ndims=training_hps['NDIMS'],
                                         num_classes=training_hps['N_CLASSES'],
                                         patch_shape=training_hps['PATCH_SIZE'],
                                         **model_config).float().cuda()

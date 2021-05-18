@@ -30,7 +30,7 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'MIXED_PRECISION': True,
+    'MIXED_PRECISION': False, # TODO: Implement for generic v2m
     'EVAL_METRICS': [
         'JaccardVoxel',
         'JaccardMesh'
@@ -41,15 +41,20 @@ hyper_ps = {
         'eps': 1e-8,
         'weight_decay': 0.0},
     'DATASET_SEED': 1532,
+    'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
     # Chamfer, Laplacian, NormalConsistency, Edge
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
     'MODEL_CONFIG': {
-        'BATCH_NORM': True, # Only for Feature2Vertex layers!
+        'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
+        # Decoder channels from Kong
+        'DECODER_CHANNELS': [64, 32, 16, 8],
+        'GRAPH_CHANNELS': [128, 64, 32, 16], # Graph decoder
+        'DEEP_SUPERVISION': True,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
-        'UNPOOL_INDICES': [0,1,0,1,0],
+        'UNPOOL_INDICES': [0,1,1],
     },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",

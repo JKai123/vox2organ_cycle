@@ -12,7 +12,11 @@ from pytorch3d.structures import Meshes
 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    GraphConvNorm, Features2FeaturesResidual)
+    GraphConvNorm,
+    Features2FeaturesSimple,
+    GraphIdLayer,
+    Features2FeaturesResidual
+)
 from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_from_indices
 )
@@ -35,7 +39,7 @@ class GraphDecoder(nn.Module):
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=1,
                  GC=GraphConvNorm,
-                 aggregate_indices=((4,3), (2,1), (1,0))):
+                 aggregate_indices=((3,4), (1,2), (0,1))):
         super().__init__()
 
         assert (len(graph_channels) - 1 ==\
@@ -64,9 +68,12 @@ class GraphDecoder(nn.Module):
         f2f_connect_layers = [] # Single f2f graph convs
         f2v_layers = [] # Features to vertices
 
-        for i in range(num_steps):
+        for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
-            skip_features_count = torch.sum(skip_channels[aggregate_indices[i]])
+            indices = slice(aggregate_indices[i][0],
+                            aggregate_indices[i][1] + 1)
+            skip_features_count =\
+                torch.sum(torch.tensor(skip_channels[indices]))
             res_blocks = [Features2FeaturesResidual(
                 skip_features_count + self.latent_features_count[i],
                 self.latent_features_count[i+1],
@@ -83,21 +90,24 @@ class GraphDecoder(nn.Module):
                     GC=GC
                 ))
 
-            res_blocks = nn.Sequential(*res_blocks)
+            # Cannot be nn.Sequential because graph convs take two inputs but
+            # provide only one output
+            res_blocks = nn.ModuleList(res_blocks)
             f2f_res_layers.append(res_blocks)
 
             # Feature to vertex layer
             f2v_layers.append(GC(self.latent_features_count[i+1], dim))
 
             # Feature to feature layer that connects to the next decoder step
-            if i < num_steps - 1:
-                f2f_connect_layers.append(nn.Sequential(
-                    GC(self.latent_features_count[i+1],
-                       self.latent_features_count[i+1]),
-                    nn.ReLU()
+            if i < self.num_steps - 1:
+                f2f_connect_layers.append(Features2FeaturesSimple(
+                    self.latent_features_count[i+1],
+                    self.latent_features_count[i+1],
+                    batch_norm = batch_norm,
+                    GC=GC
                 ))
             else:
-                f2f_connect_layers.append(IdLayer)
+                f2f_connect_layers.append(GraphIdLayer())
 
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2f_connect_layers = nn.ModuleList(f2f_connect_layers)
@@ -108,7 +118,6 @@ class GraphDecoder(nn.Module):
         sphere_vertices, sphere_faces = read_obj(sphere_path)
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
         self.sphere_vertices = sphere_vertices/torch.sqrt(torch.sum(sphere_vertices**2, dim=1)[:,None])[None]
-        breakpoint()
         self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
 
     @property
@@ -118,7 +127,7 @@ class GraphDecoder(nn.Module):
     @unpool_indices.setter
     def unpool_indices(self, indices):
         """ Set the unpool indices """
-        if len(indices) != self.steps + 1:
+        if len(indices) != self.num_steps:
             raise ValueError("Invalid unpool indices.")
         self._unpool_indices = indices
 
@@ -144,9 +153,11 @@ class GraphDecoder(nn.Module):
         edges_packed = temp_meshes.edges_packed()
         verts_packed = temp_meshes.verts_packed()
         latent_features = self.graph_conv_first(verts_packed, edges_packed)
-        latent_features = torch.cat((latent_features, verts_packed), dim=1)
-        latent_features = latent_features.view(batch_size, self.channels[0] + 3, -1)
-        temp_meshes = Meshes(verts=latent_features, faces=temp_faces)
+        features_verts = torch.cat((latent_features, verts_packed), dim=1)
+        features_verts = features_verts.view(
+            batch_size, verts_packed.shape[0], self.latent_features_count[0] + 3
+        )
+        temp_meshes = Meshes(verts=features_verts, faces=temp_faces)
 
         pred_meshes = [temp_meshes]
         # No delta V for initial step
@@ -192,18 +203,19 @@ class GraphDecoder(nn.Module):
                 mode=self.aggregate
             )
 
-            latent_features_padded = torch.cat(
+            features_verts_padded = torch.cat(
                 [latent_features_padded, skipped_features, vertices_padded],
                 dim=2
             )
 
             # New latent features
-            N_new = latent_features_padded.shape[1]
-            new_meshes = Meshes(latent_features_padded, faces_padded)
+            N_new = features_verts_padded.shape[1]
+            new_meshes = Meshes(features_verts_padded, faces_padded)
             edges_packed = new_meshes.edges_packed()
-            latent_features_packed = new_meshes.verts_packed()
-            latent_features_packed =\
-                f2f_res(latent_features_packed[:,:,:-3], edges_packed)
+            latent_features_packed = new_meshes.verts_packed()[:,:-3]
+            for f2f in f2f_res:
+                latent_features_packed =\
+                    f2f(latent_features_packed, edges_packed)
 
             # Move vertices
             deltaV_packed = f2v(latent_features_packed, edges_packed)
@@ -216,14 +228,14 @@ class GraphDecoder(nn.Module):
                                                  edges_packed)
 
             # Latent features = (latent features, vertex positions)
-            latent_features_packed = torch.cat([latent_features_packed,
+            features_verts_packed = torch.cat([latent_features_packed,
                                                vertices_packed], dim=1)
             # !Requires all meshes to have the same number of vertices!
-            latent_features_padded =\
-                latent_features_packed.view(batch_size, N_new, -1)
+            features_verts_padded =\
+                features_verts_packed.view(batch_size, N_new, -1)
 
             # Final meshes
-            new_meshes = Meshes(latent_features_padded,
+            new_meshes = Meshes(features_verts_padded,
                                 new_meshes.faces_padded())
 
             if do_unpool == 1 and self.use_adoptive_unpool:

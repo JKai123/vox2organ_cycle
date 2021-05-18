@@ -203,3 +203,10 @@ def measure_time(func):
         return return_value
 
     return time_wrapper
+
+def log_model_tensorboard_if_debug(model, img):
+    if debug:
+        from torch.utils.tensorboard import SummaryWriter
+        writer = SummaryWriter("../misc/tensorboard/")
+        writer.add_graph(model, img, verbose=True)
+        writer.close()

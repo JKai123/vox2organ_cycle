@@ -120,9 +120,8 @@ class Voxel2Mesh(V2MModel):
 
  
     @measure_time 
-    def forward(self, data):
+    def forward(self, x):
          
-        x = data['x'] 
         unpool_indices = data['unpool'] 
 
         sphere_vertices = self.sphere_vertices.clone()

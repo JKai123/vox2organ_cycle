@@ -98,11 +98,14 @@ hyper_ps_default={
     # Note: This one must also be part of 'EVAL_METRICS'!
     'MAIN_EVAL_METRIC': 'JaccardMesh',
 
-    # The number of image dimensions
-    'N_DIMS': 3,
+    # The number of image dimensions (is sometimes set to 3 in the code so may
+    # not have an effect for models that exist only for 3D)
+    'NDIMS': 3,
 
     # Voxel2Mesh original parameters
-    # (from https://github.com/cvlab-epfl/voxel2mesh)
+    # (from https://github.com/cvlab-epfl/voxel2mesh).
+    # Note that not for all models/architectures all of
+    # those parameters are relevant.
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'ENCODER_CHANNELS': [16, 32, 64, 128, 256],
@@ -110,7 +113,8 @@ hyper_ps_default={
         'GRAPH_CHANNELS': [32, 32, 32, 32, 32], # Graph decoder
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
-        'BATCH_NORM': True,
+        'DEEP_SUPERVISION': False, # For voxel net
+        'BATCH_NORM': False, # Only for graph convs, always True in voxel layers
         # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',

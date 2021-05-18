@@ -4,6 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from itertools import chain
+from typing import Union
 
 import numpy as np
 import torch.nn as nn
@@ -189,9 +190,8 @@ class Voxel2MeshPlusPlus(V2MModel):
         self._use_adoptive_unpool = value
 
     @measure_time
-    def forward(self, data):
+    def forward(self, x):
 
-        x = data['x']
         batch_size = x.shape[0]
 
         # Batch of template meshes
@@ -478,52 +478,51 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param num_input_channels: The number of channels of the input image.
     :param encoder_channels: The number of channels of the encoder
     :param decoder_channels: The number of channels of the decoder
-    :param graph_conv_layer_count: The number of hidden layers in the
-    feature-to-feature block
+    :param graph_channels: The number of graph features per graph layer
     :param batch_norm: Whether or not to apply batch norm at layers.
     :param mesh_template: The mesh template that is deformed thoughout a
     forward pass.
     :param unpool_indices: Indicates the steps at which unpooling is performed. This
     has no impact on the model architecture and can be changed even after
     training.
-    :param adoptive_unpool: Discard vertices that did not deform much to reduce
-    number of vertices where appropriate (e.g. where curvature is low)
-    :param use_voxel_decoder: Whether to apply a voxel decoder (for
-    segmentation)
+    :param use_adoptive_unpool: Discard vertices that did not deform much to reduce
+    number of vertices where appropriate (e.g. where curvature is low). Not
+    implemented at the moment.
     """
 
     def __init__(self,
                  num_classes: int,
-                 patch_shape,
-                 num_input_channels,
-                 encoder_channels,
-                 decoder_channels,
-                 graph_channels,
-                 batch_norm,
-                 mesh_template,
-                 unpool_indices,
-                 use_adoptive_unpool,
-                 use_voxel_decoder
+                 patch_shape: Union[list, tuple],
+                 num_input_channels: int,
+                 encoder_channels: Union[list, tuple],
+                 decoder_channels: Union[list, tuple],
+                 graph_channels: Union[list, tuple],
+                 batch_norm: bool,
+                 mesh_template: str,
+                 unpool_indices: Union[list, tuple],
+                 use_adoptive_unpool: bool,
+                 deep_supervision: bool,
+                 **kwargs
                  ):
         super().__init__()
 
         # Voxel network
-        self.voxel_net = ResidualUNet(num_classes,
-                                      num_input_channels,
-                                      patch_shape,
-                                      encoder_channels,
-                                      decoder_channels)
+        self.voxel_net = ResidualUNet(num_classes=num_classes,
+                                      num_input_channels = num_input_channels,
+                                      patch_shape = patch_shape,
+                                      down_channels = encoder_channels,
+                                      up_channels = decoder_channels,
+                                      deep_supervision = deep_supervision)
         # Graph network
-        self.graph_net = GraphDecoder(batch_norm,
-                                      mesh_template,
-                                      unpool_indices,
-                                      use_adoptive_unpool,
-                                      graph_channels,
+        self.graph_net = GraphDecoder(batch_norm = batch_norm,
+                                      mesh_template = mesh_template,
+                                      unpool_indices = unpool_indices,
+                                      use_adoptive_unpool = use_adoptive_unpool,
+                                      graph_channels = graph_channels,
                                       skip_channels=encoder_channels)
 
     @measure_time
-    def forward(self, data):
-        x = data['x']
+    def forward(self, x):
 
         encoder_skips, decoder_skips, seg_out = self.voxel_net(x)
         pred_meshes, pred_deltaV = self.graph_net(encoder_skips)
@@ -586,7 +585,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
         vertices = np.empty((S,C), object)
         faces = np.empty((S,C), object)
-        meshes, _, _ = pred[0]
+        meshes = pred[0]
         for s, m in enumerate(meshes):
             vertices[s,1] = m.verts_padded()[:,:,-3:]
             faces[s,1] = m.faces_padded()
@@ -596,7 +595,10 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
+        vertices, faces = Voxel2MeshPlusPlusGeneric.pred_to_verts_and_faces(pred)
         # Ignore step 0 and class 0
-        pred_meshes = [[ms] for ms in pred[0][1:]]
+        pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
+
+        return pred_meshes
 
         return pred_meshes

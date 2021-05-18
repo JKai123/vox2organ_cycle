@@ -56,7 +56,7 @@ class ResidualBlock(nn.Module):
                                                       bias=False),
                                             norm(num_channels_out))
         else:
-            self.adapt_skip = IdLayer
+            self.adapt_skip = IdLayer()
 
     def forward(self, x):
         x_out = self.dropout(self.conv1(x))
@@ -97,7 +97,7 @@ class ResidualUNetEncoder(nn.Module):
                 ResidualBlock(self.channels[i], self.channels[i])
             ))
 
-        self.encoder = nn.ModuleList(*down_layers)
+        self.encoder = nn.ModuleList(down_layers)
 
     def forward(self, x):
         skips = []
@@ -117,7 +117,7 @@ class ResidualUNetDecoder(nn.Module):
     :returns: Segmentation output
     """
     def __init__(self, encoder, decoder_channels, num_classes, patch_shape,
-                 deep_supervision=True):
+                 deep_supervision):
         super().__init__()
         # Decoder has one step less
         num_steps = encoder.num_steps - 1
@@ -125,7 +125,7 @@ class ResidualUNetDecoder(nn.Module):
         self.channels = decoder_channels
         self.deep_supervision = deep_supervision
         self.deep_supervision_pos = []
-        self.deep_supervision_layers = []
+        deep_supervision_layers = []
 
         # First decoder step: Upsample
         self.first_up = nn.ConvTranspose3d(
@@ -138,22 +138,23 @@ class ResidualUNetDecoder(nn.Module):
         up_layers = []
         for i in range(0, num_steps - 1):
             up_layers.append(nn.Sequential(
-                ResidualBlock(encoder.channels[-i-1] + self.channels[i-1],
-                              self.channels[i-1]),
-                nn.ConvTranspose3d(self.channels[i-1],
-                                   self.channels[i],
+                ResidualBlock(encoder.channels[-i-2] + self.channels[i],
+                              self.channels[i]),
+                nn.ConvTranspose3d(self.channels[i],
+                                   self.channels[i+1],
                                    kernel_size=2,
                                    stride=2)
             ))
             if deep_supervision and i != num_steps - 2:
                 self.deep_supervision_pos.append(i)
-                self.deep_supervision_layers.append(nn.Sequential(
-                    nn.Upsample(patch_shape, mode='trilinear'),
-                    nn.Conv3d(self.channels[i-1], num_classes, 1, bias=False)
+                deep_supervision_layers.append(nn.Sequential(
+                    nn.Upsample(patch_shape, mode='trilinear',
+                                align_corners=False),
+                    nn.Conv3d(self.channels[i+1], num_classes, 1, bias=False)
                 ))
 
         self.deep_supervision_layers = nn.ModuleList(
-            *self.deep_supervision_layers
+            deep_supervision_layers
         )
 
         # Final Residual Block
@@ -166,7 +167,7 @@ class ResidualUNetDecoder(nn.Module):
         self.final_layer = nn.Conv3d(self.channels[-1], num_classes, 1,
                                      bias=False)
 
-        self.decoder = nn.ModuleList(*up_layers)
+        self.decoder = nn.ModuleList(up_layers)
 
     def forward(self, skips):
         # Reverse order of skips from encoder
@@ -181,7 +182,7 @@ class ResidualUNetDecoder(nn.Module):
         seg = []
 
         for i, layer in enumerate(self.decoder):
-            x = torch.cat((x, skips[i+1]), dim=1)
+            x = torch.cat((x, down_skips[i+1]), dim=1)
             x = layer(x)
             up_skips.append(x)
 
@@ -199,7 +200,7 @@ class ResidualUNet(nn.Module):
     maps from different stages of the encoder and/or decoder.
     """
     def __init__(self, num_classes: int, num_input_channels: int, patch_shape,
-                 down_channels, up_channels):
+                 down_channels, up_channels, deep_supervision):
         assert len(up_channels) == len(down_channels) - 1,\
                 "Encoder should have one more step than decoder."
         super().__init__()
@@ -207,7 +208,8 @@ class ResidualUNet(nn.Module):
 
         self.encoder = ResidualUNetEncoder(num_input_channels, down_channels)
         self.decoder = ResidualUNetDecoder(self.encoder, up_channels,
-                                           num_classes, patch_shape)
+                                           num_classes, patch_shape,
+                                           deep_supervision)
 
     def forward(self, x):
         encoder_skips = self.encoder(x)

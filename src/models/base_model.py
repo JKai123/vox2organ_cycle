@@ -11,7 +11,7 @@ class V2MModel(Module, ABC):
     """ Base class for Voxel2Mesh models """
 
     @abstractmethod
-    def forward(self, data):
+    def forward(self, x):
         pass
 
     @abstractmethod
