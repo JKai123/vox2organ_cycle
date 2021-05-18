@@ -155,7 +155,7 @@ class GraphDecoder(nn.Module):
         latent_features = self.graph_conv_first(verts_packed, edges_packed)
         features_verts = torch.cat((latent_features, verts_packed), dim=1)
         features_verts = features_verts.view(
-            batch_size, verts_packed.shape[0], self.latent_features_count[0] + 3
+            batch_size, temp_vertices.shape[1], self.latent_features_count[0] + 3
         )
         temp_meshes = Meshes(verts=features_verts, faces=temp_faces)
 
