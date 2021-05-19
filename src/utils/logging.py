@@ -56,6 +56,15 @@ def log_epoch(epoch: int, iteration: int):
     if use_wandb:
         wandb.log({"epoch": epoch}, step=iteration)
 
+def log_lr(lr: float, iteration: int):
+    """ Logging with wandb and std logging """
+
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Learning rate: %.7f", lr)
+
+    if use_wandb:
+        wandb.log({"lr": lr}, step=iteration)
+
 def log_coords(coords, iteration):
     """ Logging with wandb and std logging """
     avg_coords = coords.mean(dim=(0,1)).detach().cpu()

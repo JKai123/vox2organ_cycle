@@ -14,6 +14,7 @@ from torch.cuda.amp import autocast
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
 from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm,
+    PTGeoConvWrapped,
     Features2FeaturesSimple,
     GraphIdLayer,
     Features2FeaturesResidual
@@ -35,11 +36,13 @@ class GraphDecoder(nn.Module):
                  use_adoptive_unpool: bool,
                  graph_channels: Union[list, tuple],
                  skip_channels: Union[list, tuple],
+                 weighted_edges: bool,
                  dim: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=1,
-                 GC=GraphConvNorm,
+                 GC=PTGeoConvWrapped,
+                 propagate_coords=True,
                  aggregate_indices=((3,4), (1,2), (0,1))):
         super().__init__()
 
@@ -48,6 +51,10 @@ class GraphDecoder(nn.Module):
                 len(unpool_indices)),\
                 "Graph channels, aggregation indices, and unpool indices must"\
                 " match the number of mesh decoder steps."
+
+        if weighted_edges and not propagate_coords:
+            raise ValueError("Edge weighing requires propagation of vertex"
+                             " coordinates to the graph convs.")
 
         # Number of vertex latent features (1D)
         self.latent_features_count = graph_channels
@@ -62,12 +69,20 @@ class GraphDecoder(nn.Module):
         self.aggregate = aggregate
 
         # Initial creation of latent features from coordinates
-        self.graph_conv_first = GC(dim, graph_channels[0])
+        self.graph_conv_first = GC(dim, graph_channels[0], weighted_edges)
 
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks
         f2f_connect_layers = [] # Single f2f graph convs
         f2v_layers = [] # Features to vertices
+
+        # Whether or not to add the vertex coordinates to the features again
+        # after each step
+        self.propagate_coords = propagate_coords
+        if propagate_coords:
+            add_n = 3
+        else:
+            add_n = 0
 
         for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
@@ -76,11 +91,12 @@ class GraphDecoder(nn.Module):
             skip_features_count =\
                 torch.sum(torch.tensor(skip_channels[indices]))
             res_blocks = [Features2FeaturesResidual(
-                skip_features_count + self.latent_features_count[i],
+                skip_features_count + self.latent_features_count[i] + add_n,
                 self.latent_features_count[i+1],
                 hidden_layer_count=n_f2f_hidden_layer,
                 batch_norm=batch_norm,
-                GC=GC
+                GC=GC,
+                weighted_edges=weighted_edges
             )]
             for _ in range(n_residual_blocks - 1):
                 res_blocks.append(Features2FeaturesResidual(
@@ -88,24 +104,28 @@ class GraphDecoder(nn.Module):
                     self.latent_features_count[i+1],
                     hidden_layer_count=n_f2f_hidden_layer,
                     batch_norm=batch_norm,
-                    GC=GC
+                    GC=GC,
+                    weighted_edges=False # No weighted edges here
                 ))
 
             # Cannot be nn.Sequential because graph convs take two inputs but
-            # provide only one output
+            # provide only one output. Maybe try torch_geometric.nn.Sequential
             res_blocks = nn.ModuleList(res_blocks)
             f2f_res_layers.append(res_blocks)
 
-            # Feature to vertex layer
-            f2v_layers.append(GC(self.latent_features_count[i+1], dim))
+            # Feature to vertex layer, edge weighing never used
+            f2v_layers.append(GC(
+                self.latent_features_count[i+1], dim, weighted_edges=False
+            ))
 
             # Feature to feature layer that connects to the next decoder step
             if i < self.num_steps - 1:
                 f2f_connect_layers.append(Features2FeaturesSimple(
-                    self.latent_features_count[i+1],
+                    self.latent_features_count[i+1] + add_n,
                     self.latent_features_count[i+1],
                     batch_norm = batch_norm,
-                    GC=GC
+                    GC=GC,
+                    weighted_edges=weighted_edges
                 ))
             else:
                 f2f_connect_layers.append(GraphIdLayer())
@@ -209,7 +229,7 @@ class GraphDecoder(nn.Module):
                 )
 
                 features_verts_padded = torch.cat(
-                    [latent_features_padded, skipped_features, vertices_padded],
+                    (latent_features_padded, skipped_features, vertices_padded),
                     dim=2
                 )
 
@@ -217,7 +237,10 @@ class GraphDecoder(nn.Module):
                 N_new = features_verts_padded.shape[1]
                 new_meshes = Meshes(features_verts_padded, faces_padded)
                 edges_packed = new_meshes.edges_packed()
-                latent_features_packed = new_meshes.verts_packed()[:,:-3]
+                if self.propagate_coords:
+                    latent_features_packed = new_meshes.verts_packed()
+                else:
+                    latent_features_packed = new_meshes.verts_packed()[:,:-3]
                 for f2f in f2f_res:
                     latent_features_packed =\
                         f2f(latent_features_packed, edges_packed)
@@ -229,12 +252,16 @@ class GraphDecoder(nn.Module):
                 vertices_packed = vertices_packed + deltaV_packed
 
                 # New latent features
+                if self.propagate_coords:
+                    latent_features_packed = torch.cat(
+                        (latent_features_packed, vertices_packed), dim=1
+                    )
                 latent_features_packed = f2f_connect(latent_features_packed,
                                                      edges_packed)
 
                 # Latent features = (latent features, vertex positions)
-                features_verts_packed = torch.cat([latent_features_packed,
-                                                   vertices_packed], dim=1)
+                features_verts_packed = torch.cat((latent_features_packed,
+                                                   vertices_packed), dim=1)
                 # !Requires all meshes to have the same number of vertices!
                 features_verts_padded =\
                     features_verts_packed.view(batch_size, N_new, -1)

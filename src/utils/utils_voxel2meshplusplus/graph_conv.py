@@ -14,14 +14,19 @@ from pytorch3d.ops import GraphConv
 from torch_geometric.nn import GCNConv, ChebConv
 
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
+from utils.utils import Euclidean_weights
 
 class GraphConvNorm(GraphConv):
     """ Wrapper for pytorch3d.ops.GraphConv that normalizes the features
     w.r.t. the degree of the vertices.
     """
     def __init__(self, input_dim: int, output_dim: int, init: str='normal',
-                 directed: bool=False):
+                 directed: bool=False, **kwargs):
         super().__init__(input_dim, output_dim, init, directed)
+        if kwargs.get('weighted_edges', False) == True:
+            raise ValueError(
+                "pytorch3d.ops.GraphConv cannot be edge-weighted."
+            )
 
     def forward(self, verts, edges):
         D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
@@ -31,14 +36,25 @@ class PTGeoConvWrapped(GCNConv):
     """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
     pytorch3d convs.
     """
-    def __init__(self, input_dim, output_dim, **kwargs):
-        super().__init__(input_dim, output_dim, **kwargs)
-        nn.init.normal_(self.weight, mean=0.0, std=0.1)
+    def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        super().__init__(input_dim, output_dim, improved=True, **kwargs)
+        nn.init.constant_(self.weight, 0.0)
+        self.weighted_edges = weighted_edges
 
     def forward(self, verts, edges):
         edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
                                    dim=1)
-        return super().forward(verts, edges_both_dir)
+        if self.weighted_edges:
+            # Assume that verts contains the absolute coordinates at verts[-3:] and
+            # feature sizes are multiples of two
+            assert (verts.shape[1] - 3) % 2 == 0,\
+                    "Features should be (vertex features, vertex coordinates)"
+            coords = verts[:,-3:]
+            weights = Euclidean_weights(coords, edges_both_dir.T)
+        else:
+            weights = None
+
+        return super().forward(verts, edges_both_dir, weights)
 
 class Features2Features(nn.Module):
     """ A graph conv block """
@@ -119,12 +135,12 @@ class Features2FeaturesResidual(nn.Module):
     """ A residual graph conv block consisting of 'hidden_layer_count' many graph convs """
 
     def __init__(self, in_features, out_features, hidden_layer_count,
-                 batch_norm=False, GC=GraphConv):
+                 batch_norm=False, GC=GraphConv, weighted_edges=False):
         super().__init__()
 
         self.out_features = out_features
 
-        self.gconv_first = GC(in_features, out_features)
+        self.gconv_first = GC(in_features, out_features, weighted_edges)
         if batch_norm:
             self.bn_first = nn.BatchNorm1d(out_features)
         else:
@@ -132,7 +148,8 @@ class Features2FeaturesResidual(nn.Module):
 
         gconv_hidden = []
         for _ in range(hidden_layer_count):
-            gc_layer = GC(out_features, out_features)
+            # No weighted edges and no propagated coordinates in hidden layers
+            gc_layer = GC(out_features, out_features, weighted_edges=False)
             if batch_norm:
                 bn_layer = nn.BatchNorm1d(out_features)
             else:
@@ -165,10 +182,11 @@ class Features2FeaturesSimple(nn.Module):
     """ A simple graph conv + batch norm (optional) + ReLU """
 
     def __init__(self, in_features, out_features,
-                 batch_norm=False, GC=GraphConv):
+                 batch_norm=False, GC=GraphConv,
+                 weighted_edges=False):
         super().__init__()
 
-        self.gconv = GC(in_features, out_features)
+        self.gconv = GC(in_features, out_features, weighted_edges)
         if batch_norm:
             self.bn = nn.BatchNorm1d(out_features)
         else:

@@ -119,8 +119,15 @@ hyper_ps_default={
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
-        'USE_ADOPTIVE_UNPOOL': False
+        'USE_ADOPTIVE_UNPOOL': False,
+        # Weighted feature aggregation in graph convs
+        'WEIGHTED_EDGES': True
     },
+
+    # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
+    # improvement for 'LR_DECAY_AFTER' epochs
+    'LR_DECAY_RATE': 0.5,
+    'LR_DECAY_AFTER': -1, # -1 = no decay
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],

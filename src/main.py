@@ -33,25 +33,28 @@ hyper_ps = {
     'MIXED_PRECISION': False,
     'EVAL_METRICS': [
         'JaccardVoxel',
-        'JaccardMesh'
+        'JaccardMesh',
+        'Chamfer'
     ],
     'OPTIM_PARAMS': {#
         'lr': 1e-4,
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
+    'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
-    'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     # Chamfer, Laplacian, NormalConsistency, Edge
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
-        # Decoder channels from Kong
+        # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
-        'GRAPH_CHANNELS': [128, 64, 32, 16], # Graph decoder
+        # Graph decoder channels should be multiples of 2
+        'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,1],

@@ -135,9 +135,11 @@ def ChamferScore(pred, data, n_classes, model_class):
     truth mesh. """
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
     gt_vertices = data['vertices_mc']
+    if gt_vertices.ndim == 2:
+        gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
     for c in range(1, n_classes):
-        pred_vertices = pred_vertices[-1][c].squeeze() # only consider last mesh step
+        pred_vertices = pred_vertices[-1][c] # only consider last mesh step
         chamfer_scores.append(chamfer_distance(pred_vertices,
                                                gt_vertices)[0].cpu().item())
 

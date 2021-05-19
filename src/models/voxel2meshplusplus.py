@@ -480,7 +480,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param encoder_channels: The number of channels of the encoder
     :param decoder_channels: The number of channels of the decoder
     :param graph_channels: The number of graph features per graph layer
-    :param batch_norm: Whether or not to apply batch norm at layers.
+    :param batch_norm: Whether or not to apply batch norm at graph layers.
     :param mesh_template: The mesh template that is deformed thoughout a
     forward pass.
     :param unpool_indices: Indicates the steps at which unpooling is performed. This
@@ -489,6 +489,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param use_adoptive_unpool: Discard vertices that did not deform much to reduce
     number of vertices where appropriate (e.g. where curvature is low). Not
     implemented at the moment.
+    :param weighted_edges: Whether or not to use graph convolutions with
+    length-weighted edges.
     """
 
     def __init__(self,
@@ -503,6 +505,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
                  deep_supervision: bool,
+                 weighted_edges: bool,
                  **kwargs
                  ):
         super().__init__()
@@ -520,7 +523,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       unpool_indices = unpool_indices,
                                       use_adoptive_unpool = use_adoptive_unpool,
                                       graph_channels = graph_channels,
-                                      skip_channels=encoder_channels)
+                                      skip_channels=encoder_channels,
+                                      weighted_edges=weighted_edges)
 
     @measure_time
     def forward(self, x):

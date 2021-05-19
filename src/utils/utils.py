@@ -248,3 +248,31 @@ def normalize_min_max(data):
     """ Min- max normalization into [0,1] """
     min_value = float(data.min())
     return (data - min_value) / (data.max() - min_value)
+
+def Euclidean_weights(vertices, edges):
+    """ Weights for all edges in terms of Euclidean length between vertices.
+    """
+    weights = torch.sqrt(torch.sum(
+        (vertices[edges[:,0]] - vertices[edges[:,1]])**2,
+        dim=1
+    ))
+    return weights
+
+def score_is_better(old_value, new_value, name):
+    """ Decide whether new_value is better than old_value based on the name of
+    the score.
+    """
+    if old_value is None:
+        if name in ('JaccardVoxel', 'JaccardMesh'):
+            return True, 'max'
+        elif name in ('Chamfer'):
+            return True, 'min'
+        else:
+            raise ValueError("Unknown score name.")
+
+    if name in ('JaccardVoxel', 'JaccardMesh'):
+        return new_value > old_value, 'max'
+    elif name in ('Chamfer'):
+        return new_value < old_value, 'min'
+    else:
+        raise ValueError("Unknown score name.")
