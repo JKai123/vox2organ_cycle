@@ -30,7 +30,7 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'MIXED_PRECISION': False, # TODO: Implement for generic v2m
+    'MIXED_PRECISION': False,
     'EVAL_METRICS': [
         'JaccardVoxel',
         'JaccardMesh'
