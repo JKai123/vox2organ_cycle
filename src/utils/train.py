@@ -436,6 +436,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
                                         num_classes=hps['N_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         **model_config)
+    trainLogger.info("%d parameters in the model.", model.count_parameters())
+    breakpoint()
     if resume:
         # Load state and epoch
         model_path = os.path.join(experiment_dir, "intermediate.model")
