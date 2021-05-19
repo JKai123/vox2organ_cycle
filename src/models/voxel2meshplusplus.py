@@ -69,7 +69,8 @@ class Voxel2MeshPlusPlus(V2MModel):
                  batch_norm,
                  mesh_template,
                  unpool_indices,
-                 use_adoptive_unpool: bool
+                 use_adoptive_unpool: bool,
+                 **kwargs
                  ):
         super().__init__()
 
