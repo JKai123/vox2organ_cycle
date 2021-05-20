@@ -16,7 +16,7 @@ from utils.modes import ExecModes
 from utils.logging import init_logging
 from utils.evaluate import ModelEvaluator
 from models.model_handler import ModelHandler
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 
 def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     """

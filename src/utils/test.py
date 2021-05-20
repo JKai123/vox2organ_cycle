@@ -14,7 +14,7 @@ from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
 
 def write_test_results(results: dict, model_name: str, experiment_dir: str):

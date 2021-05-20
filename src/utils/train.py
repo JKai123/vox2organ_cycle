@@ -32,7 +32,7 @@ from utils.evaluate import ModelEvaluator
 from utils.losses import (
     all_linear_loss_combine,
     voxel_linear_mesh_geometric_loss_combine)
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
 
 # Model names

@@ -93,7 +93,7 @@ def main(hps):
     argparser.add_argument('architecture',
                            nargs='?',
                            type=str,
-                           default="voxel2meshplusplus",
+                           default="voxel2meshplusplusgeneric",
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2mesh\n"
                            "- voxel2meshplusplus\n"
@@ -101,7 +101,7 @@ def main(hps):
     argparser.add_argument('dataset',
                            nargs='?',
                            type=str,
-                           default="Hippocampus",
+                           default="Cortex",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")

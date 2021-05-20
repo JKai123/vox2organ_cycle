@@ -7,7 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 from utils.visualization import show_slices
 
 def run_preprocess_check():
