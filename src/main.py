@@ -103,7 +103,8 @@ def main(hps):
                            type=str,
                            default="Hippocampus",
                            help="The name of the dataset. Supported:\n"
-                           "- Hippocampus")
+                           "- Hippocampus\n"
+                           "- Cortex")
     argparser.add_argument('--train',
                            action='store_true',
                            help="Train a model.")
@@ -142,7 +143,7 @@ def main(hps):
                            help="Specify the device for execution.")
     argparser.add_argument('--overfit',
                            action='store_true',
-                           help="Overfit on a single training sample.")
+                           help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
