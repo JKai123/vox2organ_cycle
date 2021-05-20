@@ -9,20 +9,13 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
-import random
-import logging
-from enum import IntEnum
 
 import numpy as np
 import torch.utils.data
 import torch.nn.functional as F
-import nibabel as nib
 from elasticdeform import deform_random_grid
 
-import trimesh
-
-from utils.modes import DataModes, ExecModes
-from utils.utils import create_mesh_from_voxels, normalize_min_max
+from utils.modes import DataModes
 
 def _box_in_bounds(box, image_shape):
     """ From https://github.com/cvlab-epfl/voxel2mesh """
