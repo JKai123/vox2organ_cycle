@@ -26,7 +26,6 @@ hyper_ps = {
     'N_EPOCHS': 2000,
     'EVAL_EVERY': 50,
     'LOG_EVERY': 'epoch',
-    'BATCH_SIZE': 15,
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
@@ -180,6 +179,13 @@ def main(hps):
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
+
+    if args.dataset == 'Hippocampus':
+        hps['PATCH_SIZE'] = (64, 64, 64)
+        hps['BATCH_SIZE'] = 15
+    if args.dataset == 'Cortex':
+        hps['PATCH_SIZE'] = (192, 224, 192)
+        hps['BATCH_SIZE'] = 1
 
     # Update again for overfitting
     if hps['OVERFIT']:
