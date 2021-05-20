@@ -96,7 +96,8 @@ def main(hps):
                            default="voxel2meshplusplus",
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2mesh\n"
-                           "- voxel2meshplusplus")
+                           "- voxel2meshplusplus\n"
+                           "- voxel2meshplusplusgeneric")
     argparser.add_argument('dataset',
                            nargs='?',
                            type=str,
