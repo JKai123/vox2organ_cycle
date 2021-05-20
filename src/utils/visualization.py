@@ -68,15 +68,15 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d'):
         if backend == 'open3d':
             show_pointcloud_open3d(fn)
         elif backend == 'pyvista':
-            show_pointcloud_pynt(fn)
+            show_pointcloud_pyvista(fn)
         else:
             raise ValueError("Unknown backend {}".format(backend))
 
 def show_pointcloud_open3d(filename: str):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d.
-    An alternative is based on PyntCloud and pyvista, see
-    'show_pointcloud_pynt'
+    An alternative is based on pyvista, see
+    'show_pointcloud_pyvista'
 
     :param str filename: The file that should be visualized.
     """
@@ -85,19 +85,18 @@ def show_pointcloud_open3d(filename: str):
     print(mesh)
     o3d.visualization.draw_geometries([mesh])
 
-def show_pointcloud_pynt(filename: str):
+def show_pointcloud_pyvista(filename: str):
     """
-    Show a point cloud stored in a file (e.g. .ply) using pyntcloud/pyvista.
+    Show a point cloud stored in a file (e.g. .ply) using pyvista.
 
     :param str filename: The file that should be visualized.
     """
     import pyvista as pv
-    cloud = PyntCloud.from_file(filename)
+    cloud = pv.read(filename)
     print(cloud)
 
     plotter = pv.Plotter()
-    plotter.add_mesh(cloud.to_instance("pyvista", mesh=True), color='red', point_size=5)
-    plotter.add_mesh(cloud.to_instance("pyvista", mesh=True), color='white')
+    plotter.add_mesh(cloud)
     plotter.show()
 
 def show_img_slices_3D(filenames: str, show_label=True):
