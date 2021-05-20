@@ -524,7 +524,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       use_adoptive_unpool = use_adoptive_unpool,
                                       graph_channels = graph_channels,
                                       skip_channels=encoder_channels,
-                                      weighted_edges=weighted_edges)
+                                      weighted_edges=weighted_edges,
+                                      propagate_coords=False)
 
     @measure_time
     def forward(self, x):

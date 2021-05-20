@@ -41,12 +41,13 @@ hyper_ps = {
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
-    'LR_DECAY_AFTER': 300,
+    'LR_DECAY_AFTER': 200,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     # Chamfer, Laplacian, NormalConsistency, Edge
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
     'MODEL_CONFIG': {
@@ -58,6 +59,7 @@ hyper_ps = {
         'DEEP_SUPERVISION': True,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,1],
+        'WEIGHTED_EDGES': False,
     },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
