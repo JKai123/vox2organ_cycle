@@ -56,7 +56,7 @@ hyper_ps = {
         # Graph decoder channels should be multiples of 2
         'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_10242.obj',
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_642.obj',
         'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
         'VOXEL_DECODER': True

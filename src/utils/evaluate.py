@@ -222,6 +222,9 @@ class ModelEvaluator():
                 voxel_label_class = voxel_label.squeeze()
                 voxel_label_class[voxel_label_class != c] = 0
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
+                logging.getLogger(ExecModes.TEST.name).debug(
+                    "%d vertices in ground truth mesh", len(gt_mesh.vertices)
+                )
 
             # Mesh prediction
             show_all_steps = False
@@ -233,6 +236,9 @@ class ModelEvaluator():
                             "_class" + str(c) + "_step" + str(s) + "_meshpred.ply"
                         pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
                         pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+                        logging.getLogger(ExecModes.TEST.name).debug(
+                            "%d vertices in predicted mesh", len(v.squeeze().cpu())
+                        )
             else:
                 # Only visualize last step
                 pred_mesh_filename = filename + "_epoch" + str(epoch) +\
@@ -240,6 +246,9 @@ class ModelEvaluator():
                 v, f = vertices[-1][c], faces[-1][c]
                 pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
                 pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+                logging.getLogger(ExecModes.TEST.name).debug(
+                    "%d vertices in predicted mesh", len(v.squeeze().cpu())
+                )
 
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\

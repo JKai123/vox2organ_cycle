@@ -89,7 +89,8 @@ class Cortex(DatasetHandler):
         self.mesh_labels = self._load_dataMesh(meshnames=mesh_label_names)
 
         # Maximum number of vertices (see scripts.get_max_num_vertices_of_data)
-        self.max_n_vertices = 146705 * len(mesh_label_names)
+        # The maximum in the dataset is 146705
+        self.max_n_vertices = 5000 * len(mesh_label_names)
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -173,9 +174,14 @@ class Cortex(DatasetHandler):
         img = self.data[index]
         voxel_label = self.voxel_labels[index]
         points_label = self.mesh_labels[index].vertices
-        # Pad such that all pointclouds have the same number of points
-        points_label = F.pad(points_label,
-                             (0,0,0,self.max_n_vertices-len(points_label)))
+        # Pad/crop such that all pointclouds have the same number of points
+        n_points = len(points_label)
+        if self.max_n_vertices > len(points_label):
+            points_label = F.pad(points_label,
+                                 (0,0,0,self.max_n_vertices-n_points))
+        else:
+            perm = torch.randperm(self.max_n_vertices)
+            points_label = points_label[perm]
         # For compatibility with multi-class pointclouds
         points_label = points_label[None]
 
