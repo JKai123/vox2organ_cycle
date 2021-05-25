@@ -493,6 +493,9 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     implemented at the moment.
     :param weighted_edges: Whether or not to use graph convolutions with
     length-weighted edges.
+    :param voxel_decoder: Whether or not to use a voxel decoder
+    :param GC: The graph conv implementation to use
+    :param propagate_coords: Whether to propagate coordinates in the graph conv
     """
 
     def __init__(self,
@@ -508,26 +511,31 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  use_adoptive_unpool: bool,
                  deep_supervision: bool,
                  weighted_edges: bool,
+                 voxel_decoder: bool,
+                 gc,
+                 propagate_coords: bool,
                  **kwargs
                  ):
         super().__init__()
 
         # Voxel network
         self.voxel_net = ResidualUNet(num_classes=num_classes,
-                                      num_input_channels = num_input_channels,
-                                      patch_shape = patch_shape,
-                                      down_channels = encoder_channels,
-                                      up_channels = decoder_channels,
-                                      deep_supervision = deep_supervision)
+                                      num_input_channels=num_input_channels,
+                                      patch_shape=patch_shape,
+                                      down_channels=encoder_channels,
+                                      up_channels=decoder_channels,
+                                      deep_supervision=deep_supervision,
+                                      voxel_decoder=voxel_decoder)
         # Graph network
-        self.graph_net = GraphDecoder(batch_norm = batch_norm,
-                                      mesh_template = mesh_template,
-                                      unpool_indices = unpool_indices,
-                                      use_adoptive_unpool = use_adoptive_unpool,
-                                      graph_channels = graph_channels,
+        self.graph_net = GraphDecoder(batch_norm=batch_norm,
+                                      mesh_template=mesh_template,
+                                      unpool_indices=unpool_indices,
+                                      use_adoptive_unpool=use_adoptive_unpool,
+                                      graph_channels=graph_channels,
                                       skip_channels=encoder_channels,
                                       weighted_edges=weighted_edges,
-                                      propagate_coords=False)
+                                      propagate_coords=propagate_coords,
+                                      GC=gc)
 
     @measure_time
     def forward(self, x):
@@ -577,13 +585,17 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
     @staticmethod
     def pred_to_voxel_pred(pred):
-        """ Get the voxel prediction with argmax over classes applied """
-        return pred[1][-1].argmax(dim=1).squeeze()
+        """ Get the final voxel prediction with argmax over classes applied """
+        if pred[1] is not None:
+            return pred[1][-1].argmax(dim=1).squeeze()
+        else:
+            return None
 
     @staticmethod
     def pred_to_raw_voxel_pred(pred):
-        """ Get the voxel prediction per class """
-        return pred[1][-1]
+        """ Get the voxel prediction per class. May be a list if deep
+        supervision is used. """
+        return pred[1]
 
     @staticmethod
     def pred_to_verts_and_faces(pred):

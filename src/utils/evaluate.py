@@ -258,3 +258,6 @@ class ModelEvaluator():
             except RuntimeError as e:
                 logging.getLogger(ExecModes.TEST.name).warning(\
                        "In voxel prediction for file: %s: %s ", filename, e)
+            except AttributeError:
+                # No voxel prediction exists
+                pass

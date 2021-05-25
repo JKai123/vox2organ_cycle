@@ -130,9 +130,15 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
     """ Linear combination of all losses. """
     losses = {}
     # Voxel losses
-    for lf in voxel_loss_func:
-        losses[str(lf)] = lf(voxel_pred, voxel_target)
-
+    if voxel_pred is not None:
+        if not isinstance(voxel_pred, list):
+            # If deep supervision is used, voxel predicition is a list. Therefore,
+            # non-list predictions are made compatible
+            voxel_pred = [voxel_pred]
+        for lf in voxel_loss_func:
+            losses[str(lf)] = 0.0
+            for vp in voxel_pred:
+                losses[str(lf)] += lf(vp, voxel_target)
     # Mesh losses
     for lf in mesh_loss_func:
         losses[str(lf)] = lf(mesh_pred, mesh_target)
@@ -156,17 +162,20 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
 
     # Voxel losses
     voxel_losses = {}
-    if not isinstance(voxel_pred, list):
-        # If deep supervision is used, voxel predicition is a list. Therefore,
-        # non-list predictions are made compatible
-        voxel_pred = [voxel_pred]
-    for lf in voxel_loss_func:
-        voxel_losses[str(lf)] = 0.0
-        for vp in voxel_pred:
-            voxel_losses[str(lf)] += lf(vp, voxel_target)
-    # Linear combination of voxel_losses
-    voxel_loss = linear_loss_combine(voxel_losses.values(),
-                                     voxel_loss_func_weights)
+    if voxel_pred is not None:
+        if not isinstance(voxel_pred, list):
+            # If deep supervision is used, voxel predicition is a list. Therefore,
+            # non-list predictions are made compatible
+            voxel_pred = [voxel_pred]
+        for lf in voxel_loss_func:
+            voxel_losses[str(lf)] = 0.0
+            for vp in voxel_pred:
+                voxel_losses[str(lf)] += lf(vp, voxel_target)
+        # Linear combination of voxel_losses
+        voxel_loss = linear_loss_combine(voxel_losses.values(),
+                                         voxel_loss_func_weights)
+    else:
+        voxel_loss = 0.0
 
     # Mesh losses
     mesh_losses_combined = []

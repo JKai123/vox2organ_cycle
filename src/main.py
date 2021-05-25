@@ -29,7 +29,7 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'MIXED_PRECISION': False,
+    'MIXED_PRECISION': True,
     'EVAL_METRICS': [
         'JaccardVoxel',
         'JaccardMesh',
@@ -40,7 +40,7 @@ hyper_ps = {
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
-    'LR_DECAY_AFTER': 200,
+    'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
@@ -54,11 +54,12 @@ hyper_ps = {
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
-        'GRAPH_CHANNELS': [128, 64, 32, 16],
+        'GRAPH_CHANNELS': [256, 128, 64, 32],
         'DEEP_SUPERVISION': True,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
+        'VOXEL_DECODER': False
     },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -210,6 +211,12 @@ def main(hps):
     if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
         raise ValueError("Original voxel2mesh only allows for batch size 1."\
                          " Try voxel2meshplusplus for larger batch size.")
+    # No voxel decoder --> set voxel loss weights to 0
+    if not hps['MODEL_CONFIG']['VOXEL_DECODER']:
+        hps['VOXEL_LOSS_FUNC_WEIGHTS'] = []
+        hps['VOXEL_LOSS_FUNC'] = []
+        if 'JaccardVoxel' in hps['EVAL_METRICS']:
+            hps['EVAL_METRICS'].remove('JaccardVoxel')
 
 
     # Run
