@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from itertools import chain
 from typing import Union
+from deprecated import deprecated
 
 import numpy as np
 import torch.nn as nn
@@ -353,6 +354,7 @@ class Voxel2MeshPlusPlus(V2MModel):
 
     @staticmethod
     @measure_time
+    @deprecated
     def convert_data(data, n_classes, mode):
         """ Convert data such that it's compatible with the above voxel2mesh
         implementation.
@@ -553,6 +555,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
     @staticmethod
     @measure_time
+    @deprecated
     def convert_data(data, n_classes, mode):
         """ Convert data such that it's compatible with the above voxel2mesh
         implementation. Currently, it's the same as for Voxel2MeshPlusPlus but

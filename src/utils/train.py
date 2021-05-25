@@ -14,6 +14,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from pytorch3d.structures import Pointclouds
 
 from utils.utils import string_dict, score_is_better
 from utils.logging import (
@@ -155,17 +156,18 @@ class Solver():
 
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
-        # make data compatible
-        model_data = model.__class__.convert_data(data,
-                                               self.n_classes,
-                                               ExecModes.TRAIN)
+        # Chop data
+        x, y, points = data
+        points = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
+
+        # Predict
         with autocast(self.mixed_precision):
-            pred = model(model_data['x'])
+            pred = model(x.cuda())
 
         # Log
-        write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
+        write_img_if_debug(x.cpu().squeeze().numpy(),
                            "../misc/voxel_input_img_train.nii.gz")
-        write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
+        write_img_if_debug(y.cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
         write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
                            "../misc/voxel_pred_img_train.nii.gz")
@@ -184,21 +186,21 @@ class Solver():
                     self.voxel_loss_func,
                     self.voxel_loss_func_weights,
                     model.__class__.pred_to_raw_voxel_pred(pred),
-                    model_data['y_voxels'],
+                    y.cuda(),
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    model_data['surface_points'])
+                    points)
             elif self.loss_averaging == 'geometric':
                 losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
                     self.voxel_loss_func,
                     self.voxel_loss_func_weights,
                     model.__class__.pred_to_raw_voxel_pred(pred),
-                    model_data['y_voxels'],
+                    y.cuda(),
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    model_data['surface_points'])
+                    points)
             else:
                 raise ValueError("Unknown loss averaging.")
 

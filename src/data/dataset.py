@@ -14,8 +14,11 @@ import numpy as np
 import torch.utils.data
 import torch.nn.functional as F
 from elasticdeform import deform_random_grid
+from pytorch3d.structures import Pointclouds
 
 from utils.modes import DataModes
+from utils.logging import write_scatter_plot_if_debug
+from utils.utils import sample_outer_surface_in_voxel, normalize_vertices
 
 def _box_in_bounds(box, image_shape):
     """ From https://github.com/cvlab-epfl/voxel2mesh """
@@ -97,6 +100,37 @@ def augment_data(img, label):
                                     order=[3, 0])
 
     return img, label
+
+def sample_surface_points(y_label, n_classes):
+    surface_points_normalized_all = []
+    shape = torch.tensor(y_label.shape)
+    for c in range(1, n_classes):
+        y_label_outer = sample_outer_surface_in_voxel((y_label==c).long())
+        surface_points = torch.nonzero(y_label_outer)
+        # Point coordinates
+        surface_points_normalized = normalize_vertices(surface_points, shape[None])
+        # convert z,y,x -> x,y,z
+        surface_points_normalized = torch.flip(surface_points_normalized,
+                                               dims=[1]).float()
+        # debug
+        write_scatter_plot_if_debug(surface_points_normalized,
+                                    "../misc/surface_points.png")
+        n_points = len(surface_points_normalized)
+        perm = torch.randperm(n_points)
+        point_count = 3000
+        # randomly pick a maximum of 3000 points
+        surface_points_normalized = surface_points_normalized[
+            perm[:np.min([n_points, point_count])]
+        ].cuda()
+        # pad s.t. a batch can be created
+        if n_points < point_count:
+            surface_points_normalized = F.pad(
+                surface_points_normalized, (0, 0, 0, point_count-n_points)
+            )
+        surface_points_normalized_all.append(surface_points_normalized)
+
+    return torch.stack(surface_points_normalized_all)
+
 
 class DatasetHandler(torch.utils.data.Dataset):
     """

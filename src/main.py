@@ -100,7 +100,7 @@ def main(hps):
     argparser.add_argument('dataset',
                            nargs='?',
                            type=str,
-                           default="Cortex",
+                           default="Hippocampus",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")

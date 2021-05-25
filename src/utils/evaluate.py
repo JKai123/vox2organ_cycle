@@ -38,7 +38,8 @@ def JaccardMeshScore(pred, data, n_classes, model_class):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
-    input_img, voxel_target = data['x'].squeeze(), data['y_voxels'].squeeze()
+    input_img = data[0].cuda()
+    voxel_target = data[1].cuda()
     shape = torch.tensor(voxel_target.shape)[None]
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
@@ -73,7 +74,7 @@ def JaccardMeshScore(pred, data, n_classes, model_class):
 def JaccardVoxelScore(pred, data, n_classes, model_class):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = model_class.pred_to_voxel_pred(pred)
-    voxel_label = data['y_voxels'].squeeze()
+    voxel_label = data[1].cuda()
 
     return Jaccard(voxel_pred, voxel_label, n_classes)
 
@@ -134,7 +135,7 @@ def ChamferScore(pred, data, n_classes, model_class):
     Chamfer distance is computed between the predicted mesh and the ground
     truth mesh. """
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    gt_vertices = data['vertices_mc']
+    gt_vertices = data[2].vertices.cuda()
     if gt_vertices.ndim == 2:
         gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
@@ -186,13 +187,10 @@ class ModelEvaluator():
                                    "../misc/raw_voxel_target_img_eval.nii.gz")
                 write_img_if_debug(data[0].cpu().numpy(),
                                    "../misc/raw_voxel_input_img_eval.nii.gz")
-                model_data = model_class.convert_data(data,
-                                                           self._n_classes,
-                                                           ExecModes.TEST)
-                pred = model(model_data['x'])
+                pred = model(data[0][None].cuda())
 
                 for metric in self._eval_metrics:
-                    res = self._metricHandler[metric](pred, model_data,
+                    res = self._metricHandler[metric](pred, data,
                                                       self._n_classes,
                                                       model_class)
                     results_all[metric].append(res)
@@ -200,7 +198,7 @@ class ModelEvaluator():
                 if i < save_meshes: # Store meshes for visual inspection
                     filename =\
                             self._dataset.get_file_name_from_index(i).split(".")[0]
-                    self.store_meshes(pred, model_data, filename, epoch,
+                    self.store_meshes(pred, data, filename, epoch,
                                       model_class)
 
         # Just consider means over evaluation set
@@ -212,7 +210,8 @@ class ModelEvaluator():
         """ Save predicted meshes and ground truth created with marching
         cubes
         """
-        voxel_label = data['y_voxels']
+        voxel_label = data[1]
+        gt_mesh = data[2]
         # Voxel prediction
         voxel_pred = model_class.pred_to_voxel_pred(pred)
         for c in range(1, self._n_classes):
@@ -222,8 +221,6 @@ class ModelEvaluator():
                 # gt file does not exist yet
                 voxel_label_class = voxel_label.squeeze()
                 voxel_label_class[voxel_label_class != c] = 0
-                gt_mesh = create_mesh_from_voxels(voxel_label_class,
-                                                  self._mc_step_size)
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
 
             # Mesh prediction

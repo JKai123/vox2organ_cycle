@@ -17,7 +17,8 @@ from utils.utils import create_mesh_from_voxels, normalize_min_max
 from data.dataset import (
     DatasetHandler,
     augment_data,
-    img_with_patch_size
+    img_with_patch_size,
+    sample_surface_points
 )
 
 class Hippocampus(DatasetHandler):
@@ -53,6 +54,7 @@ class Hippocampus(DatasetHandler):
         self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
         self._mc_step_size = mc_step_size
+        self.n_classes = 2
         self.patch_size = patch_size
 
         self.data = self._load_data3D(folder="imagesTr")
@@ -160,31 +162,36 @@ class Hippocampus(DatasetHandler):
     def get_item_from_index(self, index: int):
         """
         One data item has the form
-        (3D input image, 3D voxel label)
+        (3D input image, 3D voxel label, pointcloud)
         with types
-        (torch.tensor, torch.tensor)
+        (torch.tensor, torch.tensor, torch.tensor)
         """
-        img, voxel_label = self.data[index], self.voxel_labels[index]
+        img = self.data[index]
+        voxel_label = self.voxel_labels[index]
 
         # Potentially augment
         if self._augment:
             img, voxel_label = augment_data(img, voxel_label)
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)
-        voxel_label = img_with_patch_size(voxel_label, self.patch_size, True)
+        img = img_with_patch_size(img, self.patch_size, False)[None]
+        voxel_label = img_with_patch_size(voxel_label, self.patch_size,
+                                          True)
+
+        # Surface points
+        surface_points = sample_surface_points(voxel_label, self.n_classes)
 
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
-        return img, voxel_label
+        return img, voxel_label, surface_points
 
     def get_item_and_mesh_from_index(self, index: int):
         """ One data item and a corresponding mesh.
         Data is returned in the form
         (image, voxel label, mesh)
         """
-        img, voxel_label = self.get_item_from_index(index)
+        img, voxel_label, _ = self.get_item_from_index(index)
         mesh_label = self._get_mesh(index, voxel_label)
 
         return img, voxel_label, mesh_label
