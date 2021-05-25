@@ -82,7 +82,7 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
     return mesh
 
 def normalize_vertices(vertices, shape):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1] """
     assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
     assert shape.shape[0] == 1, "first dim of shape should be length 1"
 
@@ -95,7 +95,7 @@ def unnormalize_vertices(vertices, shape):
 
     return (0.5 * vertices + 0.5) * (torch.max(shape) - 1)
 
-def create_mesh_from_voxels(volume, mc_step_size):
+def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
     """ Convert a voxel volume to mesh using marching cubes
 
     :param volume: The voxel volume.
@@ -113,7 +113,8 @@ def create_mesh_from_voxels(volume, mc_step_size):
                                     step_size=mc_step_size,
                                     allow_degenerate=False)
 
-    vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
+    if flip:
+        vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
     vertices_mc = normalize_vertices(vertices_mc, shape)
     faces_mc = torch.from_numpy(faces_mc).long()
 
