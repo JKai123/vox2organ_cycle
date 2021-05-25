@@ -55,12 +55,12 @@ hyper_ps = {
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
-        'GRAPH_CHANNELS': [256, 128, 64, 32],
+        'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
-        'VOXEL_DECODER': False
+        'VOXEL_DECODER': True
     },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
