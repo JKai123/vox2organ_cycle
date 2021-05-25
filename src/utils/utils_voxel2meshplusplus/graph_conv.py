@@ -140,7 +140,7 @@ class Features2FeaturesResidual(nn.Module):
 
         self.out_features = out_features
 
-        self.gconv_first = GC(in_features, out_features, weighted_edges)
+        self.gconv_first = GC(in_features, out_features, weighted_edges=weighted_edges)
         if batch_norm:
             self.bn_first = nn.BatchNorm1d(out_features)
         else:
@@ -186,7 +186,7 @@ class Features2FeaturesSimple(nn.Module):
                  weighted_edges=False):
         super().__init__()
 
-        self.gconv = GC(in_features, out_features, weighted_edges)
+        self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
         if batch_norm:
             self.bn = nn.BatchNorm1d(out_features)
         else:

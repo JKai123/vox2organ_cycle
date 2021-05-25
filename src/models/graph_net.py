@@ -37,12 +37,12 @@ class GraphDecoder(nn.Module):
                  graph_channels: Union[list, tuple],
                  skip_channels: Union[list, tuple],
                  weighted_edges: bool,
+                 GC,
+                 propagate_coords: bool,
                  dim: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=1,
-                 GC=PTGeoConvWrapped,
-                 propagate_coords=True,
                  aggregate_indices=((3,4), (1,2), (0,1))):
         super().__init__()
 
@@ -69,7 +69,7 @@ class GraphDecoder(nn.Module):
         self.aggregate = aggregate
 
         # Initial creation of latent features from coordinates
-        self.graph_conv_first = GC(dim, graph_channels[0], weighted_edges)
+        self.graph_conv_first = GC(dim, graph_channels[0], weighted_edges=weighted_edges)
 
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks

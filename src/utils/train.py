@@ -167,8 +167,9 @@ class Solver():
                            "../misc/voxel_input_img_train.nii.gz")
         write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
-        write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
-                           "../misc/voxel_pred_img_train.nii.gz")
+        if model.__class__.pred_to_voxel_pred(pred) is not None:
+            write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
+                               "../misc/voxel_pred_img_train.nii.gz")
         if iteration % self.log_every == 0:
             try:
                 # Mean over steps, classes, and batch

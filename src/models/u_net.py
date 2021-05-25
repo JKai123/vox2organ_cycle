@@ -200,19 +200,26 @@ class ResidualUNet(nn.Module):
     maps from different stages of the encoder and/or decoder.
     """
     def __init__(self, num_classes: int, num_input_channels: int, patch_shape,
-                 down_channels, up_channels, deep_supervision):
+                 down_channels, up_channels, deep_supervision,
+                 voxel_decoder: bool):
         assert len(up_channels) == len(down_channels) - 1,\
                 "Encoder should have one more step than decoder."
         super().__init__()
         self.num_classes = num_classes
 
         self.encoder = ResidualUNetEncoder(num_input_channels, down_channels)
-        self.decoder = ResidualUNetDecoder(self.encoder, up_channels,
-                                           num_classes, patch_shape,
-                                           deep_supervision)
+        if voxel_decoder:
+            self.decoder = ResidualUNetDecoder(self.encoder, up_channels,
+                                               num_classes, patch_shape,
+                                               deep_supervision)
+        else:
+            self.decoder = None
 
     def forward(self, x):
         encoder_skips = self.encoder(x)
-        decoder_skips, seg_out = self.decoder(encoder_skips)
+        if self.decoder is not None:
+            decoder_skips, seg_out = self.decoder(encoder_skips)
+        else:
+            decoder_skips, seg_out = None, None
 
         return encoder_skips, decoder_skips, seg_out

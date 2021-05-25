@@ -16,6 +16,10 @@ from utils.losses import (
     NormalConsistencyLoss,
     EdgeLoss
 )
+from utils.utils_voxel2meshplusplus.graph_conv import (
+    GraphConvNorm,
+    PTGeoConvWrapped
+)
 
 hyper_ps_default={
 
@@ -120,8 +124,16 @@ hyper_ps_default={
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
         'USE_ADOPTIVE_UNPOOL': False,
-        # Weighted feature aggregation in graph convs
-        'WEIGHTED_EDGES': True
+        # Weighted feature aggregation in graph convs (only possible with
+        # pytorch-geometric graph convs)
+        'WEIGHTED_EDGES': False,
+        # Whether to use a voxel decoder
+        'VOXEL_DECODER': True,
+        # The graph conv implementation to use
+        'GC': GraphConvNorm,
+        # Whether to propagate coordinates in the graph decoder in addition to
+        # voxel features
+        'PROPAGATE_COORDS': False
     },
 
     # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
