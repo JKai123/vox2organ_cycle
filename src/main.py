@@ -60,7 +60,7 @@ hyper_ps = {
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
-        'VOXEL_DECODER': True
+        'VOXEL_DECODER': False
     },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
@@ -207,6 +207,8 @@ def main(hps):
     if not hps['MODEL_CONFIG']['VOXEL_DECODER']:
         hps['VOXEL_LOSS_FUNC_WEIGHTS'] = []
         hps['VOXEL_LOSS_FUNC'] = []
+        if 'JaccardVoxel' in hps['EVAL_METRICS']:
+            hps['EVAL_METRICS'].remove('JaccardVoxel')
 
 
     # Run
