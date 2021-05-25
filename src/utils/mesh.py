@@ -47,6 +47,11 @@ class Mesh():
                        normals=self.normals,
                        values=self.values,
                        process=process)
+
+    def to_pytorch3d_Meshes(self):
+        return Meshes([self.vertices],
+                      [self.faces])
+
     def store(self, path: str):
         t_mesh = self.to_trimesh()
         t_mesh.export(path)

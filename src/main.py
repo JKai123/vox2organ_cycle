@@ -24,7 +24,7 @@ hyper_ps = {
     #######################
     # Learning
     'N_EPOCHS': 2000,
-    'EVAL_EVERY': 50,
+    'EVAL_EVERY': 200,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
@@ -56,14 +56,11 @@ hyper_ps = {
         # Graph decoder channels should be multiples of 2
         'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_10242.obj',
         'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
         'VOXEL_DECODER': True
     },
-    # Data directories
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
-    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
 }
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
@@ -71,9 +68,9 @@ hyper_ps = {
 hyper_ps_overfit = {
     # Learning
     'N_EPOCHS': 1000,
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
-    'MIXED_PRECISION': False,
+    'MIXED_PRECISION': True,
 }
 
 
@@ -183,9 +180,11 @@ def main(hps):
     hps = update_dict(hyper_ps_default, hps)
 
     if args.dataset == 'Hippocampus':
+        hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
         hps['PATCH_SIZE'] = (64, 64, 64)
         hps['BATCH_SIZE'] = 15
     if args.dataset == 'Cortex':
+        hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/MALC_CSR/"
         hps['PATCH_SIZE'] = (192, 224, 192)
         hps['BATCH_SIZE'] = 1
 

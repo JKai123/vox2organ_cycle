@@ -10,6 +10,7 @@ import logging
 from enum import IntEnum
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
@@ -17,6 +18,8 @@ from pytorch3d.structures import Meshes
 from nibabel.orientations import axcodes2ornt, ornt_transform
 
 from utils.modes import DataModes, ExecModes
+from utils.logging import measure_time
+from utils.mesh import Mesh
 from utils.utils import (
     create_mesh_from_voxels,
     normalize_min_max,
@@ -84,6 +87,9 @@ class Cortex(DatasetHandler):
 
         # Mesh labels
         self.mesh_labels = self._load_dataMesh(meshnames=mesh_label_names)
+
+        # Maximum number of vertices (see scripts.get_max_num_vertices_of_data)
+        self.max_n_vertices = 146705 * len(mesh_label_names)
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -156,31 +162,40 @@ class Cortex(DatasetHandler):
     def __len__(self):
         return len(self._files)
 
+    @measure_time
     def get_item_from_index(self, index: int):
         """
         One data item has the form
-        (3D input image, 3D voxel label, Mesh label)
+        (3D input image, 3D voxel label, points)
         with types
-        (torch.tensor, torch.tensor, pytorch3d.structures.Meshes)
+        (torch.tensor, torch.tensor, torch.tensor)
         """
-        img, voxel_label = self.data[index], self.voxel_labels[index]
+        img = self.data[index]
         voxel_label = self.voxel_labels[index]
-        mesh_label = self.mesh_labels[index]
+        points_label = self.mesh_labels[index].vertices
+        # Pad such that all pointclouds have the same number of points
+        points_label = F.pad(points_label,
+                             (0,0,0,self.max_n_vertices-len(points_label)))
+        # For compatibility with multi-class pointclouds
+        points_label = points_label[None]
 
         # TODO: implement augmentation
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)
+        img = img_with_patch_size(img, self.patch_size, False)[None]
         voxel_label = img_with_patch_size(voxel_label, self.patch_size, True)
 
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
-        return img, voxel_label, mesh_label
+        return img, voxel_label, points_label
 
     def get_item_and_mesh_from_index(self, index):
-        """ Alias of get_item_from_index """
-        return self.get_item_from_index(index)
+        """ Get image, segmentation ground truth and reference mesh"""
+        img, voxel_label, _ = self.get_item_from_index(index)
+        mesh_label = self.mesh_labels[index]
+
+        return img, voxel_label, mesh_label
 
     def _load_data3D(self, filename: str):
         data = []
@@ -219,8 +234,8 @@ class Cortex(DatasetHandler):
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
             mesh_batch = Meshes(file_vertices, file_faces)
-            mesh_single = Meshes([mesh_batch.verts_packed()],
-                                 [mesh_batch.faces_packed()])
+            mesh_single = Mesh(mesh_batch.verts_packed().float(),
+                               mesh_batch.faces_packed().float())
             data.append(mesh_single)
 
         return data

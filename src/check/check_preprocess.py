@@ -94,9 +94,13 @@ def run_preprocess_check_cortex():
     for iter_in_epoch in tqdm(range(5), desc="Testing...", position=0, leave=True):
         data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
         # data_augment = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
-        img_slices = [data[0][32, :, :], data[0][:, 32, :], data[0][:, :, 32]]
-        label_slices = [data[1][32, :, :], data[1][:, 32, :], data[1][:, :, 32]]
-        mesh = Mesh(data[2].verts_packed(), data[2].faces_packed())
+        img_slices = [data[0].squeeze()[32, :, :],
+                      data[0].squeeze()[:, 32, :],
+                      data[0].squeeze()[:, :, 32]]
+        label_slices = [data[1].squeeze()[32, :, :],
+                        data[1].squeeze()[:, 32, :],
+                        data[1].squeeze()[:, :, 32]]
+        mesh = data[2]
         mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
         mc_mesh = create_mesh_from_voxels(data[1], flip=False)
         mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
@@ -114,4 +118,4 @@ def run_preprocess_check_cortex():
                     # str(iter_in_epoch) + "_augment_nolabel.png")
 
 if __name__ == '__main__':
-    run_preprocess_check_hippocampus()
+    run_preprocess_check_cortex()
