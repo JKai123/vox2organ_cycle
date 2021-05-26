@@ -234,7 +234,8 @@ class Cortex(DatasetHandler):
                 new_verts = (world2vox_affine @ coords).T[:,:-1]
                 new_verts = normalize_vertices(new_verts,
                                                torch.tensor(self.patch_size)[None])
-
+                # Convert z,y,x --> x,y,z
+                new_verts = torch.flip(new_verts, dims=[1])
                 file_vertices.append(new_verts)
                 file_faces.append(torch.from_numpy(mesh.faces))
             # First treat as a batch of multiple meshes and then combine

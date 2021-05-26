@@ -102,7 +102,7 @@ def run_preprocess_check_cortex():
                         data[1].squeeze()[:, :, 32]]
         mesh = data[2]
         mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
-        mc_mesh = create_mesh_from_voxels(data[1], flip=False)
+        mc_mesh = create_mesh_from_voxels(data[1])
         mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
         # img_slices_augment = [data_augment[0][32, :, :], data_augment[0][:, 32, :], data_augment[0][:, :, 32]]
         # label_slices_augment = [data_augment[1][32, :, :], data_augment[1][:, 32, :], data_augment[1][:, :, 32]]
