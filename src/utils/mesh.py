@@ -66,10 +66,15 @@ class Mesh():
             voxelized.translation).astype(int)
 
         # 0 <= coords < shape
-        vox_occupied = [vo for vo in vox_occupied\
-                        if (vo >= 0).all() and (vo < shape).all()]
         vox_occupied = np.asarray(vox_occupied)
-        if vox_occupied.ndim < 2:
+        mask = np.ones((vox_occupied.shape[0]), dtype=bool)
+        for i, s in enumerate(shape):
+            in_box = np.logical_and(vox_occupied[:,i] >= 0,
+                                    vox_occupied[:,i] < s)
+            mask = np.logical_and(mask, in_box)
+        vox_occupied = vox_occupied[mask]
+
+        if vox_occupied.size < 1:
             # No occupied voxels in the given shape
             vox_occupied = None
 
