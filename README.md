@@ -8,8 +8,8 @@ The long-living branches are structured as follows:
 - run: usually ready to run but maybe not tested extensively
 - dev: development in progress, probably not runnable  
 
-## About coordinates in pytorch
-[`torch.nn.functional.grid_sample`](https://pytorch.org/docs/stable/nn.functional.html?highlight=grid_sample#torch.nn.functional.grid_sample) requires flipped coordinates, see example below:
+## Coordinate convention
+[`torch.nn.functional.grid_sample`](https://pytorch.org/docs/stable/nn.functional.html?highlight=grid_sample#torch.nn.functional.grid_sample) requires flipped coordinates, see example below. By convention, we transform all coordinates such that it would be possible to sample from them using `torch.nn.functional.grid_sample`.
 ```
 import torch
 import torch.nn.functional as F
