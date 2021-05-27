@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from trimesh import Trimesh
 from pytorch3d.structures import Meshes
+from pytorch3d.utils import ico_sphere
 
 class Mesh():
     """ Custom meshes """
@@ -115,3 +116,22 @@ def verts_faces_to_Meshes(verts, faces, ndim):
             meshes.append(Meshes(verts=list(v), faces=list(f)))
 
     return meshes
+
+def generate_sphere_template(centers, radii, level=6):
+    """ Generate a template with spheres centered at centers and corresponding
+    radii
+    - level 6: 40962 vertices
+    - level 7: 163842 vertices
+    """
+    if len(centers) != len(radii):
+        raise ValueError("Number of centroids and radii must be equal.")
+    verts, faces = [], []
+    for c, r in zip(centers, radii):
+        # Get unit sphere
+        sphere = ico_sphere(level)
+        # Scale adequately
+        v = sphere.verts_packed() * r + c
+        verts.append(v)
+        faces.append(sphere.faces_packed())
+
+    return Meshes(verts=verts, faces=faces)

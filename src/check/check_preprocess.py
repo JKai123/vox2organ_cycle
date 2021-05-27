@@ -91,6 +91,8 @@ def run_preprocess_check_cortex():
                                                      # save_dir="../misc",
                                                              # **hps_lower)
 
+    training_set.store_template("../misc/template.ply")
+
     for iter_in_epoch in tqdm(range(5), desc="Testing...", position=0, leave=True):
         data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
         # data_augment = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
