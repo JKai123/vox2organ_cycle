@@ -99,6 +99,9 @@ def init_std_logging(name, log_dir, loglevel, mode):
     """
     logger = logging.getLogger(name)
 
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
     # Global config
     numeric_level = getattr(logging, loglevel.upper(), None)
     if not isinstance(numeric_level, int):
