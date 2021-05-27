@@ -17,8 +17,7 @@ from utils.losses import (
     EdgeLoss
 )
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    GraphConvNorm,
-    PTGeoConvWrapped
+    GraphConvNorm
 )
 
 hyper_ps_default={
