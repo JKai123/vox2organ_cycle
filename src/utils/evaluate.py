@@ -21,6 +21,7 @@ from utils.utils import (
 from utils.logging import (
     write_img_if_debug,
     measure_time)
+from data.hippocampus import Hippocampus
 
 class EvalMetrics(IntEnum):
     """ Supported evaluation metrics """
@@ -34,7 +35,7 @@ class EvalMetrics(IntEnum):
     JaccardMesh = 3
 
 @measure_time
-def JaccardMeshScore(pred, data, n_classes, model_class):
+def JaccardMeshScore(pred, data, n_classes, model_class, strip):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
@@ -56,22 +57,24 @@ def JaccardMeshScore(pred, data, n_classes, model_class):
             # No mesh in the valid range predicted --> keep zeros
             pass
 
-    # Strip off one layer of voxels
-    voxel_pred_inner = sample_inner_volume_in_voxel(voxel_pred)
+    # Strip off one layer of voxels. This should be done if point losses are
+    # computed with respect to outer surface points.
+    if strip:
+        voxel_pred = sample_inner_volume_in_voxel(voxel_pred)
     write_img_if_debug(input_img.cpu().numpy(),
                        "../misc/voxel_input_img_eval.nii.gz")
-    write_img_if_debug(voxel_pred_inner.cpu().numpy(),
+    write_img_if_debug(voxel_pred.cpu().numpy(),
                        "../misc/mesh_pred_img_eval.nii.gz")
     write_img_if_debug(voxel_target.cpu().numpy(),
                        "../misc/voxel_target_img_eval.nii.gz")
 
     # j_coo = Jaccard_from_Coords(pred_voxels, target_voxels, n_classes)
-    j_vox = Jaccard(voxel_pred_inner.cuda(), voxel_target.cuda(), n_classes)
+    j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), n_classes)
 
     return j_vox
 
 @measure_time
-def JaccardVoxelScore(pred, data, n_classes, model_class):
+def JaccardVoxelScore(pred, data, n_classes, model_class, *args):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = model_class.pred_to_voxel_pred(pred)
     voxel_label = data[1].cuda()
@@ -127,7 +130,7 @@ def Jaccard(pred, target, n_classes):
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
 
-def ChamferScore(pred, data, n_classes, model_class):
+def ChamferScore(pred, data, n_classes, model_class, *args):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance is computed
@@ -179,6 +182,10 @@ class ModelEvaluator():
         model_class = model.__class__
         for m in self._eval_metrics:
             results_all[m] = []
+
+        # Strip layer in JaccardMesh for Hippocampus dataset
+        strip = True if isinstance(self._dataset, Hippocampus) else False
+
         # Iterate over data split
         with torch.no_grad():
             for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
@@ -192,7 +199,8 @@ class ModelEvaluator():
                 for metric in self._eval_metrics:
                     res = self._metricHandler[metric](pred, data,
                                                       self._n_classes,
-                                                      model_class)
+                                                      model_class,
+                                                      strip)
                     results_all[metric].append(res)
 
                 if i < save_meshes: # Store meshes for visual inspection
