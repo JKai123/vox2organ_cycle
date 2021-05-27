@@ -90,9 +90,12 @@ class Cortex(DatasetHandler):
         self.mesh_label_names = mesh_label_names
 
         # Template for dataset
-        self.template = generate_sphere_template(list(self.centers.values()),
-                                                 list(self.radii.values()),
-                                                 level=6)
+        if self.centers is not None and self.radii is not None:
+            self.template = generate_sphere_template(list(self.centers.values()),
+                                                     list(self.radii.values()),
+                                                     level=6)
+        else:
+            self.template = None
 
         # Maximum number of reference vertices in the ground truth meshes
         # The maximum in the dataset is 146705 (calculated with
@@ -228,6 +231,8 @@ class Cortex(DatasetHandler):
 
     def _load_dataMesh(self, meshnames):
         data = []
+        centers_per_structure = {mn: [] for mn in meshnames}
+        radii_per_structure = {mn: [] for mn in meshnames}
         for fn in self._files:
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
@@ -236,8 +241,6 @@ class Cortex(DatasetHandler):
             world2vox_affine = np.linalg.inv(vox2world_affine)
             file_vertices = []
             file_faces = []
-            centers_per_structure = {mn: [] for mn in meshnames}
-            radii_per_structure = {mn: [] for mn in meshnames}
             for mn in meshnames:
                 mesh = trimesh.load_mesh(os.path.join(
                     self._raw_data_dir, fn, mn + ".stl"
@@ -257,6 +260,7 @@ class Cortex(DatasetHandler):
                 radii = torch.sqrt(torch.sum((new_verts - center)**2, dim=1)).mean(dim=0)
                 centers_per_structure[mn].append(center)
                 radii_per_structure[mn].append(radii)
+
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
             mesh_batch = Meshes(file_vertices, file_faces)
@@ -264,10 +268,13 @@ class Cortex(DatasetHandler):
                                mesh_batch.faces_packed().float())
             data.append(mesh_single)
 
-            # Compute centroids and average radius per structure
+        # Compute centroids and average radius per structure
+        if self.__len__() > 0:
             centroids = {k: torch.mean(torch.stack(v), dim=0)
                          for k, v in centers_per_structure.items()}
             radii = {k: torch.mean(torch.stack(v), dim=0)
                      for k, v in radii_per_structure.items()}
+        else:
+            centroids, radii = None, None
 
         return data, (centroids, radii)
