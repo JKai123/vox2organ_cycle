@@ -94,6 +94,11 @@ class MeshesOfMeshes():
     is the number of faces per connected mesh. In general, M and F can be
     different for every mesh and their maximum is used in the padded
     representation.
+
+    Note: This implementation is quite inefficient and should in general be
+    avoided since all vertices, faces etc. are stored twice. An efficient
+    implementation of such a class should entirely replace
+    pytorch3d.structures.Meshes and not use it internally.
     """
     def __init__(self, verts, faces):
         self._Meshes_list = []
