@@ -17,6 +17,7 @@ def read_obj(filepath):
     vertices_structure = []
     faces_structure = []
     normals_structure = []
+    V_prev = 0
     with open(filepath) as fp:
         line = fp.readline()
         cnt = 1
@@ -33,11 +34,12 @@ def read_obj(filepath):
             if line[0] == 'o' and any((
                 len(vertices_structure) > 0,
                 len(faces_structure) > 0,
-                len(faces_structure) > 0
+                len(normals_structure) > 0
             )):
                 vertices.append(vertices_structure)
-                faces.append(faces_structure)
+                faces.append(np.array(faces_structure) - V_prev)
                 normals.append(normals_structure)
+                V_prev += len(vertices_structure)
                 vertices_structure = []
                 faces_structure = []
                 normals_structure = []
@@ -45,7 +47,7 @@ def read_obj(filepath):
             line = fp.readline()
 
         vertices.append(vertices_structure)
-        faces.append(faces_structure)
+        faces.append(np.array(faces_structure) - V_prev)
         normals.append(normals_structure)
 
         vertices = np.array(vertices)
