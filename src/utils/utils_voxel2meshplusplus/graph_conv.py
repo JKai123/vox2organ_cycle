@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
-from torch_geometric.nn import GCNConv, ChebConv
+from torch_geometric.nn import GCNConv, ChebConv, GINConv
+from torch_sparse import SparseTensor
 
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.utils import Euclidean_weights
@@ -32,12 +33,16 @@ class GraphConvNorm(GraphConv):
         D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
         return D_inv * super().forward(verts, edges)
 
-class PTGeoConvWrapped(GCNConv):
+class GCNConvWrapped(GCNConv):
     """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
     pytorch3d convs.
     """
     def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        # Maybe cached?
         super().__init__(input_dim, output_dim, improved=True, **kwargs)
+
+        # Zero initialization to avoid large non-sense displacements at the
+        # beginning
         nn.init.constant_(self.weight, 0.0)
         self.weighted_edges = weighted_edges
 
@@ -55,6 +60,24 @@ class PTGeoConvWrapped(GCNConv):
             weights = None
 
         return super().forward(verts, edges_both_dir, weights)
+
+class GINConvWrapped(GINConv):
+    """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
+    pytorch3d convs.
+    """
+    def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        super().__init__(nn=nn.Linear(input_dim, output_dim), **kwargs)
+
+        # Zero initialization to avoid large non-sense displacemnets at the
+        # beginning
+        nn.init.constant_(self.nn.weight, 0.0)
+
+    def forward(self, verts, edges):
+        edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
+                                   dim=1)
+        # A_sparse = SparseTensor(row=edges_both_dir[0], col=edges_both_dir[1]).t()
+
+        return super().forward(verts, edges_both_dir)
 
 class Features2Features(nn.Module):
     """ A graph conv block """
