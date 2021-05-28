@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from trimesh import Trimesh
+from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.utils import ico_sphere
 
@@ -52,7 +53,7 @@ class Mesh():
                 # padded --> packed representation
                 m = Meshes(self.vertices, self.faces)
                 vertices = m.verts_packed().cpu()
-                faces = m.verts_packed().cpu()
+                faces = m.faces_packed().cpu()
             else:
                 vertices = self.vertices.cpu()
                 faces = self.faces.cpu()
@@ -70,9 +71,10 @@ class Mesh():
         if self.vertices.ndim == 3:
             return Meshes(self.vertices,
                           self.faces)
-        elif self.vertices.ndim ==2:
+        if self.vertices.ndim ==2:
             return Meshes([self.vertices],
                           [self.faces])
+        raise ValueError("Invalid dimension of vertices and/or faces.")
 
     def store(self, path: str):
         t_mesh = self.to_trimesh()
@@ -134,15 +136,11 @@ class MeshesOfMeshes():
         self._edges_packed = None
         self._features_padded = features
 
-        N, M, V, _ = verts.shape
-        _, _, F, _ = faces.shape
-
     def edges_packed(self):
         """ Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
             # Calculate edges from faces
             faces = self.faces_packed()
-            F = faces.shape[0]
             v0, v1, v2 = faces.chunk(3, dim=1)
             e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
             e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
@@ -169,8 +167,7 @@ class MeshesOfMeshes():
         if self.contains_features:
             _, _, _, C = self._features_padded.shape
             return self._features_padded.view(-1, C)
-        else:
-            return None
+        return None
 
 def verts_faces_to_Meshes(verts, faces, ndim):
     """ Convert lists of vertices and faces to lists of
@@ -190,21 +187,33 @@ def verts_faces_to_Meshes(verts, faces, ndim):
 
     return meshes
 
-def generate_sphere_template(centers, radii, level=6):
+def generate_sphere_template(centers: dict, radii: dict, level=6):
     """ Generate a template with spheres centered at centers and corresponding
     radii
     - level 6: 40962 vertices
     - level 7: 163842 vertices
+
+    :param centers: A dict containing {structure name: structure center}
+    :param radii: A dict containing {structure name: structure radius}
+    :param level: The ico level to use
+
+    :returns: A trimesh.scene.scene.Scene
     """
     if len(centers) != len(radii):
         raise ValueError("Number of centroids and radii must be equal.")
-    verts, faces = [], []
-    for c, r in zip(centers, radii):
+
+    scene = Scene()
+    for (k, c), (_, r) in zip(centers.items(), radii.items()):
         # Get unit sphere
         sphere = ico_sphere(level)
         # Scale adequately
         v = sphere.verts_packed() * r + c
-        verts.append(v)
-        faces.append(sphere.faces_packed())
 
-    return Meshes(verts=verts, faces=faces)
+        v = v.cpu().numpy()
+        f = sphere.faces_packed().cpu().numpy()
+
+        mesh = Trimesh(v, f)
+
+        scene.add_geometry(mesh, geom_name=k)
+
+    return scene

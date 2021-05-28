@@ -10,7 +10,6 @@ import logging
 from enum import IntEnum
 
 import torch
-import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
@@ -54,13 +53,14 @@ class Cortex(DatasetHandler):
     corresponding to sample ids
     :param patch_size: The patch size of the images, e.g. (256, 256, 256)
     :param augment: Use image augmentation during training if 'True'
-    :param n_template_vertices: The number of vertices in a template
+    :param n_ref_points_per_structure: The number of ground truth points
+    per 3D structure.
     :param seg_label_names: The segmentation labels to consider
     :param mesh_label_names: The mesh ground truth file names (can be multiple)
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 patch_size, augment: bool, n_template_vertices: int=20000,
+                 patch_size, augment: bool, n_ref_points_per_structure: int,
                  seg_label_names=("right_white_matter", "left_white_matter"),
                  mesh_label_names=("rh_white", "lh_white")):
         super().__init__(ids, mode)
@@ -88,29 +88,27 @@ class Cortex(DatasetHandler):
         self.mesh_labels, (self.centers, self.radii) =\
                 self._load_dataMesh(meshnames=mesh_label_names)
         self.mesh_label_names = mesh_label_names
+        self.n_structures = len(mesh_label_names)
 
-        # Template for dataset
-        if self.centers is not None and self.radii is not None:
-            self.template = generate_sphere_template(list(self.centers.values()),
-                                                     list(self.radii.values()),
-                                                     level=6)
-        else:
-            self.template = None
 
-        # Maximum number of reference vertices in the ground truth meshes
-        # The maximum in the dataset is 146705 (calculated with
-        # scripts.get_max_num_vertices_of_data)
-        self.max_n_vertices = 40000 * len(mesh_label_names)
+        self.n_ref_points_per_structure = n_ref_points_per_structure
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
 
     def store_template(self, path):
-        verts = self.template.verts_packed()
-        faces = self.template.faces_packed()
-
-        Mesh(verts, faces).store(path)
+        """ Template for dataset. This can be stored and later used during
+        training.
+        """
+        if self.centers is not None and self.radii is not None:
+            template = generate_sphere_template(self.centers,
+                                                self.radii,
+                                                level=6)
+            template.export(path)
+        else:
+            raise RuntimeError("Centers and/or radii are unknown, template"
+                               " cannnot be created. ")
 
     @staticmethod
     def split(raw_data_dir, dataset_seed, dataset_split_proportions,
@@ -126,10 +124,14 @@ class Cortex(DatasetHandler):
         :augment_train: Augment training data.
         :save_dir: A directory where the split ids can be saved.
         :overfit: All three splits are the same and contain only one element.
+        :n_ref_points_per_structure: The number of reference points to use for
+        training.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
 
         overfit = kwargs.get("overfit", False)
+        n_ref_points_per_structure = kwargs.get("n_ref_points_per_structure",
+                                                -1)
 
         # Available files
         all_files = os.listdir(raw_data_dir)
@@ -158,17 +160,20 @@ class Cortex(DatasetHandler):
                                DataModes.TRAIN,
                                raw_data_dir,
                                patch_size,
-                               augment_train) # no meshes for train
+                               augment_train,
+                               n_ref_points_per_structure)
         val_dataset = Cortex(all_files[indices_val],
                              DataModes.VALIDATION,
                              raw_data_dir,
                              patch_size,
-                             False) # create all mc meshes
+                             False,
+                             n_ref_points_per_structure)
         test_dataset = Cortex(all_files[indices_test],
                               DataModes.TEST,
                               raw_data_dir,
                               patch_size,
-                              False) # create all mc meshes
+                              False,
+                              n_ref_points_per_structure)
 
         # Save ids to file
         DatasetHandler.save_ids(all_files[indices_train], all_files[indices_val],
@@ -189,17 +194,7 @@ class Cortex(DatasetHandler):
         """
         img = self.data[index]
         voxel_label = self.voxel_labels[index]
-        points_label = self.mesh_labels[index].vertices
-        # Pad/crop such that all pointclouds have the same number of points
-        n_points = len(points_label)
-        if self.max_n_vertices > len(points_label):
-            points_label = F.pad(points_label,
-                                 (0,0,0,self.max_n_vertices-n_points))
-        else:
-            perm = torch.randperm(self.max_n_vertices)
-            points_label = points_label[perm]
-        # For compatibility with multi-class pointclouds
-        points_label = points_label[None]
+        points_label = self.get_points_label(index)
 
         # TODO: implement augmentation
 
@@ -211,6 +206,14 @@ class Cortex(DatasetHandler):
                                                       self._files[index])
 
         return img, voxel_label, points_label
+
+    def get_points_label(self, index):
+        """ Ground truth points """
+        points = self.mesh_labels[index].vertices
+        perm = torch.randperm(points.shape[1])
+        perm = perm[:self.n_ref_points_per_structure]
+
+        return points[:, perm, :]
 
     def get_item_and_mesh_from_index(self, index):
         """ Get image, segmentation ground truth and reference mesh"""
@@ -264,8 +267,8 @@ class Cortex(DatasetHandler):
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
             mesh_batch = Meshes(file_vertices, file_faces)
-            mesh_single = Mesh(mesh_batch.verts_packed().float(),
-                               mesh_batch.faces_packed().float())
+            mesh_single = Mesh(mesh_batch.verts_padded().float(),
+                               mesh_batch.faces_padded().float())
             data.append(mesh_single)
 
         # Compute centroids and average radius per structure
