@@ -51,7 +51,7 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
         vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
     pv = Mesh(unnorm_verts,
-              faces[-1]).get_occupied_voxels(shape.squeeze().cpu().numpy())
+              faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
     if pv is not None:
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
         # Potentially overwrites previous class prediction if overlapping
