@@ -54,8 +54,8 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
               faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
     if pv is not None:
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-        # Potentially overwrites previous class prediction if overlapping
-        voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = c
+        # Occupied voxels are considered to belong to one class
+        voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
     else:
         # No mesh in the valid range predicted --> keep zeros
         pass
@@ -71,7 +71,7 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
     write_img_if_debug(voxel_target.cpu().numpy(),
                        "../misc/voxel_target_img_eval.nii.gz")
 
-    j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), n_v_classes)
+    j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), 2)
 
     return j_vox
 
@@ -144,13 +144,14 @@ def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
     if gt_vertices.ndim == 2:
         gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
-    for c in range(1, n_m_classes):
-        pred_vertices = pred_vertices[-1][c] # only consider last mesh step
-        chamfer_scores.append(chamfer_distance(pred_vertices,
-                                               gt_vertices)[0].cpu().item())
+    for c in range(n_m_classes):
+        pv = pred_vertices[-1][c] # only consider last mesh step
+        chamfer_scores.append(
+            chamfer_distance(pv, gt_vertices[c][None])[0].cpu().item()
+        )
 
     # Average over classes
-    return np.sum(chamfer_scores) / float(n_m_classes - 1)
+    return np.sum(chamfer_scores) / float(n_m_classes)
 
 class ModelEvaluator():
     """ Class for evaluation of models.

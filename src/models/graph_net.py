@@ -8,13 +8,11 @@ from typing import Union
 
 import torch
 import torch.nn as nn
-from pytorch3d.structures import Meshes
 from torch.cuda.amp import autocast
+from pytorch3d.ops import GraphConv
 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    GraphConvNorm,
-    PTGeoConvWrapped,
     Features2FeaturesSimple,
     GraphIdLayer,
     Features2FeaturesResidual
@@ -22,9 +20,10 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
 from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_from_indices
 )
-from utils.utils_voxel2mesh.file_handle import read_obj
+from utils.file_handle import read_obj
 from utils.logging import measure_time
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
+from utils.mesh import MeshesOfMeshes
 
 class GraphDecoder(nn.Module):
     """ A graph decoder that takes a template mesh and voxel features as input.
@@ -134,11 +133,17 @@ class GraphDecoder(nn.Module):
         self.f2f_connect_layers = nn.ModuleList(f2f_connect_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
 
-        # Template
+        # Template (batch size 1)
         sphere_path = mesh_template
-        sphere_vertices, sphere_faces = read_obj(sphere_path)
+        sphere_vertices, sphere_faces, _ = read_obj(sphere_path)
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
-        self.sphere_vertices = sphere_vertices/torch.sqrt(torch.sum(sphere_vertices**2, dim=1)[:,None])[None]
+
+        # Normalize template only if coords not in [-1, 1]
+        if sphere_vertices.max() > 1 or sphere_vertices.min() < -1:
+            self.sphere_vertices = sphere_vertices/torch.sqrt(torch.sum(sphere_vertices**2, dim=1)[:,None])[None]
+        else:
+            self.sphere_vertices = sphere_vertices[None]
+
         self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
 
     @property
@@ -168,21 +173,22 @@ class GraphDecoder(nn.Module):
         batch_size = skips[0].shape[0]
         temp_vertices = torch.cat(batch_size * [self.sphere_vertices], dim=0)
         temp_faces = torch.cat(batch_size * [self.sphere_faces], dim=0)
-        temp_meshes = Meshes(verts=temp_vertices, faces=temp_faces)
+        temp_meshes = MeshesOfMeshes(verts=temp_vertices, faces=temp_faces)
 
-        # Avoid bug related to automatic mixed precision, see also
-        # https://github.com/pytorch/pytorch/issues/42218
+        _, M, V, _ = temp_vertices.shape
+
         skips = [s.float() for s in skips]
-        with autocast(enabled=False):
+
+        # No autocast for pytorch3d convs possible
+        cast = False if isinstance(self.graph_conv_first, GraphConv) else True
+        with autocast(enabled=cast):
             # First graph conv: Vertex coords --> latent features
             edges_packed = temp_meshes.edges_packed()
             verts_packed = temp_meshes.verts_packed()
             latent_features = self.graph_conv_first(verts_packed, edges_packed)
-            features_verts = torch.cat((latent_features, verts_packed), dim=1)
-            features_verts = features_verts.view(
-                batch_size, temp_vertices.shape[1], self.latent_features_count[0] + 3
+            temp_meshes.update_features(
+                latent_features.view(batch_size, M, V, -1)
             )
-            temp_meshes = Meshes(verts=features_verts, faces=temp_faces)
 
             pred_meshes = [temp_meshes]
             # No delta V for initial step
@@ -202,13 +208,13 @@ class GraphDecoder(nn.Module):
 
                 # Load mesh information from previous iteration for class k
                 prev_meshes = pred_meshes[i]
-                vertices_padded = prev_meshes.verts_padded()[:,:,-3:] # (B,V,3)
-                latent_features_padded = prev_meshes.verts_padded()[:,:,:-3] # (B,V,latent_features_count)
-                faces_padded = prev_meshes.faces_padded() # (B,F,3)
+                vertices_padded = prev_meshes.verts_padded() # (N,M,V,3)
+                latent_features_padded = prev_meshes.features_padded() # (N,M,V,latent_features_count)
+                faces_padded = prev_meshes.faces_padded() # (N,M,F,3)
 
                 if do_unpool == 1:
                     faces_prev = faces_padded
-                    _, N_prev, _ = vertices_padded.shape
+                    _, _, V_prev, _ = vertices_padded.shape
 
                     # Get candidate vertices using uniform unpool
                     vertices_padded,\
@@ -219,56 +225,51 @@ class GraphDecoder(nn.Module):
                                                   faces_padded,
                                                   identical_face_batch=False)
                     faces_padded = faces_padded_new
+                V_new = latent_features_padded.shape[2]
 
                 # Latent features of vertices from voxels
-                skipped_features = aggregate_from_indices(
-                    skips,
-                    vertices_padded,
-                    agg_indices,
-                    mode=self.aggregate
-                )
+                # Avoid bug related to automatic mixed precision, see also
+                # https://github.com/pytorch/pytorch/issues/42218
+                with autocast(enabled=False):
+                    skipped_features = aggregate_from_indices(
+                        skips,
+                        vertices_padded.view(batch_size, -1, 3),
+                        agg_indices,
+                        mode=self.aggregate
+                    ).view(batch_size, M, V_new, -1)
 
-                features_verts_padded = torch.cat(
-                    (latent_features_padded, skipped_features, vertices_padded),
-                    dim=2
+                latent_features_padded = torch.cat(
+                    (latent_features_padded, skipped_features), dim=3
                 )
 
                 # New latent features
-                N_new = features_verts_padded.shape[1]
-                new_meshes = Meshes(features_verts_padded, faces_padded)
+                new_meshes = MeshesOfMeshes(vertices_padded, faces_padded,
+                                            latent_features_padded)
                 edges_packed = new_meshes.edges_packed()
                 if self.propagate_coords:
-                    latent_features_packed = new_meshes.verts_packed()
+                    latent_features_packed = new_meshes.features_verts_packed()
                 else:
-                    latent_features_packed = new_meshes.verts_packed()[:,:-3]
+                    latent_features_packed = new_meshes.features_packed()
                 for f2f in f2f_res:
                     latent_features_packed =\
                         f2f(latent_features_packed, edges_packed)
+                new_meshes.update_features(
+                    latent_features_packed.view(batch_size, M, V_new, -1)
+                )
 
                 # Move vertices
                 deltaV_packed = f2v(latent_features_packed, edges_packed)
-                deltaV_padded = deltaV_packed.view(batch_size, N_new, -1)
-                vertices_packed = new_meshes.verts_packed()[:,-3:]
-                vertices_packed = vertices_packed + deltaV_packed
+                deltaV_padded = deltaV_packed.view(batch_size, M, V_new, 3)
+                new_meshes.move_verts(deltaV_padded)
 
                 # New latent features
                 if self.propagate_coords:
-                    latent_features_packed = torch.cat(
-                        (latent_features_packed, vertices_packed), dim=1
-                    )
+                    latent_features_packed = new_meshes.features_verts_packed()
                 latent_features_packed = f2f_connect(latent_features_packed,
                                                      edges_packed)
-
-                # Latent features = (latent features, vertex positions)
-                features_verts_packed = torch.cat((latent_features_packed,
-                                                   vertices_packed), dim=1)
-                # !Requires all meshes to have the same number of vertices!
-                features_verts_padded =\
-                    features_verts_packed.view(batch_size, N_new, -1)
-
-                # Final meshes
-                new_meshes = Meshes(features_verts_padded,
-                                    new_meshes.faces_padded())
+                new_meshes.update_features(
+                    latent_features_packed.view(batch_size, M, V_new, -1)
+                )
 
                 if do_unpool == 1 and self.use_adoptive_unpool:
                     raise NotImplementedError("Adoptive unpooling changes the"\
@@ -276,7 +277,7 @@ class GraphDecoder(nn.Module):
                                               " mesh which is currently"\
                                               " expected to lead to problems.")
                     # Discard the vertices that were introduced from the uniform unpool and didn't deform much
-                    # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, N_prev)
+                    # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, V_prev)
 
                 pred_meshes.append(new_meshes)
                 pred_deltaV.append(deltaV_padded)

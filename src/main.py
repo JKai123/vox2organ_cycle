@@ -14,6 +14,11 @@ from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.losses import ChamferLoss
+from utils.utils_voxel2meshplusplus.graph_conv import (
+    GraphConvNorm,
+    GCNConvWrapped,
+    GINConvWrapped
+)
 
 # Overwrite default parameters for a common training procedure
 hyper_ps = {
@@ -24,7 +29,7 @@ hyper_ps = {
     #######################
     # Learning
     'N_EPOCHS': 2000,
-    'EVAL_EVERY': 200,
+    'EVAL_EVERY': 50,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
@@ -49,6 +54,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
+    'N_TEMPLATE_VERTICES': 40962,
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
         # Decoder channels from Kong, should be multiples of 2
@@ -56,10 +62,10 @@ hyper_ps = {
         # Graph decoder channels should be multiples of 2
         'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_642.obj',
-        'UNPOOL_INDICES': [0,1,1],
+        'UNPOOL_INDICES': [0,0,0],
         'WEIGHTED_EDGES': False,
-        'VOXEL_DECODER': True
+        'VOXEL_DECODER': True,
+        'GC': GraphConvNorm
     },
 }
 
@@ -99,7 +105,7 @@ def main(hps):
     argparser.add_argument('dataset',
                            nargs='?',
                            type=str,
-                           default="Hippocampus",
+                           default="Cortex",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")
@@ -127,7 +133,7 @@ def main(hps):
     argparser.add_argument('--proj',
                            type=str,
                            dest='proj_name',
-                           default='cortex',
+                           default=None,
                            help="Specify the name of the wandb project.")
     argparser.add_argument('--group',
                            type=str,
@@ -179,14 +185,23 @@ def main(hps):
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
 
+    # Dataset specific params
     if args.dataset == 'Hippocampus':
         hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
         hps['PATCH_SIZE'] = (64, 64, 64)
         hps['BATCH_SIZE'] = 15
+        if hps['PROJ_NAME'] is None:
+            hps['PROJ_NAME'] = "hippocampus"
+        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/spheres/icosahedron_{hps['N_TEMPLATE_VERTICES']}.obj"
     if args.dataset == 'Cortex':
         hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/MALC_CSR/"
         hps['PATCH_SIZE'] = (192, 224, 192)
         hps['BATCH_SIZE'] = 1
+        if hps['PROJ_NAME'] is None:
+            hps['PROJ_NAME'] = "cortex"
+        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/spheres/cortex_white_matter_spheres_{hps['N_TEMPLATE_VERTICES']}.obj"
 
     # Update again for overfitting
     if hps['OVERFIT']:
@@ -217,7 +232,6 @@ def main(hps):
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
-
 
     # Run
     routine = mode_handler[mode]

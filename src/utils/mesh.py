@@ -134,7 +134,26 @@ class MeshesOfMeshes():
         self._verts_padded = verts
         self._faces_padded = faces
         self._edges_packed = None
+
+        if features is not None:
+            self.update_features(features)
+        else:
+            self._features_padded = None
+
+    def update_features(self, features):
+        """ Add features to the mesh in padded representation """
+        if features.shape[:-1] != self._verts_padded.shape[:-1]:
+            raise ValueError("Invalid feature shape.")
         self._features_padded = features
+
+    def verts_padded(self):
+        return self._verts_padded
+
+    def features_padded(self):
+        return self._features_padded
+
+    def faces_padded(self):
+        return self._faces_padded
 
     def edges_packed(self):
         """ Based on pytorch3d.structures.Meshes.edges_packed()"""
@@ -155,12 +174,24 @@ class MeshesOfMeshes():
         N, M, V, _ = self._verts_padded.shape
         _, _, F, _ = self._faces_padded.shape
         # New face index = local index + Ni * Mi * V
-        add_index = torch.cat([torch.ones(F) * i * V for i in range(N*M)])
+        add_index = torch.cat(
+            [torch.ones(F) * i * V for i in range(N*M)]
+        ).long().to(self._faces_padded.device)
         return self._faces_padded.view(-1, 3) + add_index.view(-1, 1)
 
     def verts_packed(self):
         """ Packed representation of vertices """
         return self._verts_padded.view(-1, 3)
+
+    def move_verts(self, offset):
+        """ Move the vertex coordinates by offset """
+        if offset.shape != self._verts_padded.shape:
+            raise ValueError("Invalid offset.")
+        self._verts_padded = self._verts_padded + offset
+
+    def features_verts_packed(self):
+        """ (features, verts) in packed representation """
+        return torch.cat((self.features_packed(), self.verts_packed()), dim=1)
 
     def features_packed(self):
         """ Packed representation of features """
