@@ -12,12 +12,22 @@ from pytorch3d.structures import Meshes
 from pytorch3d.utils import ico_sphere
 
 class Mesh():
-    """ Custom meshes """
-    def __init__(self, vertices, faces, normals=None, values=None):
+    """ Custom meshes
+    The idea of this class is to hold vertices and faces of ONE mesh (which may
+    consist of multiple structures) together very flexibly.
+    For example, vertices may be represented by a 3D tensor (one
+    dimenesion per mesh structure) or a 2D tensor of shape (V,3).
+
+    :param vertices: torch.tensor or numpy.ndarray of vertices
+    :param faces: torch.tensor or numpy.ndarray of faces
+    :param normals: Vertex normals
+    :param features: Vertex features
+    """
+    def __init__(self, vertices, faces, normals=None, features=None):
         self._vertices = vertices
         self._faces = faces
         self._normals = normals
-        self._values = values
+        self._features = features
 
     @property
     def vertices(self):
@@ -32,27 +42,37 @@ class Mesh():
         return self._normals
 
     @property
-    def values(self):
-        return self._values
+    def features(self):
+        return self._features
 
     def to_trimesh(self, process=False):
+        assert type(self.vertices) == type(self.faces)
         if isinstance(self.vertices, torch.Tensor):
-            vertices = self.vertices.squeeze().cpu()
+            if self.vertices.ndim == 3:
+                # padded --> packed representation
+                m = Meshes(self.vertices, self.faces)
+                vertices = m.verts_packed().cpu()
+                faces = m.verts_packed().cpu()
+            else:
+                vertices = self.vertices.cpu()
+                faces = self.faces.cpu()
         else:
+            # numpy
             vertices = self.vertices
-        if isinstance(self.faces, torch.Tensor):
-            faces = self.faces.squeeze().cpu()
-        else:
             faces = self.faces
+
         return Trimesh(vertices=vertices,
                        faces=faces,
-                       normals=self.normals,
-                       values=self.values,
                        process=process)
 
     def to_pytorch3d_Meshes(self):
-        return Meshes([self.vertices],
-                      [self.faces])
+        assert self.vertices.ndim == self.faces.ndim
+        if self.vertices.ndim == 3:
+            return Meshes(self.vertices,
+                          self.faces)
+        elif self.vertices.ndim ==2:
+            return Meshes([self.vertices],
+                          [self.faces])
 
     def store(self, path: str):
         t_mesh = self.to_trimesh()
@@ -84,8 +104,9 @@ class Mesh():
 
 class MeshesOfMeshes():
     """ Extending pytorch3d.structures.Meshes so that each mesh in a batch of
-    meshes can consist of several distinguishable meshes. Basically, a new
-    dimension 'M' is introduced to tensors of vertices and faces.
+    meshes can consist of several distinguishable meshes (often individual
+    structures in a scene). Basically, a new dimension 'M' is introduced
+    to tensors of vertices and faces.
 
     Shapes of self.faces (analoguously for vertices and normals):
         - padded (N,M,F,3)
@@ -95,83 +116,61 @@ class MeshesOfMeshes():
     different for every mesh and their maximum is used in the padded
     representation.
 
-    Note: This implementation is quite inefficient and should in general be
-    avoided since all vertices, faces etc. are stored twice. An efficient
-    implementation of such a class should entirely replace
-    pytorch3d.structures.Meshes and not use it internally.
     """
-    def __init__(self, verts, faces):
-        self._Meshes_list = []
-        for v, f in zip(verts, faces):
-            self._Meshes_list.append(Meshes(v,f))
+    def __init__(self, verts, faces, features=None):
+        if verts.ndim != 4:
+            raise ValueError("Vertices are required to be a 4D tensor.")
+        if faces.ndim != 4:
+            raise ValueError("Faces are required to be a 4D tensor.")
+        if features is not None:
+            self.contains_features = True
+            if features.ndim != 4:
+                raise ValueError("Features are required to be a 4D tensor.")
+        else:
+            self.contains_features = False
 
-        self._verts_packed = None
-        self._faces_packed = None
-        self._verts_normals_packed = None
+        self._verts_padded = verts
+        self._faces_padded = faces
         self._edges_packed = None
+        self._features_padded = features
 
-        self.N = self.get_N()
-        self.M, self.V, self.F = self.get_M_V_F()
-
-    def verts_list(self):
-        return [m.verts_list() for m in self._Meshes_list]
-
-    def get_N(self):
-        return len(self._Meshes_list)
-
-    def get_M_V_F(self):
-        max_M = 0
-        max_V = 0
-        max_F = 0
-        for m in self._Meshes_list:
-            if m.verts_padded().shape[0] > max_M:
-                max_M = m.verts_padded().shape[0]
-            if m.verts_padded().shape[1] > max_V:
-                max_V = m.verts_padded().shape[1]
-            if m.faces_padded().shape[1] > max_F:
-                max_F = m.faces_padded().shape[1]
-
-        return max_M, max_V, max_F
-
-    def verts_packed(self):
-        if self._verts_packed is None:
-            self._verts_packed = torch.cat(
-                [m.verts_packed() for m in self._Meshes_list], dim=0
-            )
-
-        return self._verts_packed
-
-    def verts_normals_packed(self):
-        if self._verts_normals_packed is None:
-            self._verts_normals_packed = torch.cat(
-                [m.verts_normals_packed() for m in self._Meshes_list], dim=0
-            )
-
-        return self._verts_normals_packed
-
-    def faces_packed(self):
-        V_prev = 0
-        if self._faces_packed is None:
-            faces_packed = []
-            for m in self._Meshes_list:
-                faces_packed.append(m.faces_packed() + V_prev)
-                V_pref += m.verts_packed().shape[0]
-
-            self._faces_packed = torch.cat(faces_packed, dim=0)
-
-        return self._faces_packed
+        N, M, V, _ = verts.shape
+        _, _, F, _ = faces.shape
 
     def edges_packed(self):
-        V_prev = 0
+        """ Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
-            edges_packed = []
-            for m in self._Meshes_list:
-                edges_packed.append(m.edges_packed() + V_prev)
-                V_pref += m.verts_packed().shape[0]
-
-            self._edges_packed = torch.cat(edges_packed, dim=0)
+            # Calculate edges from faces
+            faces = self.faces_packed()
+            F = faces.shape[0]
+            v0, v1, v2 = faces.chunk(3, dim=1)
+            e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
+            e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
+            e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
+            # All edges including duplicates.
+            self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
 
         return self._edges_packed
+
+    def faces_packed(self):
+        """ Packed representation of faces """
+        N, M, V, _ = self._verts_padded.shape
+        _, _, F, _ = self._faces_padded.shape
+        # New face index = local index + Ni * Mi * V
+        add_index = torch.cat([torch.ones(F) * i * V for i in range(N*M)])
+        return self._faces_padded.view(-1, 3) + add_index.view(-1, 1)
+
+    def verts_packed(self):
+        """ Packed representation of vertices """
+        return self._verts_padded.view(-1, 3)
+
+    def features_packed(self):
+        """ Packed representation of features """
+        if self.contains_features:
+            _, _, _, C = self._features_padded.shape
+            return self._features_padded.view(-1, C)
+        else:
+            return None
 
 def verts_faces_to_Meshes(verts, faces, ndim):
     """ Convert lists of vertices and faces to lists of
