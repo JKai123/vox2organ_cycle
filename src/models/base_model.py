@@ -20,7 +20,7 @@ class V2MModel(Module, ABC):
 
     @staticmethod
     @abstractmethod
-    def convert_data(data, n_classes, mode):
+    def convert_data(data, n_v_classes, mode):
         pass
 
     @staticmethod

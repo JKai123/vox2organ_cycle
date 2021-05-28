@@ -94,11 +94,13 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                                **hps_lower)
 
     # Test models
-    model = ModelHandler[training_hps['ARCHITECTURE']].value(\
-                                        ndims=training_hps['NDIMS'],
-                                        num_classes=training_hps['N_CLASSES'],
-                                        patch_shape=training_hps['PATCH_SIZE'],
-                                        **model_config).float().cuda()
+    model = ModelHandler[training_hps['ARCHITECTURE']].value(
+        ndims=training_hps['NDIMS'],
+        n_v_classes=training_hps['N_V_CLASSES'],
+        n_m_classes=training_hps['N_M_CLASSES'],
+        patch_shape=training_hps['PATCH_SIZE'],
+        **model_config
+    ).float().cuda()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:

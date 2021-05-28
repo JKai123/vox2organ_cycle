@@ -38,13 +38,13 @@ from models.base_model import V2MModel
 class Voxel2Mesh(V2MModel):
     """ Voxel2Mesh  """
  
-    def __init__(self, ndims, num_classes, patch_shape, num_input_channels,
+    def __init__(self, ndims, n_v_classes, patch_shape, num_input_channels,
                 first_layer_channels, steps, graph_conv_layer_count,
                  mesh_template, **kwargs):
         super(Voxel2Mesh, self).__init__()
 
         self.max_pool = nn.MaxPool3d(2) if ndims == 3 else nn.MaxPool2d(2) 
-        self.num_classes = num_classes
+        self.n_v_classes = n_v_classes
 
         ConvLayer = nn.Conv3d if ndims == 3 else nn.Conv2d
         ConvTransposeLayer = nn.ConvTranspose3d if ndims == 3 else nn.ConvTranspose2d
@@ -79,16 +79,16 @@ class Voxel2Mesh(V2MModel):
             if i == 0:
                 grid_upconv_layer = None
                 grid_unet_layer = None
-                for k in range(self.num_classes-1):
+                for k in range(self.n_v_classes-1):
                     graph_unet_layers += [Features2Features(self.skip_count[i] + dim, self.latent_features_coount[i], hidden_layer_count=graph_conv_layer_count)] # , graph_conv=GraphConv
 
             else:
                 grid_upconv_layer = ConvTransposeLayer(in_channels=first_layer_channels   * 2**(steps - i+1), out_channels=first_layer_channels * 2**(steps-i), kernel_size=2, stride=2)
                 grid_unet_layer = UNetLayer(first_layer_channels * 2**(steps - i + 1), first_layer_channels * 2**(steps-i), ndims)
-                for k in range(self.num_classes-1):
+                for k in range(self.n_v_classes-1):
                     graph_unet_layers += [Features2Features(self.skip_count[i] + self.latent_features_coount[i-1] + dim, self.latent_features_coount[i], hidden_layer_count=graph_conv_layer_count)] #, graph_conv=GraphConv if i < steps else GraphConvNoNeighbours
 
-            for k in range(self.num_classes-1):
+            for k in range(self.n_v_classes-1):
                 feature2vertex_layers += [Feature2VertexLayer(self.latent_features_coount[i], 3)] 
  
 
@@ -109,7 +109,7 @@ class Voxel2Mesh(V2MModel):
         ''' Final layer (for voxel decoder)'''
         self.final_layer =\
             ConvLayer(in_channels=first_layer_channels,
-                      out_channels=self.num_classes, kernel_size=1)
+                      out_channels=self.n_v_classes, kernel_size=1)
 
         sphere_path=mesh_template
         sphere_vertices, sphere_faces = read_obj(sphere_path)
@@ -140,8 +140,8 @@ class Voxel2Mesh(V2MModel):
 
   
         A, D = adjacency_matrix(vertices, faces)
-        pred = [None] * self.num_classes 
-        for k in range(self.num_classes-1):
+        pred = [None] * self.n_v_classes 
+        for k in range(self.n_v_classes-1):
             pred[k] = [[vertices.clone(), faces.clone(), None, None, sphere_vertices.clone()]]
 
  
@@ -154,7 +154,7 @@ class Voxel2Mesh(V2MModel):
                 x = down_output
           
 
-            for k in range(self.num_classes-1):
+            for k in range(self.n_v_classes-1):
 
             	# load mesh information from previous iteratioin for class k
                 vertices = pred[k][i][0]
@@ -215,7 +215,7 @@ class Voxel2Mesh(V2MModel):
         laplacian_loss = torch.tensor(0).float().cuda()
         normal_consistency_loss = torch.tensor(0).float().cuda()  
 
-        for c in range(self.num_classes-1):
+        for c in range(self.n_v_classes-1):
             target = data['surface_points'][c].cuda() 
             for k, (vertices, faces, _, _, _) in enumerate(pred[c][1:]):
       
@@ -251,7 +251,7 @@ class Voxel2Mesh(V2MModel):
 
     @staticmethod
     @measure_time
-    def convert_data(data, n_classes, mode):
+    def convert_data(data, n_v_classes, mode):
         """ Convert data such that it's compatible with the original voxel2mesh
         implementation from above. Code is an assembly of parts from
         https://github.com/cvlab-epfl/voxel2mesh
@@ -262,7 +262,7 @@ class Voxel2Mesh(V2MModel):
 
         shape = torch.tensor(y.shape)[None]
         surface_points_normalized_all = []
-        for c in range(1, n_classes):
+        for c in range(1, n_v_classes):
             y_outer = sample_outer_surface_in_voxel((y==c).long())
             surface_points = torch.nonzero(y_outer)
             surface_points = torch.flip(surface_points, dims=[1]).float()  # convert z,y,x -> x, y, z

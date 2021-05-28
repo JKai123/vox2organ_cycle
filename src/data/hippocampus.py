@@ -54,7 +54,8 @@ class Hippocampus(DatasetHandler):
         self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
         self._mc_step_size = mc_step_size
-        self.n_classes = 2
+        self.n_v_classes = 2
+        self.n_m_classes = 1
         self.patch_size = patch_size
 
         self.data = self._load_data3D(folder="imagesTr")
@@ -179,7 +180,7 @@ class Hippocampus(DatasetHandler):
                                           True)
 
         # Surface points
-        surface_points = sample_surface_points(voxel_label, self.n_classes)
+        surface_points = sample_surface_points(voxel_label, self.n_v_classes)
 
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])

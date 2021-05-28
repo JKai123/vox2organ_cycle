@@ -102,11 +102,13 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         hps_lower = dict((k.lower(), v) for k, v in hps.items())
         model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
-        model = ModelHandler[hps['ARCHITECTURE']].value(\
-                                            ndims=hps['N_DIMS'],
-                                            num_classes=hps['N_CLASSES'],
-                                            patch_shape=hps['PATCH_SIZE'],
-                                            **model_config)
+        model = ModelHandler[hps['ARCHITECTURE']].value(
+            ndims=hps['N_DIMS'],
+            n_v_classes=training_hps['N_V_CLASSES'],
+            n_m_classes=training_hps['N_M_CLASSES'],
+            patch_shape=hps['PATCH_SIZE'],
+            **model_config
+        )
         # New training
         start_epoch = 1
 

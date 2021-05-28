@@ -45,8 +45,6 @@ class Solver():
     """
     Solver class for optimizing the weights of neural networks.
 
-    :param int n_classes: The number of classes to distinguish (including
-    background)
     :param torch.optim optimizer_class: The optimizer to use, e.g. Adam.
     :param dict optim_params: The parameters for the optimizer. If empty,
     default values are used.
@@ -78,7 +76,6 @@ class Solver():
     """
 
     def __init__(self,
-                 n_classes,
                  optimizer_class,
                  optim_params,
                  evaluator,
@@ -98,7 +95,6 @@ class Solver():
                  lr_decay_after,
                  **kwargs):
 
-        self.n_classes = n_classes
         self.optim_class = optimizer_class
         self.optim_params = optim_params
         self.optim = None # defined for each training separately
@@ -452,7 +448,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
 
     model = ModelHandler[hps['ARCHITECTURE']].value(\
                                         ndims=hps['NDIMS'],
-                                        num_classes=hps['N_CLASSES'],
+                                        n_v_classes=hps['N_V_CLASSES'],
+                                        n_m_classes=hps['N_M_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         **model_config)
     trainLogger.info("%d parameters in the model.", model.count_parameters())

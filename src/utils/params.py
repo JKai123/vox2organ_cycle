@@ -26,8 +26,12 @@ hyper_ps_default={
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
 
-    # The number of classes to distinguish (including background)
-    'N_CLASSES': 2,
+    # The number of vertex classes to distinguish (including background)
+    'N_V_CLASSES': 2,
+
+    # The number of mesh classes. This is usually the number of non-connected
+    # components/structures
+    'N_M_CLASSES': 2,
 
     # The number of vertices in a single template structure
     'N_TEMPLATE_VERTICES': 162,
