@@ -17,3 +17,4 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
 
 dataset.store_template(template_path)
 
+print("Template stored at " + template_path)

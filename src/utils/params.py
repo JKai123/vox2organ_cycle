@@ -29,6 +29,12 @@ hyper_ps_default={
     # The number of classes to distinguish (including background)
     'N_CLASSES': 2,
 
+    # The number of vertices in a single template structure
+    'N_TEMPLATE_VERTICES': 162,
+
+    # The number of reference points in a cortex structure
+    'N_REF_POINTS_PER_STRUCTURE': 40962,
+
     # The batch size used during training
     'BATCH_SIZE': 1,
 
