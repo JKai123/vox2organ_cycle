@@ -54,7 +54,6 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
-    'N_TEMPLATE_VERTICES': 40962,
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
         # Decoder channels from Kong, should be multiples of 2
@@ -62,21 +61,51 @@ hyper_ps = {
         # Graph decoder channels should be multiples of 2
         'GRAPH_CHANNELS': [128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
-        'UNPOOL_INDICES': [0,0,0],
         'WEIGHTED_EDGES': False,
         'VOXEL_DECODER': True,
         'GC': GraphConvNorm
     },
 }
 
+# Dataset specific parameters
+hyper_ps_hippocampus = {
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
+    'PATCH_SIZE': (64, 64, 64),
+    'BATCH_SIZE': 15,
+    'N_M_CLASSES': 1,
+    'N_REF_POINTS_PER_STRUCTURE': 3000,
+    'N_TEMPLATE_VERTICES': 162,
+    'MODEL_CONFIG': {
+        'UNPOOL_INDICES': [0,1,1],
+    },
+    'PROJ_NAME': "hippocampus"
+}
+hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+    f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
+
+hyper_ps_cortex = {
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
+    'PATCH_SIZE': (192, 224, 192),
+    'BATCH_SIZE': 1,
+    'N_M_CLASSES': 2,
+    'N_REF_POINTS_PER_STRUCTURE': 40962,
+    'N_TEMPLATE_VERTICES': 40962,
+    'MODEL_CONFIG': {
+        'UNPOOL_INDICES': [0,0,0],
+    },
+    'PROJ_NAME': "cortex"
+}
+hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+    f"../supplementary_material/spheres/cortex_white_matter_spheres_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
 hyper_ps_overfit = {
     # Learning
     'N_EPOCHS': 1000,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 5,
     'AUGMENT_TRAIN': False,
-    'MIXED_PRECISION': True,
+    'MIXED_PRECISION': False,
 }
 
 
@@ -94,16 +123,14 @@ def main(hps):
     """
     argparser = ArgumentParser(description="cortex-parcellation-using-meshes",
                                formatter_class=RawTextHelpFormatter)
-    argparser.add_argument('architecture',
-                           nargs='?',
+    argparser.add_argument('--architecture',
                            type=str,
                            default="voxel2meshplusplusgeneric",
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2mesh\n"
                            "- voxel2meshplusplus\n"
                            "- voxel2meshplusplusgeneric")
-    argparser.add_argument('dataset',
-                           nargs='?',
+    argparser.add_argument('--dataset',
                            type=str,
                            default="Cortex",
                            help="The name of the dataset. Supported:\n"
@@ -187,21 +214,9 @@ def main(hps):
 
     # Dataset specific params
     if args.dataset == 'Hippocampus':
-        hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
-        hps['PATCH_SIZE'] = (64, 64, 64)
-        hps['BATCH_SIZE'] = 15
-        if hps['PROJ_NAME'] is None:
-            hps['PROJ_NAME'] = "hippocampus"
-        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/spheres/icosahedron_{hps['N_TEMPLATE_VERTICES']}.obj"
+        hps = update_dict(hps, hyper_ps_hippocampus)
     if args.dataset == 'Cortex':
-        hps['RAW_DATA_DIR'] = "/mnt/nas/Data_Neuro/MALC_CSR/"
-        hps['PATCH_SIZE'] = (192, 224, 192)
-        hps['BATCH_SIZE'] = 1
-        if hps['PROJ_NAME'] is None:
-            hps['PROJ_NAME'] = "cortex"
-        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/spheres/cortex_white_matter_spheres_{hps['N_TEMPLATE_VERTICES']}.obj"
+        hps = update_dict(hps, hyper_ps_cortex)
 
     # Update again for overfitting
     if hps['OVERFIT']:
