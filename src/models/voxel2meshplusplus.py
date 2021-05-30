@@ -584,8 +584,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         # No displacements for step 0
         displacements = pred[2][1:]
         # Mean over vertices since t|V| can vary among steps
-        displacements = [d.mean(dim=1, keepdim=True) for d in displacements]
-        displacements = torch.stack(displacements).unsqueeze(1)
+        displacements = [d.mean(dim=2, keepdim=True) for d in displacements]
+        displacements = torch.stack(displacements)
 
         return displacements
 
@@ -620,9 +620,6 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                 f_s.append(m.faces_padded()[:,c,:,:])
             vertices.append(torch.stack(v_s))
             faces.append(torch.stack(f_s))
-
-        vertices = torch.stack(vertices)
-        faces = torch.stack(faces)
 
         return vertices, faces
 

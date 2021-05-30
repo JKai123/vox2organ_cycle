@@ -44,9 +44,9 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
     shape = torch.tensor(voxel_target.shape)[None]
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
-    # Only mesh of last step considered
-    vertices = vertices[-1].squeeze()
-    faces = faces[-1].squeeze()
+    # Only mesh of last step considered and batch dimension squeezed out
+    vertices = vertices[-1].view(n_m_classes, -1, 3)
+    faces = faces[-1].view(n_m_classes, -1, 3)
     unnorm_verts = unnormalize_vertices(
         vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
