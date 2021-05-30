@@ -294,7 +294,8 @@ class Hippocampus(DatasetHandler):
                 "Voxelized mesh and voxel label should have a large IoU."
 
         logging.getLogger(ExecModes.TRAIN.name).debug(
-            "IoU of voxel and mesh label: %.4f",         )
+            "IoU of voxel and mesh label: %.4f", j_vox
+        )
         write_img_if_debug(voxel_label.squeeze().cpu().numpy(),
                            "../misc/data_voxel_label.nii.gz")
         write_img_if_debug(voxelized_mesh.squeeze().cpu().numpy(),
