@@ -14,11 +14,15 @@ import numpy as np
 import torch.utils.data
 import torch.nn.functional as F
 from elasticdeform import deform_random_grid
-from pytorch3d.structures import Pointclouds
 
 from utils.modes import DataModes
-from utils.logging import write_scatter_plot_if_debug
-from utils.utils import sample_outer_surface_in_voxel, normalize_vertices
+from utils.logging import (
+    write_scatter_plot_if_debug,
+)
+from utils.utils import (
+    sample_outer_surface_in_voxel,
+    normalize_vertices
+)
 
 def _box_in_bounds(box, image_shape):
     """ From https://github.com/cvlab-epfl/voxel2mesh """

@@ -13,7 +13,13 @@ from utils.train import training_routine
 from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
-from utils.losses import ChamferLoss
+from utils.losses import (
+    ChamferLoss,
+    ChamferAndNormalsLoss,
+    LaplacianLoss,
+    NormalConsistencyLoss,
+    EdgeLoss
+)
 from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm,
     GCNConvWrapped,
@@ -50,7 +56,10 @@ hyper_ps = {
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    # Chamfer, Laplacian, NormalConsistency, Edge
+    'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
+                       LaplacianLoss(),
+                       NormalConsistencyLoss(),
+                       EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
     # Model
@@ -78,7 +87,8 @@ hyper_ps_hippocampus = {
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,1,1],
     },
-    'PROJ_NAME': "hippocampus"
+    'PROJ_NAME': "hippocampus",
+    'MESH_TARGET_TYPE': "mesh"
 }
 hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
@@ -103,6 +113,7 @@ hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 hyper_ps_overfit = {
     # Learning
     'N_EPOCHS': 1000,
+    'EVAL_EVERY': 50,
     'BATCH_SIZE': 5,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': False,

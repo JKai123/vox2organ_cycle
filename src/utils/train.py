@@ -14,7 +14,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from pytorch3d.structures import Pointclouds
+from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
 from utils.logging import (
@@ -153,8 +153,12 @@ class Solver():
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
-        x, y, points = data
-        points = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
+        x, y, points, faces = data
+        if faces.nelement() == 0:
+            mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
+        else:
+            mesh_target = [Meshes(v, f).cuda() for v, f in
+                           zip(points.permute(1,0,2,3), faces.permute(1,0,2,3))]
 
         # Predict
         with autocast(self.mixed_precision):
@@ -187,7 +191,7 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    points)
+                    mesh_target)
             elif self.loss_averaging == 'geometric':
                 losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
                     self.voxel_loss_func,
@@ -197,7 +201,7 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    points)
+                    mesh_target)
             else:
                 raise ValueError("Unknown loss averaging.")
 

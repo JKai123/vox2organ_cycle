@@ -16,6 +16,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from abc import ABC, abstractmethod
+from typing import Union
 
 import torch
 import pytorch3d.structures
@@ -53,23 +54,42 @@ class MeshLoss(ABC):
     @abstractmethod
     def get_loss(self,
                  pred_meshes: pytorch3d.structures.Meshes,
-                 target: pytorch3d.structures.Pointclouds):
+                 target: Union[pytorch3d.structures.Pointclouds,
+                               pytorch3d.structures.Meshes]):
         pass
 
 class ChamferLoss(MeshLoss):
     """ Chamfer distance between the predicted mesh and randomly sampled
-    surface points. """
-    def get_loss(self,
-                 pred_meshes: pytorch3d.structures.Meshes,
-                 target: pytorch3d.structures.Pointclouds):
-        n_points = torch.min(target.num_points_per_cloud())
+    surface points or a reference mesh. """
+    def get_loss(self, pred_meshes, target):
+        if isinstance(target, pytorch3d.structures.Pointclouds):
+            n_points = torch.min(target.num_points_per_cloud())
+        if isinstance(target, pytorch3d.structures.Meshes):
+            n_points = torch.min(target.num_verts_per_mesh())
+            target = sample_points_from_meshes(target, n_points)
         pred_points = sample_points_from_meshes(pred_meshes, n_points)
         return chamfer_distance(pred_points, target)[0]
 
+class ChamferAndNormalsLoss(MeshLoss):
+    """ Chamfer distance + cosine distance between the vertices and normals of
+    the predicted mesh and a reference mesh. """
+    def get_loss(self, pred_meshes, target: pytorch3d.structures.Meshes):
+        if not isinstance(target, pytorch3d.structures.Meshes):
+            raise TypeError("ChamferAndNormalsLoss requires a reference mesh.")
+        n_points = torch.min(target.num_verts_per_mesh())
+        target_points, target_normals = sample_points_from_meshes(
+            target, n_points, return_normals=True
+        )
+        pred_points, pred_normals = sample_points_from_meshes(
+            pred_meshes, n_points, return_normals=True
+        )
+        d_chamfer, d_cosine = chamfer_distance(pred_points, target_points,
+                                               x_normals=pred_normals,
+                                               y_normals=target_normals)
+        return d_chamfer + 0.1 * d_cosine
+
 class LaplacianLoss(MeshLoss):
-    def get_loss(self,
-                 pred_meshes: pytorch3d.structures.Meshes,
-                 target: pytorch3d.structures.Pointclouds=None):
+    def get_loss(self, pred_meshes, target=None):
         # Method does not support autocast
         with autocast(enabled=False):
             loss = mesh_laplacian_smoothing(
@@ -80,15 +100,11 @@ class LaplacianLoss(MeshLoss):
         return loss
 
 class NormalConsistencyLoss(MeshLoss):
-    def get_loss(self,
-                 pred_meshes: pytorch3d.structures.Meshes,
-                 target: pytorch3d.structures.Pointclouds=None):
+    def get_loss(self, pred_meshes, target=None):
         return mesh_normal_consistency(pred_meshes)
 
 class EdgeLoss(MeshLoss):
-    def get_loss(self,
-                 pred_meshes: pytorch3d.structures.Meshes,
-                 target: pytorch3d.structures.Pointclouds=None):
+    def get_loss(self, pred_meshes, target=None):
         return mesh_edge_loss(pred_meshes)
 
 def linear_loss_combine(losses, weights):

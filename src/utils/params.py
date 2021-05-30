@@ -39,6 +39,12 @@ hyper_ps_default={
     # The number of reference points in a cortex structure
     'N_REF_POINTS_PER_STRUCTURE': 40962,
 
+    # Either use a mesh or a pointcloud as ground truth. Basically, if one
+    # wants to compute only point losses like the Chamfer loss, a pointcloud is
+    # sufficient while other losses like cosine distance between vertex normals
+    # require a mesh (pointcloud + faces)
+    'MESH_TARGET_TYPE': "pointcloud",
+
     # The batch size used during training
     'BATCH_SIZE': 1,
 
