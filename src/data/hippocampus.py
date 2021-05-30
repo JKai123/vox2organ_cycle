@@ -290,7 +290,7 @@ class Hippocampus(DatasetHandler):
 
         j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 
-        assert j_vox > 0.9,\
+        assert j_vox > 0.85,\
                 "Voxelized mesh and voxel label should have a large IoU."
 
         logging.getLogger(ExecModes.TRAIN.name).debug(
