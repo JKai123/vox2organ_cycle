@@ -11,16 +11,22 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 
 import numpy as np
-import torch.utils.data
+import torch
 import torch.nn.functional as F
+import nibabel as nib
+from tqdm import tqdm
 from elasticdeform import deform_random_grid
 
 from utils.modes import DataModes
+from utils.mesh import Mesh
+from utils.eval_metrics import Jaccard
 from utils.logging import (
     write_scatter_plot_if_debug,
 )
 from utils.utils import (
     sample_outer_surface_in_voxel,
+    sample_inner_volume_in_voxel,
+    unnormalize_vertices,
     normalize_vertices
 )
 
@@ -203,3 +209,41 @@ class DatasetHandler(torch.utils.data.Dataset):
 
     def __len__(self):
         raise NotImplementedError
+
+    def check_data(self):
+        """ Check if voxel and mesh data is consistent """
+        for i in tqdm(range(len(self)),
+                      desc="Checking IoU of voxel and mesh labels"):
+            _, voxel_label, mesh = self.get_item_and_mesh_from_index(i)
+            shape = torch.tensor(voxel_label.shape)[None]
+            vertices, faces = mesh.vertices, mesh.faces
+            voxelized_mesh = torch.zeros_like(voxel_label, dtype=torch.long)
+            vertices = vertices.view(self.n_m_classes, -1, 3)
+            faces = faces.view(self.n_m_classes, -1, 3)
+            unnorm_verts = unnormalize_vertices(
+                vertices.view(-1, 3), shape
+            ).view(self.n_m_classes, -1, 3)
+            pv = Mesh(unnorm_verts,
+                      faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
+            if pv is not None:
+                pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
+                # Occupied voxels are considered to belong to one class
+                voxelized_mesh[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
+            else:
+                # No mesh in the valid range predicted --> keep zeros
+                pass
+
+            # Strip outer layer of voxelized mesh
+            strip = True
+            if strip:
+                voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+
+            j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
+
+            assert j_vox > 0.85,\
+                    "Voxelized mesh and voxel label should have a large IoU."
+
+            img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
+            nib.save(img, "../misc/data_voxel_label.nii.gz")
+            img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
+            nib.save(img, "../misc/data_mesh_label.nii.gz")

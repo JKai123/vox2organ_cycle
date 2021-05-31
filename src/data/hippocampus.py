@@ -15,14 +15,9 @@ import nibabel as nib
 import trimesh
 
 from utils.modes import DataModes, ExecModes
-from utils.mesh import Mesh
-from utils.eval_metrics import Jaccard
-from utils.logging import write_img_if_debug
 from utils.utils import (
     create_mesh_from_voxels,
-    normalize_min_max,
-    unnormalize_vertices,
-    sample_inner_volume_in_voxel
+    normalize_min_max
 )
 from data.dataset import (
     DatasetHandler,
@@ -40,25 +35,26 @@ class Hippocampus(DatasetHandler):
 
     :param list ids: The ids of the files the dataset split should contain, example:
         ['hippocampus_101', 'hippocampus_212',...]
-    :param DataModes datamode: TRAIN, VALIDATION, or TEST
+    :param DataModes mode: TRAIN, VALIDATION, or TEST
     :param str raw_data_dir: The raw base folder, contains e.g. subfolders
     imagesTr/ and labelsTr/
     :param str preprocessed_data_dir: Pre-processed data, e.g. meshes created with
     marching cubes.
     :param patch_size: The patch size of the images, e.g. (64, 64, 64)
     :param augment: Use image augmentation during training if 'True'
+    :param mesh_target_type: 'mesh' or 'pointcloud'
+    :param n_ref_points_per_structure: The number of ground truth points
+    per 3D structure.
     :param bool load_mesh: Load a precomputed mesh. Possible values are
     'folder': Load meshes from a folder defined by 'preprocessed_data_dir',
     'create': create all meshes with marching cubes. 'no': Do not store meshes.
     :param mc_step_size: The step size for marching cubes generation, only
     relevant if load_mesh is 'create'.
-    :param mesh_target_type: The type of mesh target, either 'mesh' or
-    'pointcloud'
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  preprocessed_data_dir: str, patch_size, augment: bool,
-                 mesh_target_type: str, n_ref_points_per_structure: int=3000,
+                 mesh_target_type: str, n_ref_points_per_structure: int,
                  load_mesh='no', mc_step_size=1):
         super().__init__(ids, mode)
 
@@ -93,8 +89,6 @@ class Hippocampus(DatasetHandler):
             # Do not store mesh labels
             self.mesh_labels = None
 
-        self.check_data()
-
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
         if load_mesh != 'no':
@@ -103,7 +97,7 @@ class Hippocampus(DatasetHandler):
     @staticmethod
     def split(raw_data_dir, preprocessed_data_dir, dataset_seed,
               dataset_split_proportions, patch_size, augment_train,
-              n_ref_points_per_structure, save_dir, **kwargs):
+              save_dir, **kwargs):
         """ Create train, validation, and test split of the Hippocampus data"
 
         :param str raw_data_dir: The raw base folder, contains e.g. subfolders
@@ -115,8 +109,6 @@ class Hippocampus(DatasetHandler):
         splits, e.g. (80, 10, 10)
         :patch_size: The patch size of the 3D images.
         :param augment_train: Augment training data.
-        :param n_ref_points_per_structure: The number of mesh ground truth
-        points.
         :save_dir: A directory where the split ids can be saved.
         :overfit: All three splits are the same and contain only one element.
         :return: (Train dataset, Validation dataset, Test dataset)
@@ -124,6 +116,8 @@ class Hippocampus(DatasetHandler):
 
         overfit = kwargs.get("overfit", False)
         mesh_target_type = kwargs.get("mesh_target_type", "pointcloud")
+        n_ref_points_per_structure = kwargs.get("n_ref_points_per_structure",
+                                                1400)
 
         # Available files
         all_files = os.listdir(os.path.join(raw_data_dir, "imagesTr"))
@@ -303,42 +297,3 @@ class Hippocampus(DatasetHandler):
             data.append(d)
 
         return data
-
-    def check_data(self):
-        """ Check if voxel and mesh data is consistent """
-        _, voxel_label, mesh = self.get_item_and_mesh_from_index(0)
-        shape = torch.tensor(voxel_label.shape)[None]
-        vertices, faces = mesh.vertices, mesh.faces
-        voxelized_mesh = torch.zeros_like(voxel_label, dtype=torch.long)
-        vertices = vertices.view(self.n_m_classes, -1, 3)
-        faces = faces.view(self.n_m_classes, -1, 3)
-        unnorm_verts = unnormalize_vertices(
-            vertices.view(-1, 3), shape
-        ).view(self.n_m_classes, -1, 3)
-        pv = Mesh(unnorm_verts,
-                  faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
-        if pv is not None:
-            pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-            # Occupied voxels are considered to belong to one class
-            voxelized_mesh[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
-        else:
-            # No mesh in the valid range predicted --> keep zeros
-            pass
-
-        # Strip outer layer of voxelized mesh
-        strip = True
-        if strip:
-            voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
-
-        j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
-
-        assert j_vox > 0.85,\
-                "Voxelized mesh and voxel label should have a large IoU."
-
-        logging.getLogger(ExecModes.TRAIN.name).debug(
-            "IoU of voxel and mesh label: %.4f", j_vox
-        )
-        write_img_if_debug(voxel_label.squeeze().cpu().numpy(),
-                           "../misc/data_voxel_label.nii.gz")
-        write_img_if_debug(voxelized_mesh.squeeze().cpu().numpy(),
-                           "../misc/hippo_mesh_label.nii.gz")
