@@ -16,6 +16,10 @@ from utils.losses import (
     NormalConsistencyLoss,
     EdgeLoss
 )
+from utils.utils_voxel2meshplusplus.graph_conv import (
+    GraphConvNorm,
+    PTGeoConvWrapped
+)
 
 hyper_ps_default={
 
@@ -48,6 +52,9 @@ hyper_ps_default={
     # Data augmentation
     'AUGMENT_TRAIN': False,
 
+    # Whether or not to use Pytorch's automatic mixed precision
+    'MIXED_PRECISION': False,
+
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
 
@@ -60,7 +67,9 @@ hyper_ps_default={
                        NormalConsistencyLoss(),
                        EdgeLoss()],
 
-    # The weights for the mesh loss functions
+    # The weights for the mesh loss functions, given are the values from
+    # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
+    # [0.3, 0.05, 0.46, 0.16]
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
     # The number of sample points for the mesh loss computation if done as by
@@ -93,21 +102,44 @@ hyper_ps_default={
     # Note: This one must also be part of 'EVAL_METRICS'!
     'MAIN_EVAL_METRIC': 'JaccardMesh',
 
-    # The number of image dimensions
-    'N_DIMS': 3,
+    # The number of image dimensions (is sometimes set to 3 in the code so may
+    # not have an effect for models that exist only for 3D)
+    'NDIMS': 3,
 
     # Voxel2Mesh original parameters
-    # (from https://github.com/cvlab-epfl/voxel2mesh)
+    # (from https://github.com/cvlab-epfl/voxel2mesh).
+    # Note that not for all models/architectures all of
+    # those parameters are relevant.
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
+        'ENCODER_CHANNELS': [16, 32, 64, 128, 256],
+        'DECODER_CHANNELS': [128, 64, 32, 16], # Voxel decoder
+        'GRAPH_CHANNELS': [32, 32, 32, 32, 32], # Graph decoder
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
-        'BATCH_NORM': True,
+        'DEEP_SUPERVISION': False, # For voxel net
+        'BATCH_NORM': False, # Only for graph convs, always True in voxel layers
+        # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
-        'USE_ADOPTIVE_UNPOOL': False
+        'USE_ADOPTIVE_UNPOOL': False,
+        # Weighted feature aggregation in graph convs (only possible with
+        # pytorch-geometric graph convs)
+        'WEIGHTED_EDGES': False,
+        # Whether to use a voxel decoder
+        'VOXEL_DECODER': True,
+        # The graph conv implementation to use
+        'GC': GraphConvNorm,
+        # Whether to propagate coordinates in the graph decoder in addition to
+        # voxel features
+        'PROPAGATE_COORDS': False
     },
+
+    # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
+    # improvement for 'LR_DECAY_AFTER' epochs
+    'LR_DECAY_RATE': 0.5,
+    'LR_DECAY_AFTER': -1, # -1 = no decay
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],
