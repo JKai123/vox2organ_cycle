@@ -30,12 +30,15 @@ def run_preprocess_check_hippocampus():
             _ = dataset_split_handler['Hippocampus'](augment_train=False,
                                                      save_dir="../misc",
                                                              **hps_lower)
+    training_set.check_data()
+
     # Augmentation
     training_set_augment,\
             _,\
             _ = dataset_split_handler['Hippocampus'](augment_train=True,
                                                      save_dir="../misc",
                                                              **hps_lower)
+    training_set_augment.check_data()
 
     for iter_in_epoch in tqdm(range(5), desc="Testing...", position=0, leave=True):
         data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
@@ -72,8 +75,9 @@ def run_preprocess_check_cortex():
 
     hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
            'DATASET_SEED': 1234,
-           'DATASET_SPLIT_PROPORTIONS': (80, 10, 10),
-           'PATCH_SIZE': (192, 224, 192)
+           'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
+           'PATCH_SIZE': (192, 224, 192),
+           'N_REF_POINTS_PER_STRUCTURE': 1400
           }
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
@@ -84,6 +88,7 @@ def run_preprocess_check_cortex():
             _ = dataset_split_handler['Cortex'](augment_train=False,
                                                      save_dir="../misc",
                                                              **hps_lower)
+    training_set.check_data()
     # Augmentation (currently not implemented for cortex)
     # training_set_augment,\
             # _,\

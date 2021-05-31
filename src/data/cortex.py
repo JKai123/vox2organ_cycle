@@ -25,7 +25,8 @@ from utils.utils import (
 from data.dataset import (
     DatasetHandler,
     augment_data,
-    img_with_patch_size
+    img_with_patch_size,
+    offset_due_to_padding
 )
 
 class CortexLabels(IntEnum):
@@ -53,6 +54,7 @@ class Cortex(DatasetHandler):
     corresponding to sample ids
     :param patch_size: The patch size of the images, e.g. (256, 256, 256)
     :param augment: Use image augmentation during training if 'True'
+    :param mesh_target_type: 'mesh' or 'pointcloud'
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param seg_label_names: The segmentation labels to consider
@@ -71,6 +73,9 @@ class Cortex(DatasetHandler):
         self._raw_data_dir = raw_data_dir
         self._augment = augment
         self.patch_size = patch_size
+        self.n_m_classes = len(mesh_label_names)
+        # Vertex labels are combined into one class (and background)
+        self.n_v_classes = 2
 
         # Image data
         self.data = self._load_data3D(filename="mri.nii.gz")
@@ -233,6 +238,8 @@ class Cortex(DatasetHandler):
         return data
 
     def _load_dataMesh(self, meshnames):
+        """ Load mesh such that it's registered to the respective 3D image
+        """
         data = []
         centers_per_structure = {mn: [] for mn in meshnames}
         radii_per_structure = {mn: [] for mn in meshnames}
@@ -249,10 +256,15 @@ class Cortex(DatasetHandler):
                     self._raw_data_dir, fn, mn + ".stl"
                 ))
                 vertices = mesh.vertices
+                # World coords
                 coords = np.concatenate((vertices.T,
                                           np.ones((1, vertices.shape[0]))),
                                          axis=0)
+                # World --> voxel coordinates
                 new_verts = (world2vox_affine @ coords).T[:,:-1]
+                # Padding offset in voxel coords
+                new_verts = new_verts + offset_due_to_padding(orig.shape,
+                                                              self.patch_size)
                 new_verts = normalize_vertices(new_verts,
                                                torch.tensor(self.patch_size)[None])
                 # Convert z,y,x --> x,y,z

@@ -253,10 +253,10 @@ class DatasetHandler(torch.utils.data.Dataset):
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 
-            img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
-            nib.save(img, "../misc/data_voxel_label.nii.gz")
-            img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
-            nib.save(img, "../misc/data_mesh_label.nii.gz")
-
-            assert j_vox > 0.85,\
-                    "Voxelized mesh and voxel label should have a large IoU."
+            if j_vox < 0.75:
+                img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
+                nib.save(img, "../misc/data_voxel_label" + self._files[i] + ".nii.gz")
+                img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
+                nib.save(img, "../misc/data_mesh_label" + self._files[i] + ".nii.gz")
+                print("[Warning] Small IoU of voxel label and voxelized mesh label,"
+                      " maybe check files as ../misc/")
