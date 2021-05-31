@@ -122,7 +122,7 @@ def sample_surface_points(y_label, n_classes, point_count=3000):
                                     "../misc/surface_points.png")
         n_points = len(surface_points_normalized)
         perm = torch.randperm(n_points)
-        # randomly pick a maximum of 3000 points
+        # randomly pick a maximum of point_count points
         surface_points_normalized = surface_points_normalized[
             perm[:np.min([n_points, point_count])]
         ].cuda()

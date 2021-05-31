@@ -115,6 +115,7 @@ def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
 
     if flip:
         vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
+        normals = torch.flip(torch.from_numpy(normals), dims=[1]).float()  # convert z,y,x -> x, y, z
     vertices_mc = normalize_vertices(vertices_mc, shape)
     faces_mc = torch.from_numpy(faces_mc).long()
 

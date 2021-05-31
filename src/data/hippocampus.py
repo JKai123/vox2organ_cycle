@@ -236,7 +236,7 @@ class Hippocampus(DatasetHandler):
             )
             target_faces = np.array([]) # Empty
             target_normals = np.array([]) # Empty
-        else:
+        elif self._mesh_target_type == 'mesh':
             mesh_target = self._get_mesh(index, voxel_label)
             target_points = mesh_target.vertices
             target_faces = np.array([]) # Empty, not used at the moment
@@ -256,9 +256,11 @@ class Hippocampus(DatasetHandler):
                 if not isinstance(target_normals, torch.Tensor):
                     target_normals = torch.from_numpy(target_normals)
                 target_normals = F.pad(target_normals, (0,0,0,delta))
+        else:
+            raise ValueError("Invalid mesh target type.")
 
-            target_points = target_points[None] # (M, V, 3)
-            target_normals = target_normals[None] # (M, V, 3)
+        target_points = target_points[None] # (M, V, 3)
+        target_normals = target_normals[None] # (M, V, 3)
 
         return target_points, target_faces, target_normals
 
