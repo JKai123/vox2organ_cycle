@@ -62,7 +62,8 @@ class Cortex(DatasetHandler):
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 patch_size, augment: bool, n_ref_points_per_structure: int,
+                 patch_size, augment: bool, mesh_target_type: str,
+                 n_ref_points_per_structure: int,
                  seg_label_names=("right_white_matter", "left_white_matter"),
                  mesh_label_names=("rh_white", "lh_white")):
         super().__init__(ids, mode)
@@ -72,6 +73,7 @@ class Cortex(DatasetHandler):
                                       " augmentation at the moment.")
         self._raw_data_dir = raw_data_dir
         self._augment = augment
+        self._mesh_target_type = mesh_target_type
         self.patch_size = patch_size
         self.n_m_classes = len(mesh_label_names)
         # Vertex labels are combined into one class (and background)
@@ -135,8 +137,10 @@ class Cortex(DatasetHandler):
         """
 
         overfit = kwargs.get("overfit", False)
-        n_ref_points_per_structure = kwargs.get("n_ref_points_per_structure",
-                                                -1)
+        n_ref_points_per_structure = kwargs.get(
+            "n_ref_points_per_structure", -1
+        )
+        mesh_target_type = kwargs.get("mesh_target_type", "pointcloud")
 
         # Available files
         all_files = os.listdir(raw_data_dir)
@@ -166,18 +170,21 @@ class Cortex(DatasetHandler):
                                raw_data_dir,
                                patch_size,
                                augment_train,
+                               mesh_target_type,
                                n_ref_points_per_structure)
         val_dataset = Cortex(all_files[indices_val],
                              DataModes.VALIDATION,
                              raw_data_dir,
                              patch_size,
                              False,
+                             mesh_target_type,
                              n_ref_points_per_structure)
         test_dataset = Cortex(all_files[indices_test],
                               DataModes.TEST,
                               raw_data_dir,
                               patch_size,
                               False,
+                              mesh_target_type,
                               n_ref_points_per_structure)
 
         # Save ids to file
@@ -199,7 +206,9 @@ class Cortex(DatasetHandler):
         """
         img = self.data[index]
         voxel_label = self.voxel_labels[index]
-        points_label = self.get_points_label(index)
+        target_points,\
+                target_faces,\
+                target_normals = self._get_mesh_target(index)
 
         # TODO: implement augmentation
 
@@ -210,19 +219,33 @@ class Cortex(DatasetHandler):
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
-        return img, voxel_label, points_label
+        return img, voxel_label, target_points, target_faces, target_normals
 
-    def get_points_label(self, index):
-        """ Ground truth points """
-        points = self.mesh_labels[index].vertices
-        perm = torch.randperm(points.shape[1])
-        perm = perm[:self.n_ref_points_per_structure]
+    def _get_mesh_target(self, index):
+        """ Ground truth points and optionally normals """
+        if self._mesh_target_type == 'pointcloud':
+            points = self.mesh_labels[index].vertices
+            normals = np.array([]) # Empty, not used
+            faces = np.array([]) # Empty, not used
+            perm = torch.randperm(points.shape[1])
+            perm = perm[:self.n_ref_points_per_structure]
+            points = points[:,perm,:]
+        elif self._mesh_target_type == 'mesh':
+            points = self.mesh_labels[index].vertices
+            normals = self.mesh_labels[index].normals
+            faces = np.array([]) # Empty, not used
+            perm = torch.randperm(points.shape[1])
+            perm = perm[:self.n_ref_points_per_structure]
+            points = points[:,perm,:]
+            normals = normals[:,perm,:]
+        else:
+            raise ValueError("Invalid mesh target type.")
 
-        return points[:, perm, :]
+        return points, faces, normals
 
     def get_item_and_mesh_from_index(self, index):
         """ Get image, segmentation ground truth and reference mesh"""
-        img, voxel_label, _ = self.get_item_from_index(index)
+        img, voxel_label, _, _, _ = self.get_item_from_index(index)
         mesh_label = self.mesh_labels[index]
 
         return img, voxel_label, mesh_label
@@ -279,8 +302,11 @@ class Cortex(DatasetHandler):
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
             mesh_batch = Meshes(file_vertices, file_faces)
-            mesh_single = Mesh(mesh_batch.verts_padded().float(),
-                               mesh_batch.faces_padded().float())
+            mesh_single = Mesh(
+                mesh_batch.verts_padded().float(),
+                mesh_batch.faces_padded().long(),
+                normals=mesh_batch.verts_normals_padded().float()
+            )
             data.append(mesh_single)
 
         # Compute centroids and average radius per structure
