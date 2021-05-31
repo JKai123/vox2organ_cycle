@@ -7,8 +7,9 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import random
 import logging
-import torch
 
+import torch
+import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
@@ -57,7 +58,7 @@ class Hippocampus(DatasetHandler):
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  preprocessed_data_dir: str, patch_size, augment: bool,
-                 mesh_target_type: str,
+                 mesh_target_type: str, n_ref_points_per_structure: int=3000,
                  load_mesh='no', mc_step_size=1):
         super().__init__(ids, mode)
 
@@ -69,6 +70,7 @@ class Hippocampus(DatasetHandler):
         self.n_v_classes = 2
         self.n_m_classes = 1
         self.patch_size = patch_size
+        self.n_ref_points_per_structure = n_ref_points_per_structure
 
         self.data = self._load_data3D(folder="imagesTr")
         # NORMALIZE images (hippocampus data varies several orders of
@@ -100,7 +102,8 @@ class Hippocampus(DatasetHandler):
 
     @staticmethod
     def split(raw_data_dir, preprocessed_data_dir, dataset_seed,
-              dataset_split_proportions, patch_size, augment_train, save_dir, **kwargs):
+              dataset_split_proportions, patch_size, augment_train,
+              n_ref_points_per_structure, save_dir, **kwargs):
         """ Create train, validation, and test split of the Hippocampus data"
 
         :param str raw_data_dir: The raw base folder, contains e.g. subfolders
@@ -111,7 +114,9 @@ class Hippocampus(DatasetHandler):
         :param dataset_split_proportions: The proportions of the dataset
         splits, e.g. (80, 10, 10)
         :patch_size: The patch size of the 3D images.
-        :augment_train: Augment training data.
+        :param augment_train: Augment training data.
+        :param n_ref_points_per_structure: The number of mesh ground truth
+        points.
         :save_dir: A directory where the split ids can be saved.
         :overfit: All three splits are the same and contain only one element.
         :return: (Train dataset, Validation dataset, Test dataset)
@@ -131,9 +136,9 @@ class Hippocampus(DatasetHandler):
         # Split
         if overfit:
             # Only consider first element of available data
-            indices_train = slice(0, 1)
-            indices_val = slice(0, 1)
-            indices_test = slice(0, 1)
+            indices_train = slice(0, 5)
+            indices_val = slice(0, 5)
+            indices_test = slice(0, 5)
         else:
             # No overfit
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
@@ -151,6 +156,7 @@ class Hippocampus(DatasetHandler):
                                     patch_size,
                                     augment_train,
                                     mesh_target_type,
+                                    n_ref_points_per_structure,
                                     load_mesh='no') # no meshes for train
         val_dataset = Hippocampus(all_files[indices_val],
                                   DataModes.VALIDATION,
@@ -159,6 +165,7 @@ class Hippocampus(DatasetHandler):
                                   patch_size,
                                   False, # no augment for val
                                   mesh_target_type,
+                                  n_ref_points_per_structure,
                                   load_mesh='create') # create all mc meshes
         test_dataset = Hippocampus(all_files[indices_test],
                                   DataModes.TEST,
@@ -167,6 +174,7 @@ class Hippocampus(DatasetHandler):
                                   patch_size,
                                   False, # no augment for test
                                   mesh_target_type,
+                                  n_ref_points_per_structure,
                                   load_mesh='create') # create all mc meshes
 
         # Save ids to file
@@ -197,29 +205,62 @@ class Hippocampus(DatasetHandler):
         voxel_label = img_with_patch_size(voxel_label, self.patch_size,
                                           True)
 
-        # Surface points or mesh
-        if self._mesh_target_type == 'pointcloud':
-            target_points = sample_surface_points(voxel_label, self.n_v_classes)
-            target_faces = np.array([]) # Empty
-        else:
-            mesh_target = self._get_mesh(index, voxel_label)
-            target_points = mesh_target.vertices[None]
-            target_faces = mesh_target.faces[None]
+        # Mesh label
+        target_points,\
+                target_faces,\
+                target_normals = self._get_mesh_target(index, voxel_label)
+
 
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
-        return img, voxel_label, target_points, target_faces
+        return img, voxel_label, target_points, target_faces, target_normals
 
     def get_item_and_mesh_from_index(self, index: int):
         """ One data item and a corresponding mesh.
         Data is returned in the form
         (image, voxel label, mesh)
         """
-        img, voxel_label, _, _ = self.get_item_from_index(index)
+        img, voxel_label, _, _, _ = self.get_item_from_index(index)
         mesh_label = self._get_mesh(index, voxel_label)
 
         return img, voxel_label, mesh_label
+
+    def _get_mesh_target(self, index=None, voxel_label=None):
+        # Surface points or mesh
+        if self._mesh_target_type == 'pointcloud':
+            target_points = sample_surface_points(
+                voxel_label,
+                self.n_v_classes,
+                self.n_ref_points_per_structure * self.n_m_classes
+            )
+            target_faces = np.array([]) # Empty
+            target_normals = np.array([]) # Empty
+        else:
+            mesh_target = self._get_mesh(index, voxel_label)
+            target_points = mesh_target.vertices
+            target_faces = np.array([]) # Empty, not used at the moment
+            target_normals = mesh_target.normals
+
+            # Select n vertices randomly / pad if necessary
+            n_verts = target_points.shape[0]
+            if self.n_ref_points_per_structure < n_verts:
+                perm = torch.randperm(n_verts)
+                target_points = target_points[perm[:self.n_ref_points_per_structure],:]
+                target_normals = target_normals[perm[:self.n_ref_points_per_structure],:]
+            else:
+                delta = self.n_ref_points_per_structure - n_verts
+                if not isinstance(target_points, torch.Tensor):
+                    target_points = torch.from_numpy(target_points)
+                target_points = F.pad(target_points, (0,0,0,delta))
+                if not isinstance(target_normals, torch.Tensor):
+                    target_normals = torch.from_numpy(target_normals)
+                target_normals = F.pad(target_normals, (0,0,0,delta))
+
+            target_points = target_points[None] # (M, V, 3)
+            target_normals = target_normals[None] # (M, V, 3)
+
+        return target_points, target_faces, target_normals
 
     def _load_data3D(self, folder: str):
         data_dir = os.path.join(self._raw_data_dir, folder)

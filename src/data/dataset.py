@@ -105,7 +105,8 @@ def augment_data(img, label):
 
     return img, label
 
-def sample_surface_points(y_label, n_classes):
+def sample_surface_points(y_label, n_classes, point_count=3000):
+    """ Sample outer surface points from a volume label """
     surface_points_normalized_all = []
     shape = torch.tensor(y_label.shape)
     for c in range(1, n_classes):
@@ -121,7 +122,6 @@ def sample_surface_points(y_label, n_classes):
                                     "../misc/surface_points.png")
         n_points = len(surface_points_normalized)
         perm = torch.randperm(n_points)
-        point_count = 3000
         # randomly pick a maximum of 3000 points
         surface_points_normalized = surface_points_normalized[
             perm[:np.min([n_points, point_count])]

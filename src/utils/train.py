@@ -153,12 +153,14 @@ class Solver():
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
-        x, y, points, faces = data
-        if faces.nelement() == 0:
+        x, y, points, faces, normals = data
+        if normals.nelement() == 0:
+            # Only point reference
             mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
         else:
-            mesh_target = [Meshes(v, f).cuda() for v, f in
-                           zip(points.permute(1,0,2,3), faces.permute(1,0,2,3))]
+            # Points and normals as reference
+            mesh_target = [(p.cuda(), n.cuda()) for p, n in
+                           zip(points.permute(1,0,2,3), normals.permute(1,0,2,3))]
 
         # Predict
         with autocast(self.mixed_precision):

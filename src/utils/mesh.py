@@ -70,10 +70,12 @@ class Mesh():
         assert self.vertices.ndim == self.faces.ndim
         if self.vertices.ndim == 3:
             return Meshes(self.vertices,
-                          self.faces)
+                          self.faces,
+                          verts_normals=self.normals)
         if self.vertices.ndim ==2:
             return Meshes([self.vertices],
-                          [self.faces])
+                          [self.faces],
+                          verts_normals=[self.normals])
         raise ValueError("Invalid dimension of vertices and/or faces.")
 
     def store(self, path: str):

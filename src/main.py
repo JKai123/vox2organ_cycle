@@ -82,7 +82,7 @@ hyper_ps_hippocampus = {
     'PATCH_SIZE': (64, 64, 64),
     'BATCH_SIZE': 15,
     'N_M_CLASSES': 1,
-    'N_REF_POINTS_PER_STRUCTURE': 3000,
+    'N_REF_POINTS_PER_STRUCTURE': 1400,
     'N_TEMPLATE_VERTICES': 162,
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,1,1],

@@ -55,7 +55,9 @@ class MeshLoss(ABC):
     def get_loss(self,
                  pred_meshes: pytorch3d.structures.Meshes,
                  target: Union[pytorch3d.structures.Pointclouds,
-                               pytorch3d.structures.Meshes]):
+                               pytorch3d.structures.Meshes,
+                               tuple,
+                               list]):
         pass
 
 class ChamferLoss(MeshLoss):
@@ -73,13 +75,12 @@ class ChamferLoss(MeshLoss):
 class ChamferAndNormalsLoss(MeshLoss):
     """ Chamfer distance + cosine distance between the vertices and normals of
     the predicted mesh and a reference mesh. """
-    def get_loss(self, pred_meshes, target: pytorch3d.structures.Meshes):
-        if not isinstance(target, pytorch3d.structures.Meshes):
-            raise TypeError("ChamferAndNormalsLoss requires a reference mesh.")
-        n_points = torch.min(target.num_verts_per_mesh())
-        target_points, target_normals = sample_points_from_meshes(
-            target, n_points, return_normals=True
-        )
+    def get_loss(self, pred_meshes, target):
+        if len(target) != 2:
+            raise TypeError("ChamferAndNormalsLoss requires vertices and"\
+                            " normals.")
+        target_points, target_normals = target
+        n_points = target_points.shape[1]
         pred_points, pred_normals = sample_points_from_meshes(
             pred_meshes, n_points, return_normals=True
         )
