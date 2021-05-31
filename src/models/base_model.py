@@ -11,7 +11,7 @@ class V2MModel(Module, ABC):
     """ Base class for Voxel2Mesh models """
 
     @abstractmethod
-    def forward(self, data):
+    def forward(self, x):
         pass
 
     @abstractmethod
@@ -51,3 +51,6 @@ class V2MModel(Module, ABC):
     def pred_to_displacements(pred):
         """ Get the displacements of vertices per step and class """
         pass
+
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
