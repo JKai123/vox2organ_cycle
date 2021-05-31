@@ -237,17 +237,19 @@ class Hippocampus(DatasetHandler):
             target_faces = np.array([]) # Empty
             target_normals = np.array([]) # Empty
         elif self._mesh_target_type == 'mesh':
-            mesh_target = self._get_mesh(index, voxel_label)
-            target_points = mesh_target.vertices
+            mesh_target = self._get_mesh(
+                index, voxel_label
+            ).to_pytorch3d_Meshes()
+            target_points = mesh_target.verts_padded() # (M, V, 3)
             target_faces = np.array([]) # Empty, not used at the moment
-            target_normals = mesh_target.normals
+            target_normals = mesh_target.verts_normals_padded() # (M, V, 3)
 
             # Select n vertices randomly / pad if necessary
-            n_verts = target_points.shape[0]
+            n_verts = target_points.shape[1]
             if self.n_ref_points_per_structure < n_verts:
                 perm = torch.randperm(n_verts)
-                target_points = target_points[perm[:self.n_ref_points_per_structure],:]
-                target_normals = target_normals[perm[:self.n_ref_points_per_structure],:]
+                target_points = target_points[:,perm[:self.n_ref_points_per_structure],:]
+                target_normals = target_normals[:,perm[:self.n_ref_points_per_structure],:]
             else:
                 delta = self.n_ref_points_per_structure - n_verts
                 if not isinstance(target_points, torch.Tensor):
@@ -258,9 +260,6 @@ class Hippocampus(DatasetHandler):
                 target_normals = F.pad(target_normals, (0,0,0,delta))
         else:
             raise ValueError("Invalid mesh target type.")
-
-        target_points = target_points[None] # (M, V, 3)
-        target_normals = target_normals[None] # (M, V, 3)
 
         return target_points, target_faces, target_normals
 

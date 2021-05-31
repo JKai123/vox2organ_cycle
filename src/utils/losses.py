@@ -66,11 +66,16 @@ class ChamferLoss(MeshLoss):
     def get_loss(self, pred_meshes, target):
         if isinstance(target, pytorch3d.structures.Pointclouds):
             n_points = torch.min(target.num_points_per_cloud())
+            target_ = target
         if isinstance(target, pytorch3d.structures.Meshes):
             n_points = torch.min(target.num_verts_per_mesh())
-            target = sample_points_from_meshes(target, n_points)
+            target_ = sample_points_from_meshes(target, n_points)
+        if isinstance(target, (tuple, list)):
+            # target = (verts, normals)
+            target_ = target[0] # Only vertices relevant
+            n_points = target_.shape[1]
         pred_points = sample_points_from_meshes(pred_meshes, n_points)
-        return chamfer_distance(pred_points, target)[0]
+        return chamfer_distance(pred_points, target_)[0]
 
 class ChamferAndNormalsLoss(MeshLoss):
     """ Chamfer distance + cosine distance between the vertices and normals of
