@@ -88,6 +88,19 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool) -> tor
 
     return img
 
+def offset_due_to_padding(old_shape, new_shape):
+    """ Get the voxel coordinate offset due to padding of an image with shape
+    'old_shape' such that it has 'new_shape'
+    """
+    D, H, W = old_shape
+    center_z, center_y, center_x = D // 2, H // 2, W // 2
+    D, H, W = new_shape
+    _, pad_width, _ = crop_indices(old_shape, new_shape, (center_z, center_y,
+                                                          center_x))
+    offset = np.array(pad_width)[:,0]
+
+    return offset
+
 def augment_data(img, label):
     # Rotate 90
     if np.random.rand(1) > 0.5:
@@ -240,10 +253,10 @@ class DatasetHandler(torch.utils.data.Dataset):
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 
-            assert j_vox > 0.85,\
-                    "Voxelized mesh and voxel label should have a large IoU."
-
             img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
             nib.save(img, "../misc/data_voxel_label.nii.gz")
             img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
             nib.save(img, "../misc/data_mesh_label.nii.gz")
+
+            assert j_vox > 0.85,\
+                    "Voxelized mesh and voxel label should have a large IoU."
