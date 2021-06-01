@@ -103,7 +103,8 @@ hyper_ps_cortex = {
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0],
     },
-    'PROJ_NAME': "cortex"
+    'PROJ_NAME': "cortex",
+    'MESH_TARGET_TYPE': "mesh"
 }
 hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/cortex_white_matter_spheres_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
