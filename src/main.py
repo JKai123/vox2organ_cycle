@@ -105,7 +105,7 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'cerebral_cortex'
+    'STRUCTURE_TYPE': 'white_matter'
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
