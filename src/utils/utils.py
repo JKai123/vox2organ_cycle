@@ -13,9 +13,8 @@ import numpy as np
 import nibabel as nib
 import torch
 import torch.nn.functional as F
-
+from trimesh import Trimesh
 from skimage import measure
-
 from plyfile import PlyData
 
 from utils.modes import ExecModes
@@ -280,3 +279,22 @@ def score_is_better(old_value, new_value, name):
         return new_value < old_value, 'min'
     else:
         raise ValueError("Unknown score name.")
+
+def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
+    """ Mirror a mesh at a plane and return the mirrored mesh.
+    The normal should point in the direction of the 'empty' side of the plane,
+    i.e. the side where the mesh should be mirrored to.
+    """
+    # Normalize plane normal
+    if not np.isclose(np.sqrt(np.sum(plane_normal ** 2)), 1):
+        plane_normal = plane_normal / np.sqrt(np.sum(plane_normal ** 2))
+
+    d = np.dot(plane_normal, plane_point)
+    d_verts = -1 * (plane_normal @ mesh.vertices.T - d)
+    mirrored_verts = mesh.vertices + 2 * (plane_normal[:,None] * d_verts).T
+
+    # Preserve data type
+    mirrored_mesh = Trimesh(mirrored_verts, mesh.faces)\
+            if isinstance(mesh, Trimesh) else Mesh(mirrored_verts, mesh.faces)
+
+    return mirrored_mesh

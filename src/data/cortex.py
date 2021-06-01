@@ -13,6 +13,8 @@ import torch
 import numpy as np
 import nibabel as nib
 import trimesh
+from trimesh import Trimesh
+from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 
 from utils.modes import DataModes, ExecModes
@@ -20,7 +22,8 @@ from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
     normalize_min_max,
-    normalize_vertices
+    normalize_vertices,
+    mirror_mesh_at_plane
 )
 from data.dataset import (
     DatasetHandler,
@@ -104,7 +107,7 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
 
-    def store_template(self, path):
+    def store_sphere_template(self, path):
         """ Template for dataset. This can be stored and later used during
         training.
         """
@@ -116,6 +119,49 @@ class Cortex(DatasetHandler):
         else:
             raise RuntimeError("Centers and/or radii are unknown, template"
                                " cannnot be created. ")
+
+    def store_convex_cortex_template(self, path, n_max_points=41000):
+        """ This template is created as follows:
+            1. Take the convex hull of one of the two structures and subdivide
+            faces until the required number of vertices is large enough
+            2. Mirror this mesh on the plane that separates the two cortex
+            hemispheres
+            3. Store both meshes together in one template
+        """
+        template = Scene()
+        label_1, label_2 = self.mesh_label_names
+        # Select mesh to generate the template from
+        vertices = self.mesh_labels[0].vertices[0]
+        faces = self.mesh_labels[0].faces[0]
+
+        # Remove padded vertices
+        valid_ids = np.unique(faces)
+        valid_ids = valid_ids[valid_ids != -1]
+        vertices_ = vertices[valid_ids]
+
+        # Get convex hull of the mesh label
+        structure_1 = Trimesh(vertices_, faces).convex_hull
+
+        # Increase granularity until desired number of points is reached
+        while structure_1.subdivide().vertices.shape[0] < n_max_points:
+            structure_1 = structure_1.subdivide()
+
+        assert structure_1.is_watertight, "Mesh template should be watertight."
+        print(f"Template structure has {structure_1.vertices.shape[0]}"
+              " vertices.")
+        template.add_geometry(structure_1, geom_name=label_1)
+
+        # Second structure = mirror of first structure
+        plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
+        plane_point = 0.5 * np.array((self.centers[label_1] +
+                                      self.centers[label_2]))
+        structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
+                                          plane_point)
+        template.add_geometry(structure_2, geom_name=label_2)
+
+        template.export(path)
+
+        return path
 
     @staticmethod
     def split(raw_data_dir, dataset_seed, dataset_split_proportions,
