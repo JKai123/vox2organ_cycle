@@ -51,7 +51,7 @@ hyper_ps = {
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
-    'LR_DECAY_AFTER': 300,
+    'LR_DECAY_AFTER': 700,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
@@ -61,7 +61,8 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100.0],
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
@@ -98,26 +99,35 @@ hyper_ps_cortex = {
     'PATCH_SIZE': (192, 224, 192),
     'BATCH_SIZE': 1,
     'N_M_CLASSES': 2,
-    'N_REF_POINTS_PER_STRUCTURE': 40962,
-    'N_TEMPLATE_VERTICES': 40962,
+    # 'N_REF_POINTS_PER_STRUCTURE': 40770, # White matter
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0],
     },
     'PROJ_NAME': "cortex",
-    'MESH_TARGET_TYPE': "mesh"
+    'MESH_TARGET_TYPE': "mesh",
+    'STRUCTURE_TYPE': 'cerebral_cortex'
 }
-hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-    f"../supplementary_material/spheres/cortex_white_matter_spheres_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+# Automatically set parameters
+if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 40770
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40770
+    hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+        f"../supplementary_material/spheres/cortex_white_matter_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
+    hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+        f"../supplementary_material/spheres/cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'N_EPOCHS': 1000,
+    'N_EPOCHS': 5000,
     'EVAL_EVERY': 50,
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
-    'MIXED_PRECISION': False,
+    'MIXED_PRECISION': True,
 }
 
 

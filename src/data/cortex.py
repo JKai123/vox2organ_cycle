@@ -55,25 +55,33 @@ class Cortex(DatasetHandler):
     :param DataModes datamode: TRAIN, VALIDATION, or TEST
     :param str raw_data_dir: The raw base folder, contains folders
     corresponding to sample ids
-    :param patch_size: The patch size of the images, e.g. (256, 256, 256)
     :param augment: Use image augmentation during training if 'True'
+    :param patch_size: The patch size of the images, e.g. (256, 256, 256)
     :param mesh_target_type: 'mesh' or 'pointcloud'
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
-    :param seg_label_names: The segmentation labels to consider
-    :param mesh_label_names: The mesh ground truth file names (can be multiple)
+    :param structure_type: Either 'white_matter' or 'cerebral_cortex'
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 patch_size, augment: bool, mesh_target_type: str,
-                 n_ref_points_per_structure: int,
-                 seg_label_names=("right_white_matter", "left_white_matter"),
-                 mesh_label_names=("rh_white", "lh_white")):
+                 augment: bool, patch_size, mesh_target_type: str,
+                 n_ref_points_per_structure: int, structure_type: str,
+                 **kwargs):
         super().__init__(ids, mode)
 
         if augment:
             raise NotImplementedError("Cortex dataset does not support"\
                                       " augmentation at the moment.")
+        if structure_type == "cerebral_cortex":
+             seg_label_names = 'all' # all present labels are combined
+             mesh_label_names = ("rh_pial", "lh_pial")
+        elif structure_type == "white_matter":
+             seg_label_names = ("right_white_matter", "left_white_matter")
+             mesh_label_names = ("rh_white", "lh_white")
+        else:
+            raise ValueError("Unknown structure type.")
+
+        self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
         self._augment = augment
         self._mesh_target_type = mesh_target_type
@@ -89,10 +97,14 @@ class Cortex(DatasetHandler):
             self.data[i] = normalize_min_max(d)
 
         # Voxel labels
-        self.voxel_labels = self._load_data3D(filename="aparc+aseg.nii.gz")
-        self.voxel_labels = [
-            combine_labels(l, seg_label_names) for l in self.voxel_labels
-        ]
+        self.voxel_labels = self._load_data3D(filename="aseg.nii.gz")
+        if seg_label_names == "all":
+            for vl in self.voxel_labels:
+                vl[vl > 1] = 1
+        else:
+            self.voxel_labels = [
+                combine_labels(l, seg_label_names) for l in self.voxel_labels
+            ]
 
         # Mesh labels
         self.mesh_labels, (self.centers, self.radii) =\
@@ -165,7 +177,7 @@ class Cortex(DatasetHandler):
 
     @staticmethod
     def split(raw_data_dir, dataset_seed, dataset_split_proportions,
-              patch_size, augment_train, save_dir, **kwargs):
+              augment_train, save_dir, overfit=False, **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -173,20 +185,12 @@ class Cortex(DatasetHandler):
         :param dataset_seed: A seed for the random splitting of the dataset.
         :param dataset_split_proportions: The proportions of the dataset
         splits, e.g. (80, 10, 10)
-        :patch_size: The patch size of the 3D images.
-        :augment_train: Augment training data.
-        :save_dir: A directory where the split ids can be saved.
-        :overfit: All three splits are the same and contain only one element.
-        :n_ref_points_per_structure: The number of reference points to use for
-        training.
+        :param augment_train: Augment training data.
+        :param save_dir: A directory where the split ids can be saved.
+        :param overfit: Create small datasets for overfitting.
+        :param kwargs: Dataset parameters.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
-
-        overfit = kwargs.get("overfit", False)
-        n_ref_points_per_structure = kwargs.get(
-            "n_ref_points_per_structure", -1
-        )
-        mesh_target_type = kwargs.get("mesh_target_type", "pointcloud")
 
         # Available files
         all_files = os.listdir(raw_data_dir)
@@ -214,24 +218,18 @@ class Cortex(DatasetHandler):
         train_dataset = Cortex(all_files[indices_train],
                                DataModes.TRAIN,
                                raw_data_dir,
-                               patch_size,
-                               augment_train,
-                               mesh_target_type,
-                               n_ref_points_per_structure)
+                               augment=augment_train,
+                               **kwargs)
         val_dataset = Cortex(all_files[indices_val],
                              DataModes.VALIDATION,
                              raw_data_dir,
-                             patch_size,
-                             False,
-                             mesh_target_type,
-                             n_ref_points_per_structure)
+                             augment=False,
+                             **kwargs)
         test_dataset = Cortex(all_files[indices_test],
                               DataModes.TEST,
                               raw_data_dir,
-                              patch_size,
-                              False,
-                              mesh_target_type,
-                              n_ref_points_per_structure)
+                              augment=False,
+                              **kwargs)
 
         # Save ids to file
         DatasetHandler.save_ids(all_files[indices_train], all_files[indices_val],

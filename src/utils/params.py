@@ -45,6 +45,10 @@ hyper_ps_default={
     # require a mesh (pointcloud + faces)
     'MESH_TARGET_TYPE': "pointcloud",
 
+    # The structure type for cortex data, either 'cerebral_cortex' or
+    # 'white_matter'
+    'STRUCTURE_TYPE': "white_matter",
+
     # The batch size used during training
     'BATCH_SIZE': 1,
 

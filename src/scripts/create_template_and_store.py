@@ -6,7 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from data.cortex import Cortex
 
-template_path = "../supplementary_material/spheres/cortex_white_matter_convex_40770.obj"
+template_path = "../supplementary_material/spheres/cortex_convex.obj"
 
 dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              1532,
@@ -15,6 +15,6 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              False,
                              "../misc")
 
-path = dataset.store_convex_cortex_template(template_path)
+path = dataset.store_convex_cortex_template(template_path, 100000)
 
 print("Template stored at " + path)
