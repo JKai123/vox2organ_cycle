@@ -51,12 +51,21 @@ class Mesh():
         if isinstance(self.vertices, torch.Tensor):
             if self.vertices.ndim == 3:
                 # padded --> packed representation
-                m = Meshes(self.vertices, self.faces)
-                vertices = m.verts_packed().cpu()
-                faces = m.faces_packed().cpu()
+                # remove padded vertices since this can lead to problems with
+                # some trimesh functions
+                valid_ids = [np.unique(f) for f in self.faces]
+                valid_ids = [i[i != -1] for i in valid_ids]
+
+                vertices_ = [v[valid_ids[i]] for i, v in
+                               enumerate(self.vertices)]
+                faces_ = [f for f in self.faces]
+                m = Meshes(vertices_, faces_)
+                faces = m.faces_packed().cpu().numpy()
+                vertices = m.verts_packed().cpu().numpy()
+                breakpoint()
             else:
-                vertices = self.vertices.cpu()
-                faces = self.faces.cpu()
+                vertices = self.vertices.cpu().numpy()
+                faces = self.faces.cpu().numpy()
         else:
             # numpy
             vertices = self.vertices
