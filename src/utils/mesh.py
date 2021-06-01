@@ -53,16 +53,15 @@ class Mesh():
                 # padded --> packed representation
                 # remove padded vertices since this can lead to problems with
                 # some trimesh functions
-                valid_ids = [np.unique(f) for f in self.faces]
+                valid_ids = [np.unique(f) for f in self.faces.cpu()]
                 valid_ids = [i[i != -1] for i in valid_ids]
 
                 vertices_ = [v[valid_ids[i]] for i, v in
-                               enumerate(self.vertices)]
-                faces_ = [f for f in self.faces]
+                               enumerate(self.vertices.cpu())]
+                faces_ = [f for f in self.faces.cpu()]
                 m = Meshes(vertices_, faces_)
                 faces = m.faces_packed().cpu().numpy()
                 vertices = m.verts_packed().cpu().numpy()
-                breakpoint()
             else:
                 vertices = self.vertices.cpu().numpy()
                 faces = self.faces.cpu().numpy()
