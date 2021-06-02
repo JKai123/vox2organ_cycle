@@ -51,7 +51,7 @@ hyper_ps = {
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
-    'LR_DECAY_AFTER': 700,
+    'LR_DECAY_AFTER': 2000,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
@@ -125,8 +125,8 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'N_EPOCHS': 5000,
-    'EVAL_EVERY': 50,
+    'N_EPOCHS': 15000,
+    'EVAL_EVERY': 100,
     'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
