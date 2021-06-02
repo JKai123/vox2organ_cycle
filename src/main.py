@@ -114,7 +114,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32394
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 43650
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_white_matter_convex_decimated_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/spheres/cortex_white_matter_id1015.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954

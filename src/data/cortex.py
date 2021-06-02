@@ -136,6 +136,49 @@ class Cortex(DatasetHandler):
             raise RuntimeError("Centers and/or radii are unknown, template"
                                " cannnot be created. ")
 
+    def store_index0_template(self, path, n_max_points=41000):
+        """ This template is the structure of dataset element at index 0,
+        potentially mirrored at the hemisphere plane. """
+        template = Scene()
+        if len(self.mesh_label_names) == 2:
+            label_1, label_2 = self.mesh_label_names
+        else:
+            label_1 = self.mesh_labels[0]
+            label_2 = None
+        # Select mesh to generate the template from
+        vertices = self.mesh_labels[0].vertices[0]
+        faces = self.mesh_labels[0].faces[0]
+
+        # Remove padded vertices
+        valid_ids = np.unique(faces)
+        valid_ids = valid_ids[valid_ids != -1]
+        vertices_ = vertices[valid_ids]
+
+        # Get convex hull of the mesh label
+        structure_1 = Trimesh(vertices_, faces)
+
+        # Increase granularity until desired number of points is reached
+        while structure_1.subdivide().vertices.shape[0] < n_max_points:
+            structure_1 = structure_1.subdivide()
+
+        assert structure_1.is_watertight, "Mesh template should be watertight."
+        print(f"Template structure has {structure_1.vertices.shape[0]}"
+              " vertices.")
+        template.add_geometry(structure_1, geom_name=label_1)
+
+        # Second structure = mirror of first structure
+        if label_2 is not None:
+            plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
+            plane_point = 0.5 * np.array((self.centers[label_1] +
+                                          self.centers[label_2]))
+            structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
+                                              plane_point)
+            template.add_geometry(structure_2, geom_name=label_2)
+
+        template.export(path)
+
+        return path
+
     def store_convex_cortex_template(self, path, n_max_points=41000):
         """ This template is created as follows:
             1. Take the convex hull of one of the two structures and subdivide
