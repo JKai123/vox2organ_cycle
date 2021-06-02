@@ -4,6 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from tqdm import tqdm
+import numpy as np
 
 from data.supported_datasets import dataset_split_handler
 from utils.visualization import show_slices
@@ -73,11 +74,13 @@ def run_preprocess_check_cortex():
 
     print("Loading data...")
 
-    hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
-           'DATASET_SEED': 1234,
+    hps = {'RAW_DATA_DIR': '/home/fabianb/data/preprocessed/MALC_CSR/',
+           'DATASET_SEED': 1532,
            'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
            'PATCH_SIZE': (192, 224, 192),
-           'N_REF_POINTS_PER_STRUCTURE': 1400
+           'N_REF_POINTS_PER_STRUCTURE': 1400,
+           'MESH_TARGET_TYPE': 'mesh',
+           'STRUCTURE_TYPE': 'white_matter'
           }
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
@@ -96,7 +99,8 @@ def run_preprocess_check_cortex():
                                                      # save_dir="../misc",
                                                              # **hps_lower)
 
-    for iter_in_epoch in tqdm(range(5), desc="Testing...", position=0, leave=True):
+    n_samples = np.min((5, len(training_set)))
+    for iter_in_epoch in tqdm(range(n_samples), desc="Testing...", position=0, leave=True):
         data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
         # data_augment = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
         img_slices = [data[0].squeeze()[32, :, :],

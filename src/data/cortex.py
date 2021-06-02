@@ -21,6 +21,8 @@ from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
+    unnormalize_vertices,
+    sample_inner_volume_in_voxel,
     normalize_min_max,
     normalize_vertices,
     mirror_mesh_at_plane
@@ -76,7 +78,8 @@ class Cortex(DatasetHandler):
              seg_label_names = 'all' # all present labels are combined
              mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
-             seg_label_names = ("left_white_matter",)
+             # seg_label_names = ("left_white_matter",)
+             seg_label_names = ("voxelized_mesh",)
              mesh_label_names = ("lh_white",)
         else:
             raise ValueError("Unknown structure type.")
@@ -87,6 +90,9 @@ class Cortex(DatasetHandler):
         self._mesh_target_type = mesh_target_type
         self.patch_size = patch_size
         self.n_m_classes = len(mesh_label_names)
+        self.n_ref_points_per_structure = n_ref_points_per_structure
+        self.mesh_label_names = mesh_label_names
+        self.n_structures = len(mesh_label_names)
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
 
@@ -96,24 +102,22 @@ class Cortex(DatasetHandler):
         for i, d in enumerate(self.data):
             self.data[i] = normalize_min_max(d)
 
-        # Voxel labels
-        self.voxel_labels = self._load_data3D(filename="aseg.nii.gz")
-        if seg_label_names == "all":
-            for vl in self.voxel_labels:
-                vl[vl > 1] = 1
-        else:
-            self.voxel_labels = [
-                combine_labels(l, seg_label_names) for l in self.voxel_labels
-            ]
-
         # Mesh labels
         self.mesh_labels, (self.centers, self.radii) =\
                 self._load_dataMesh(meshnames=mesh_label_names)
-        self.mesh_label_names = mesh_label_names
-        self.n_structures = len(mesh_label_names)
 
-
-        self.n_ref_points_per_structure = n_ref_points_per_structure
+        # Voxel labels
+        if 'voxelized_mesh' in seg_label_names:
+            self.voxel_labels = self._create_voxel_labels_from_meshes()
+        else:
+            self.voxel_labels = self._load_data3D(filename="aseg.nii.gz")
+            if seg_label_names == "all":
+                for vl in self.voxel_labels:
+                    vl[vl > 1] = 1
+            else:
+                self.voxel_labels = [
+                    combine_labels(l, seg_label_names) for l in self.voxel_labels
+                ]
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -306,6 +310,29 @@ class Cortex(DatasetHandler):
 
             d = img.get_fdata()
             data.append(d)
+
+        return data
+    def _create_voxel_labels_from_meshes(self):
+        """ Return the voxelized meshes as 3D voxel labels """
+        data = []
+        for m in self.mesh_labels:
+            voxel_label = torch.zeros(self.patch_size, dtype=torch.long)
+            vertices = m.vertices.view(self.n_m_classes, -1, 3)
+            faces = m.faces.view(self.n_m_classes, -1, 3)
+            unnorm_verts = unnormalize_vertices(
+                vertices.view(-1, 3), torch.tensor(self.patch_size)[None]
+            ).view(self.n_m_classes, -1, 3)
+            pv = Mesh(unnorm_verts,
+                      faces).get_occupied_voxels(self.patch_size)
+            pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
+            # Occupied voxels are considered to belong to one class
+            voxel_label[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
+
+            # Strip off one layer of voxels (resembles the original voxel
+            # labels more)
+            voxel_label = sample_inner_volume_in_voxel(voxel_label)
+
+            data.append(voxel_label.numpy())
 
         return data
 
