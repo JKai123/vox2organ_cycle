@@ -538,7 +538,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       unpool_indices=unpool_indices,
                                       use_adoptive_unpool=use_adoptive_unpool,
                                       graph_channels=graph_channels,
-                                      skip_channels=encoder_channels,
+                                      skip_channels=encoder_channels+decoder_channels,
                                       weighted_edges=weighted_edges,
                                       propagate_coords=propagate_coords,
                                       GC=gc)
@@ -547,7 +547,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     def forward(self, x):
 
         encoder_skips, decoder_skips, seg_out = self.voxel_net(x)
-        pred_meshes, pred_deltaV = self.graph_net(encoder_skips)
+        pred_meshes, pred_deltaV = self.graph_net(encoder_skips + decoder_skips)
 
         # pred has the form
         # ( - batch of pytorch3d prediction Meshes with the last 3 features

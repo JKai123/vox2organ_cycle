@@ -42,7 +42,9 @@ class GraphDecoder(nn.Module):
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2,
-                 aggregate_indices=((3,4), (1,2), (0,1))):
+                 aggregate_indices=((3,4),
+                                    (1,2),
+                                    (8,0,1))): # 8 = last decoder skip
         super().__init__()
 
         assert (len(graph_channels) - 1 ==\
@@ -89,10 +91,9 @@ class GraphDecoder(nn.Module):
 
         for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
-            indices = slice(aggregate_indices[i][0],
-                            aggregate_indices[i][1] + 1)
+            indices = aggregate_indices[i]
             skip_features_count =\
-                torch.sum(torch.tensor(skip_channels[indices]))
+                torch.sum(torch.tensor(skip_channels)[indices, None]).item()
             res_blocks = [Features2FeaturesResidual(
                 skip_features_count + self.latent_features_count[i] + add_n,
                 self.latent_features_count[i+1],
