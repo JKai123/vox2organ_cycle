@@ -61,8 +61,8 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100.0],
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.25, 100.0],
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
@@ -119,7 +119,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/spheres/cortex_cerebral_cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
