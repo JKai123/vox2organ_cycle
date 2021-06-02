@@ -24,6 +24,10 @@ class GraphConvNorm(GraphConv):
     def __init__(self, input_dim: int, output_dim: int, init: str='normal',
                  directed: bool=False, **kwargs):
         super().__init__(input_dim, output_dim, init, directed)
+        # Bug in GraphConv: bias is not initialized to zero
+        if init == 'zero':
+            self.w0.bias.data.zero_()
+            self.w1.bias.data.zero_()
         if kwargs.get('weighted_edges', False) == True:
             raise ValueError(
                 "pytorch3d.ops.GraphConv cannot be edge-weighted."
@@ -218,6 +222,30 @@ class Features2FeaturesSimple(nn.Module):
     def forward(self, features, edges):
         # Conv --> Norm --> ReLU
         return F.relu(self.bn(self.gconv(features, edges)))
+
+class Features2FeaturesSimpleResidual(nn.Module):
+    """ A simple residual graph conv + batch norm (optional) + ReLU """
+
+    def __init__(self, in_features, out_features,
+                 batch_norm=False, GC=GraphConv,
+                 weighted_edges=False):
+        super().__init__()
+
+        self.out_features = out_features
+        self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
+        if batch_norm:
+            self.bn = nn.BatchNorm1d(out_features)
+        else:
+            self.bn = IdLayer()
+
+    def forward(self, features, edges):
+        if features.shape[-1] == self.out_features:
+            res = features
+        else:
+            res = F.interpolate(features.unsqueeze(1), self.out_features,
+                                mode='nearest').squeeze(1)
+        # Conv --> Norm --> ReLU
+        return F.relu(self.bn(self.gconv(features, edges)) + res)
 
 class GraphIdLayer(nn.Module):
     """ Graph identity layer """

@@ -13,7 +13,7 @@ from pytorch3d.ops import GraphConv
 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    Features2FeaturesSimple,
+    Features2FeaturesSimpleResidual,
     GraphIdLayer,
     Features2FeaturesResidual
 )
@@ -41,7 +41,7 @@ class GraphDecoder(nn.Module):
                  dim: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
-                 n_f2f_hidden_layer: int=1,
+                 n_f2f_hidden_layer: int=2,
                  aggregate_indices=((3,4), (1,2), (0,1))):
         super().__init__()
 
@@ -63,12 +63,16 @@ class GraphDecoder(nn.Module):
         self.aggregate_indices = aggregate_indices
         self.unpool_indices = unpool_indices
         self.use_adoptive_unpool = use_adoptive_unpool
+        self.GC = GC
 
         # Aggregation of voxel features
         self.aggregate = aggregate
 
         # Initial creation of latent features from coordinates
-        self.graph_conv_first = GC(dim, graph_channels[0], weighted_edges=weighted_edges)
+        self.graph_conv_first = Features2FeaturesResidual(
+            dim, graph_channels[0], n_f2f_hidden_layer, batch_norm=batch_norm,
+            GC=GC, weighted_edges=weighted_edges
+        )
 
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks
@@ -114,12 +118,13 @@ class GraphDecoder(nn.Module):
 
             # Feature to vertex layer, edge weighing never used
             f2v_layers.append(GC(
-                self.latent_features_count[i+1], dim, weighted_edges=False
+                self.latent_features_count[i+1], dim, weighted_edges=False,
+                init='zero'
             ))
 
             # Feature to feature layer that connects to the next decoder step
             if i < self.num_steps - 1:
-                f2f_connect_layers.append(Features2FeaturesSimple(
+                f2f_connect_layers.append(Features2FeaturesSimpleResidual(
                     self.latent_features_count[i+1] + add_n,
                     self.latent_features_count[i+1],
                     batch_norm = batch_norm,
@@ -180,7 +185,7 @@ class GraphDecoder(nn.Module):
         skips = [s.float() for s in skips]
 
         # No autocast for pytorch3d convs possible
-        cast = False if isinstance(self.graph_conv_first, GraphConv) else True
+        cast = not issubclass(self.GC, GraphConv)
         with autocast(enabled=cast):
             # First graph conv: Vertex coords --> latent features
             edges_packed = temp_meshes.edges_packed()
