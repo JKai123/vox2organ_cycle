@@ -50,9 +50,6 @@ class ModelEvaluator():
         for m in self._eval_metrics:
             results_all[m] = []
 
-        # Strip layer in JaccardMesh for Hippocampus dataset
-        strip = isinstance(self._dataset, Hippocampus)
-
         # Iterate over data split
         with torch.no_grad():
             for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
@@ -67,8 +64,7 @@ class ModelEvaluator():
                     res = EvalMetricHandler[metric](pred, data,
                                                     self._n_v_classes,
                                                     self._n_m_classes,
-                                                    model_class,
-                                                    strip)
+                                                    model_class)
                     results_all[metric].append(res)
 
                 if i < save_meshes: # Store meshes for visual inspection

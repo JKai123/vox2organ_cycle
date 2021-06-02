@@ -30,7 +30,8 @@ class EvalMetrics(IntEnum):
     JaccardMesh = 3
 
 @measure_time
-def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
+def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
+                     strip=True):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
@@ -55,8 +56,8 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class, strip):
         # No mesh in the valid range predicted --> keep zeros
         pass
 
-    # Strip off one layer of voxels. This should be done if point losses are
-    # computed with respect to outer surface points.
+    # Strip off one layer of voxels. This is often closer to what is given in
+    # the voxel ground truth.
     if strip:
         voxel_pred = sample_inner_volume_in_voxel(voxel_pred)
     write_img_if_debug(input_img.squeeze().cpu().numpy(),

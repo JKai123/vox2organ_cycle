@@ -154,8 +154,7 @@ class Cortex(DatasetHandler):
         valid_ids = valid_ids[valid_ids != -1]
         vertices_ = vertices[valid_ids]
 
-        # Get convex hull of the mesh label
-        structure_1 = Trimesh(vertices_, faces)
+        structure_1 = Trimesh(vertices_, faces, process=False)
 
         # Increase granularity until desired number of points is reached
         while structure_1.subdivide().vertices.shape[0] < n_max_points:
@@ -203,7 +202,7 @@ class Cortex(DatasetHandler):
         vertices_ = vertices[valid_ids]
 
         # Get convex hull of the mesh label
-        structure_1 = Trimesh(vertices_, faces).convex_hull
+        structure_1 = Trimesh(vertices_, faces, process=False).convex_hull
 
         # Increase granularity until desired number of points is reached
         while structure_1.subdivide().vertices.shape[0] < n_max_points:
