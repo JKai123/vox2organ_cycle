@@ -60,9 +60,9 @@ hyper_ps = {
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
                        EdgeLoss()],
-    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.25, 100.0],
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
@@ -114,7 +114,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32394
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 43650
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_white_matter_id1015.obj"
+        f"../supplementary_material/spheres/cortex_white_matter_convex_decimated_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
