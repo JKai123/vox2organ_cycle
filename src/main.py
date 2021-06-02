@@ -69,9 +69,11 @@ hyper_ps = {
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
-        'GRAPH_CHANNELS': [128, 64, 32, 16],
+        # 'GRAPH_CHANNELS': [128, 64, 32, 16],
+        'GRAPH_CHANNELS': [256, 128, 64, 32],
         'DEEP_SUPERVISION': True,
         'WEIGHTED_EDGES': False,
+        'PROPAGATE_COORDS': True,
         'VOXEL_DECODER': True,
         'GC': GraphConvNorm
     },
@@ -95,10 +97,10 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
+    'RAW_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
     'PATCH_SIZE': (192, 224, 192),
     'BATCH_SIZE': 1,
-    'N_M_CLASSES': 2,
+    'N_M_CLASSES': 1,
     # 'N_REF_POINTS_PER_STRUCTURE': 40770, # White matter
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0],
@@ -109,10 +111,10 @@ hyper_ps_cortex = {
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 40770
-    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40770
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32394
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 43650
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_white_matter_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/spheres/cortex_white_matter_convex_decimated_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954

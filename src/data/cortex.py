@@ -76,8 +76,8 @@ class Cortex(DatasetHandler):
              seg_label_names = 'all' # all present labels are combined
              mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
-             seg_label_names = ("right_white_matter", "left_white_matter")
-             mesh_label_names = ("rh_white", "lh_white")
+             seg_label_names = ("left_white_matter",)
+             mesh_label_names = ("lh_white",)
         else:
             raise ValueError("Unknown structure type.")
 
@@ -141,7 +141,11 @@ class Cortex(DatasetHandler):
             3. Store both meshes together in one template
         """
         template = Scene()
-        label_1, label_2 = self.mesh_label_names
+        if len(self.mesh_label_names) == 2:
+            label_1, label_2 = self.mesh_label_names
+        else:
+            label_1 = self.mesh_labels[0]
+            label_2 = None
         # Select mesh to generate the template from
         vertices = self.mesh_labels[0].vertices[0]
         faces = self.mesh_labels[0].faces[0]
@@ -164,12 +168,13 @@ class Cortex(DatasetHandler):
         template.add_geometry(structure_1, geom_name=label_1)
 
         # Second structure = mirror of first structure
-        plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
-        plane_point = 0.5 * np.array((self.centers[label_1] +
-                                      self.centers[label_2]))
-        structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
-                                          plane_point)
-        template.add_geometry(structure_2, geom_name=label_2)
+        if label_2 is not None:
+            plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
+            plane_point = 0.5 * np.array((self.centers[label_1] +
+                                          self.centers[label_2]))
+            structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
+                                              plane_point)
+            template.add_geometry(structure_2, geom_name=label_2)
 
         template.export(path)
 

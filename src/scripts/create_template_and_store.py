@@ -8,7 +8,7 @@ from data.cortex import Cortex
 
 structure_type = 'white_matter'
 
-template_path = "../supplementary_material/spheres/cortex_" + structure_type + "_convex.obj"
+template_path = "../supplementary_material/spheres/cortex_" + structure_type + "_convex_decimated.obj"
 
 dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              1532,
@@ -20,6 +20,6 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              mesh_target_type='mesh',
                              n_ref_points_per_structure = None)
 
-path = dataset.store_convex_cortex_template(template_path, 200000)
+path = dataset.store_convex_cortex_template(template_path, 50000)
 
 print("Template stored at " + path)
