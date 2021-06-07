@@ -61,9 +61,9 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
@@ -99,7 +99,8 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 
 hyper_ps_cortex = {
     'RAW_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
-    'PATCH_SIZE': (192, 224, 192),
+    # 'PATCH_SIZE': (192, 224, 192),
+    'PATCH_SIZE': (80, 64, 96),
     'BATCH_SIZE': 1,
     'N_M_CLASSES': 1,
     # 'N_REF_POINTS_PER_STRUCTURE': 40770, # White matter
@@ -109,14 +110,16 @@ hyper_ps_cortex = {
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
-    'REDUCE_REG_LOSS_MODE': 'linear',
+    'REDUCE_REG_LOSS_MODE': 'none',
+    'PATCH_ORIGIN': (80, 0, 20),
+    'PATCH_MODE': True
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32394
-    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 43650
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 14000
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_white_matter_convex_decimated_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954

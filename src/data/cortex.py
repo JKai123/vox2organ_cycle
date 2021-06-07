@@ -21,6 +21,7 @@ from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
+    create_mesh_from_voxels,
     unnormalize_vertices,
     sample_inner_volume_in_voxel,
     normalize_min_max,
@@ -68,6 +69,7 @@ class Cortex(DatasetHandler):
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
+                 patch_mode: bool, patch_origin=(80,0,20),
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -75,12 +77,12 @@ class Cortex(DatasetHandler):
             raise NotImplementedError("Cortex dataset does not support"\
                                       " augmentation at the moment.")
         if structure_type == "cerebral_cortex":
-             seg_label_names = 'all' # all present labels are combined
-             mesh_label_names = ("rh_pial", "lh_pial")
+            seg_label_names = 'all' # all present labels are combined
+            mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
-             # seg_label_names = ("left_white_matter",)
-             seg_label_names = ("voxelized_mesh",)
-             mesh_label_names = ("lh_white",)
+            seg_label_names = ("left_white_matter",)
+            # seg_label_names = ("voxelized_mesh",)
+            mesh_label_names = ("lh_white",)
         else:
             raise ValueError("Unknown structure type.")
 
@@ -88,6 +90,8 @@ class Cortex(DatasetHandler):
         self._raw_data_dir = raw_data_dir
         self._augment = augment
         self._mesh_target_type = mesh_target_type
+        self._patch_origin = patch_origin
+        self.patch_mode = patch_mode
         self.patch_size = patch_size
         self.n_m_classes = len(mesh_label_names)
         self.n_ref_points_per_structure = n_ref_points_per_structure
@@ -102,9 +106,14 @@ class Cortex(DatasetHandler):
         for i, d in enumerate(self.data):
             self.data[i] = normalize_min_max(d)
 
-        # Mesh labels
-        self.mesh_labels, (self.centers, self.radii) =\
-                self._load_dataMesh(meshnames=mesh_label_names)
+        # Mesh labels if not patch mode
+        assert not patch_mode or 'voxelized_mesh' not in seg_label_names,\
+            "Voxelized mesh not possible as voxel ground truth in patch mode."
+        assert not patch_mode or len(seg_label_names) == 1,\
+                "Can only use one segmentation class in patch mode."
+        if not patch_mode:
+            self.mesh_labels, (self.centers, self.radii) =\
+                    self._load_dataMesh(meshnames=mesh_label_names)
 
         # Voxel labels
         if 'voxelized_mesh' in seg_label_names:
@@ -118,6 +127,10 @@ class Cortex(DatasetHandler):
                 self.voxel_labels = [
                     combine_labels(l, seg_label_names) for l in self.voxel_labels
                 ]
+
+        # Mesh labels if patch mode
+        if patch_mode:
+            self.mesh_labels = self._load_mc_dataMesh()
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -345,7 +358,7 @@ class Cortex(DatasetHandler):
 
         return img, voxel_label, mesh_label
 
-    def _load_data3D(self, filename: str):
+    def _load_data3D_raw(self, filename: str):
         data = []
         for fn in self._files:
             img = nib.load(os.path.join(self._raw_data_dir, fn, filename))
@@ -354,6 +367,31 @@ class Cortex(DatasetHandler):
             data.append(d)
 
         return data
+
+    def _load_data3D(self, filename: str, pad_width=5):
+        """Load the image data or load a patch of each image centered at 'patch_origin' and of
+        shape 'patch_shape' with each side padded with 'pad' zeros. """
+
+        data = self._load_data3D_raw(filename)
+
+        if not self.patch_mode:
+            return data
+
+        lower_limit = np.array(self._patch_origin) + pad_width
+        upper_limit = np.array(self._patch_origin) + np.array(self.patch_size) - pad_width
+
+        data_patch = []
+
+        for img in data:
+            img_patch = img
+            img_patch = img_patch[lower_limit[0]:upper_limit[0],
+                                  lower_limit[1]:upper_limit[1],
+                                  lower_limit[2]:upper_limit[2]]
+            img_patch = np.pad(img_patch, pad_width)
+            data_patch.append(img_patch)
+
+        return data_patch
+
     def _create_voxel_labels_from_meshes(self):
         """ Return the voxelized meshes as 3D voxel labels """
         data = []
@@ -437,3 +475,16 @@ class Cortex(DatasetHandler):
             centroids, radii = None, None
 
         return data, (centroids, radii)
+
+    def _load_mc_dataMesh(self):
+        """ Create ground truth meshes from voxel labels """
+        data = []
+        for vl in self.voxel_labels:
+            mc_mesh = create_mesh_from_voxels(vl).to_pytorch3d_Meshes()
+            data.append(Mesh(
+                mc_mesh.verts_padded(),
+                mc_mesh.faces_padded(),
+                mc_mesh.verts_normals_padded()
+            ))
+
+        return data
