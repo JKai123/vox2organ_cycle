@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 10
+    hps['N_EPOCHS'] = 500
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\
@@ -103,9 +103,9 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
         model = ModelHandler[hps['ARCHITECTURE']].value(
-            ndims=hps['N_DIMS'],
-            n_v_classes=training_hps['N_V_CLASSES'],
-            n_m_classes=training_hps['N_M_CLASSES'],
+            ndims=hps['NDIMS'],
+            n_v_classes=hps['N_V_CLASSES'],
+            n_m_classes=hps['N_M_CLASSES'],
             patch_shape=hps['PATCH_SIZE'],
             **model_config
         )
