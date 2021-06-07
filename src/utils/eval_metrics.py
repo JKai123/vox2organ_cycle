@@ -46,8 +46,9 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     unnorm_verts = unnormalize_vertices(
         vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
-    pv = Mesh(unnorm_verts,
-              faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
+    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(
+        np.flip(shape.squeeze().cpu().numpy(), axis=0)
+    )
     if pv is not None:
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
         # Occupied voxels are considered to belong to one class
