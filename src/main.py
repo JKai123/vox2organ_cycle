@@ -53,17 +53,17 @@ hyper_ps = {
         'weight_decay': 0.0},
     'LR_DECAY_AFTER': 500,
     'DATASET_SEED': 1532,
-    'LOSS_AVERAGING': 'geometric',
+    'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
                        EdgeLoss()],
-    'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
@@ -71,7 +71,7 @@ hyper_ps = {
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
         # 'GRAPH_CHANNELS': [128, 64, 32, 16],
-        'GRAPH_CHANNELS': [256, 128, 64, 32],
+        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
@@ -104,7 +104,7 @@ hyper_ps_cortex = {
     'N_M_CLASSES': 1,
     # 'N_REF_POINTS_PER_STRUCTURE': 40770, # White matter
     'MODEL_CONFIG': {
-        'UNPOOL_INDICES': [0,0,0],
+        'UNPOOL_INDICES': [0,0,0,0],
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
