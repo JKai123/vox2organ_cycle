@@ -17,6 +17,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
+from utils.losses import ChamferAndNormalsLoss, ChamferLoss
 from utils.logging import (
     init_logging,
     log_losses,
@@ -72,6 +73,8 @@ class Solver():
     :param int lr_decay_after: see lr_decay_rate
     :param float lr_decay_rate: If no improvement for lr_decay_after epochs,
     then new_lr = old_lr * lr_decay_rate
+    :param str reduce_reg_loss_mode: The mode for reduction of regularization
+    losses, either 'linear' or 'none'
 
     """
 
@@ -93,6 +96,7 @@ class Solver():
                  mixed_precision,
                  lr_decay_rate,
                  lr_decay_after,
+                 reduce_reg_loss_mode,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -102,11 +106,13 @@ class Solver():
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
         self.voxel_loss_func_weights = voxel_loss_func_weights
+        self.reduce_reg_loss_mode = reduce_reg_loss_mode
         assert len(voxel_loss_func) == len(voxel_loss_func_weights),\
                 "Number of weights must be equal to number of 3D seg. losses."
 
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
+        self.mesh_loss_func_weights_start = mesh_loss_func_weights
         assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                 "Number of weights must be equal to number of mesh losses."
 
@@ -120,6 +126,23 @@ class Solver():
         self.mixed_precision = mixed_precision
         self.lr_decay_after = lr_decay_after
         self.lr_decay_rate = lr_decay_rate
+
+    def reduce_reg_losses(self, epoch, n_epochs):
+        """ Reduce the impact of regularization losses """
+        assert self.loss_averaging != 'geometric' or\
+                self.reduce_reg_loss_mode == 'none',\
+                "No regularization loss reduction for geometric loss average!"
+
+        for i, (w0, n) in enumerate(zip(self.mesh_loss_func_weights_start,
+                                        self.mesh_loss_func)):
+            if not isinstance(n, (ChamferLoss, ChamferAndNormalsLoss)):
+                if self.reduce_reg_loss_mode == 'linear':
+                    self.mesh_loss_func_weights[i] = w0 - epoch/n_epochs * w0
+                elif self.reduce_reg_loss_mode == 'none':
+                    pass
+                else:
+                    raise ValueError("Unknown mode for reduction of"
+                                     " regularization loss weights.")
 
     @measure_time
     def training_step(self, model, data, iteration):
@@ -278,6 +301,7 @@ class Solver():
         for epoch in range(start_epoch, n_epochs+1):
             model.train()
 
+            self.reduce_reg_losses(epoch, n_epochs)
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     trainLogger.info("Iteration: %d", iteration)

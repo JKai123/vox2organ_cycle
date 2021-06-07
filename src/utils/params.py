@@ -45,6 +45,10 @@ hyper_ps_default={
     # require a mesh (pointcloud + faces)
     'MESH_TARGET_TYPE': "pointcloud",
 
+    # The mode for reduction of mesh regularization losses, either 'linear' or
+    # 'none'
+    'REDUCE_REG_LOSS_MODE': 'none',
+
     # The structure type for cortex data, either 'cerebral_cortex' or
     # 'white_matter'
     'STRUCTURE_TYPE': "white_matter",
