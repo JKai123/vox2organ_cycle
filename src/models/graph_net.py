@@ -42,9 +42,9 @@ class GraphDecoder(nn.Module):
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2,
-                 aggregate_indices=((8,3,4),
-                                    (8,2,3),
-                                    (8,1,2),
+                 aggregate_indices=((6,3,4),
+                                    (7,2,3),
+                                    (7,1,2),
                                     (8,0,1))): # 8 = last decoder skip
         super().__init__()
 
