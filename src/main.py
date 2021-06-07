@@ -61,9 +61,9 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
     # Model
     'MODEL_CONFIG': {
         'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
