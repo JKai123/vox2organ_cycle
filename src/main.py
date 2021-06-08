@@ -47,7 +47,7 @@ hyper_ps = {
         'Chamfer'
     ],
     'OPTIM_PARAMS': {#
-        'lr': 2.5e-5,
+        'lr': 5e-6,
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
@@ -108,7 +108,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': True
+    'PATCH_MODE': False
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
