@@ -80,9 +80,12 @@ class Cortex(DatasetHandler):
             seg_label_names = 'all' # all present labels are combined
             mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
-            # seg_label_names = ("left_white_matter",)
-            seg_label_names = ("voxelized_mesh", "voxelized_mesh")
-            mesh_label_names = ("lh_white", "rh_white")
+            if patch_mode:
+                seg_label_names = ("left_white_matter",)
+                mesh_label_names = ("lh_white",)
+            else:
+                seg_label_names = ("voxelized_mesh", "voxelized_mesh")
+                mesh_label_names = ("lh_white", "rh_white")
         else:
             raise ValueError("Unknown structure type.")
 
