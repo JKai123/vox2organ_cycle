@@ -61,7 +61,8 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
     # Model
@@ -107,7 +108,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': False
+    'PATCH_MODE': True
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
