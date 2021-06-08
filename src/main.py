@@ -47,7 +47,7 @@ hyper_ps = {
         'Chamfer'
     ],
     'OPTIM_PARAMS': {#
-        'lr': 1e-4,
+        'lr': 2.5e-5,
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
