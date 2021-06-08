@@ -43,6 +43,8 @@ class GCNConvWrapped(GCNConv):
     """
     def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
         # Maybe cached?
+        if 'init' in kwargs:
+            del kwargs['init']
         super().__init__(input_dim, output_dim, improved=True, **kwargs)
 
         # Zero initialization to avoid large non-sense displacements at the
