@@ -46,11 +46,16 @@ hyper_ps = {
         'JaccardMesh',
         'Chamfer'
     ],
-    'OPTIM_PARAMS': {#
+    'OPTIMIZER_CLASS': torch.optim.SGD,
+    'OPTIM_PARAMS': {
         'lr': 2.5e-5,
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0},
+        # SGD
+        'momentum': 0.9,
+        # Adam
+        # 'betas': [0.9, 0.999],
+        # 'eps': 1e-8,
+        # 'weight_decay': 0.0
+    },
     'LR_DECAY_AFTER': 500,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
