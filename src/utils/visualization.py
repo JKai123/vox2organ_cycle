@@ -119,6 +119,7 @@ def show_img_slices_3D(filenames: str, show_label=True):
 
     for fn in filenames:
         img3D = nib.load(fn)
+        print(f"Loading image {fn}...")
         assert img3D.ndim == 3, "Image dimension not equal to 3."
 
         # Try to find ground truth
