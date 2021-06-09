@@ -15,7 +15,7 @@ from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.losses import ChamferLoss
 
-# Overwrite default parameters
+# Overwrite default parameters for a common training procedure
 hyper_ps = {
     # Overwriting std values from utils.params
     #######################
@@ -24,31 +24,58 @@ hyper_ps = {
     #######################
     # Learning
     'N_EPOCHS': 2000,
-    'EVAL_EVERY': 100,
+    'EVAL_EVERY': 50,
     'LOG_EVERY': 'epoch',
     'BATCH_SIZE': 15,
-    'BATCH_NORM': False, # Only for Feature2Vertex layers!
     'ACCUMULATE_N_GRADIENTS': 1,
     'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
+    'MIXED_PRECISION': True,
     'EVAL_METRICS': [
         'JaccardVoxel',
-        'JaccardMesh'
+        'JaccardMesh',
+        'Chamfer'
     ],
     'OPTIM_PARAMS': {#
         'lr': 1e-4,
         'betas': [0.9, 0.999],
         'eps': 1e-8,
         'weight_decay': 0.0},
+    'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
+    'LOSS_AVERAGING': 'linear',
     # CE
-    'VOXEL_LOSS_FUNC_WEIGHTS': [0.1],
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     # Chamfer, Laplacian, NormalConsistency, Edge
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    # Model
+    'MODEL_CONFIG': {
+        'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
+        # Decoder channels from Kong, should be multiples of 2
+        'DECODER_CHANNELS': [64, 32, 16, 8],
+        # Graph decoder channels should be multiples of 2
+        'GRAPH_CHANNELS': [128, 64, 32, 16],
+        'DEEP_SUPERVISION': True,
+        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
+        'UNPOOL_INDICES': [0,1,1],
+        'WEIGHTED_EDGES': False,
+        'VOXEL_DECODER': True
+    },
     # Data directories
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
 }
+
+# Overwrite params for overfitting (fewer epochs, no augmentation, smaller
+# dataset)
+hyper_ps_overfit = {
+    # Learning
+    'N_EPOCHS': 1000,
+    'BATCH_SIZE': 5,
+    'AUGMENT_TRAIN': False,
+}
+
 
 mode_handler = {
     ExecModes.TRAIN.value: training_routine,
@@ -144,10 +171,6 @@ def main(hps):
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
 
-    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
-        raise ValueError("Original voxel2mesh only allows for batch size 1."\
-                         " Try voxel2meshplusplus for larger batch size.")
-
     if args.exp_name == "debug":
         # Overfit when debugging
         hps['OVERFIT'] = True
@@ -156,6 +179,10 @@ def main(hps):
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
+
+    # Update again for overfitting
+    if hps['OVERFIT']:
+        hps = update_dict(hps, hyper_ps_overfit)
 
     if args.params_to_tune is not None:
         mode = ExecModes.TUNE
@@ -169,6 +196,20 @@ def main(hps):
         if not args.test and not args.train:
             print("Please use either --train or --test or both.")
             return
+
+    if hps['ARCHITECTURE'] == "voxel2mesh" and hps['MIXED_PRECISION']:
+        raise ValueError("Mixed precision is not supported for original"\
+                         " voxel2mesh.")
+    if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
+        raise ValueError("Original voxel2mesh only allows for batch size 1."\
+                         " Try voxel2meshplusplus for larger batch size.")
+    # No voxel decoder --> set voxel loss weights to 0
+    if not hps['MODEL_CONFIG']['VOXEL_DECODER']:
+        hps['VOXEL_LOSS_FUNC_WEIGHTS'] = []
+        hps['VOXEL_LOSS_FUNC'] = []
+        if 'JaccardVoxel' in hps['EVAL_METRICS']:
+            hps['EVAL_METRICS'].remove('JaccardVoxel')
+
 
     # Run
     routine = mode_handler[mode]

@@ -135,9 +135,11 @@ def ChamferScore(pred, data, n_classes, model_class):
     truth mesh. """
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
     gt_vertices = data['vertices_mc']
+    if gt_vertices.ndim == 2:
+        gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
     for c in range(1, n_classes):
-        pred_vertices = pred_vertices[-1][c].squeeze() # only consider last mesh step
+        pred_vertices = pred_vertices[-1][c] # only consider last mesh step
         chamfer_scores.append(chamfer_distance(pred_vertices,
                                                gt_vertices)[0].cpu().item())
 
@@ -187,7 +189,7 @@ class ModelEvaluator():
                 model_data = model_class.convert_data(data,
                                                            self._n_classes,
                                                            ExecModes.TEST)
-                pred = model(model_data)
+                pred = model(model_data['x'])
 
                 for metric in self._eval_metrics:
                     res = self._metricHandler[metric](pred, model_data,
@@ -225,13 +227,22 @@ class ModelEvaluator():
                 gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
 
             # Mesh prediction
-            pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                "_class" + str(c) + "_meshpred.ply"
+            show_all_steps = False
             vertices, faces = model_class.pred_to_verts_and_faces(pred)
-            vertices, faces = vertices[-1][c], faces[-1][c]
-            pred_mesh = Mesh(vertices.squeeze().cpu(),
-                             faces.squeeze().cpu())
-            pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+            if show_all_steps:
+                # Visualize meshes of all steps
+                for s, (v, f) in enumerate(zip(vertices[:,c], faces[:,c])):
+                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                            "_class" + str(c) + "_step" + str(s) + "_meshpred.ply"
+                        pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
+                        pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
+            else:
+                # Only visualize last step
+                pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                    "_class" + str(c) + "_meshpred.ply"
+                v, f = vertices[-1][c], faces[-1][c]
+                pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
+                pred_mesh.store(os.path.join(self._mesh_dir, pred_mesh_filename))
 
             # Voxel prediction
             pred_voxel_filename = filename + "_epoch" + str(epoch) +\
@@ -250,3 +261,6 @@ class ModelEvaluator():
             except RuntimeError as e:
                 logging.getLogger(ExecModes.TEST.name).warning(\
                        "In voxel prediction for file: %s: %s ", filename, e)
+            except AttributeError:
+                # No voxel prediction exists
+                pass
