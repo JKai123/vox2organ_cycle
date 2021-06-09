@@ -46,15 +46,15 @@ hyper_ps = {
         'JaccardMesh',
         'Chamfer'
     ],
-    'OPTIMIZER_CLASS': torch.optim.SGD,
+    'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
-        'lr': 2.5e-5,
+        'lr': 1e-4,
         # SGD
-        'momentum': 0.9,
+        # 'momentum': 0.9,
         # Adam
-        # 'betas': [0.9, 0.999],
-        # 'eps': 1e-8,
-        # 'weight_decay': 0.0
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0
     },
     'LR_DECAY_AFTER': 500,
     'DATASET_SEED': 1532,
@@ -68,6 +68,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 20.0, 0.25, 100], # Seems to be working
     # Model
@@ -82,7 +83,7 @@ hyper_ps = {
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
         'VOXEL_DECODER': True,
-        'GC': GCNConvWrapped
+        'GC': GraphConvNorm
     },
 }
 
