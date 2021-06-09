@@ -276,8 +276,8 @@ class Solver():
 
         # Optimizer and lr scheduling
         self.optim = self.optim_class([
-            {'params_voxel': model.voxel_net.parameters()}
-            {'params_graph': model.graph_net.parameters(), 'lr': 2.5e-5},
+            {'params': model.voxel_net.parameters()},
+            {'params': model.graph_net.parameters(), 'lr': 2.5e-5},
         ], **self.optim_params)
         self.optim.zero_grad()
         _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
