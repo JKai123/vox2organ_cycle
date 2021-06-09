@@ -1,0 +1,219 @@
+\documentclass[border=8pt, multi, tikz]{standalone}
+%\usepackage{blocks}
+\usepackage{import}
+\subimport{../../../PlotNeuralNet/layers/}{init}
+\usetikzlibrary{positioning}
+
+\def\ConvColor{rgb:yellow,5;red,2.5;white,5}
+\def\ResBlockColor{rgb:yellow,5;red,2.5}
+\def\ConvReluColor{rgb:yellow,5;red,5}
+\def\PoolColor{rgb:red,1;black,0.3}
+\def\UnpoolColor{rgb:blue,2;green,1;black,0.3}
+\def\UpsampleColor{rgb:blue,2;green,3;black,0.3}
+\def\FcColor{rgb:blue,5;red,2.5;white,5}
+\def\FcReluColor{rgb:blue,5;red,5;white,4}
+\def\SoftmaxColor{rgb:magenta,5;black,7}
+\def\GraphConvColor{rgb:grey,5;red,2.5}
+
+
+\newcommand{\copymidarrow}{\tikz \draw[-Stealth,line width =0.8mm,draw={rgb:blue,4;red,1;green,1;black,3}] (-0.3,0) -- ++(0.3,0);}
+
+\begin{document}
+\begin{tikzpicture}
+\tikzstyle{connection}=[ultra thick,every node/.style={sloped,allow upside down},draw=\edgecolor,opacity=0.7]
+\tikzstyle{copyconnection}=[ultra thick,every node/.style={sloped,allow upside down},draw={rgb:blue,4;red,1;green,1;black,3},opacity=0.7]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Draw Encoder
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% conv1
+\pic[shift={(0,0,0)}] at (0,0,0) {Box={name=c1,%
+	xlabel={"16","dummy"},fill=\ConvColor,%
+        height=40,width=1,depth=40}};
+% resblock1
+\pic[shift={(1,0,0)}] at (c1-east) {RightBandedBox={name=rb1,%
+	xlabel={{"16","16"}},zlabel=I,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=40,width={2,2},depth=40}};
+%pool1
+\pic[shift={(0,0,0)}] at (rb1-east) {Box={name=p1,%
+        xlabel={"32","dummy"},fill=\PoolColor,opacity=0.5,height=32,width=2,depth=32}};
+%%%%%%%%%%
+% resblock2
+\pic[shift={(1,0,0)}] at (p1-east) {RightBandedBox={name=rb2,%
+	xlabel={{"32","32"}},zlabel=I/2,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=32,width={3,3},depth=32}};
+%pool2
+\pic[shift={(0,0,0)}] at (rb2-east) {Box={name=p2,%
+        xlabel={"64","dummy"},fill=\PoolColor,opacity=0.5,height=24,width=4,depth=24}};
+%%%%%%%%%%
+% resblock3
+\pic[shift={(1,0,0)}] at (p2-east) {RightBandedBox={name=rb3,%
+	xlabel={{"64","64"}},zlabel=I/4,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=24,width={5,5},depth=24}};
+%pool3
+\pic[shift={(0,0,0)}] at (rb3-east) {Box={name=p3,%
+        xlabel={"128","dummy"},fill=\PoolColor,opacity=0.5,height=16,width=8,depth=16}};
+%%%%%%%%%%
+% resblock4
+\pic[shift={(1,0,0)}] at (p3-east) {RightBandedBox={name=rb4,%
+	xlabel={{"128","128"}},zlabel=I/8,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=16,width={9,9},depth=16}};
+%pool4
+\pic[shift={(0,0,0)}] at (rb4-east) {Box={name=p4,%
+	xlabel={"256","dummy"},fill=\PoolColor,opacity=0.5,height=8,width=16,depth=8}};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bottleneck
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% conv5_1,conv5_2,conv5_3
+\pic[shift={(0.75,0,0)}] at (p4-east) {RightBandedBox={name=rb5,caption=Bottleneck,%
+	xlabel={{"256","256"}},zlabel=I/16,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	height=8,width={17,17},depth=8}};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Draw Decoder 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% unpool4, 
+\pic[shift={(1,0,0)}] at (rb5-east) {Box={name=up4,%
+	xlabel={{"64","dummy"}},fill=\UnpoolColor,opacity=0.5,height=16,width=4,depth=16}};
+% resupblock4
+\pic[shift={(0,0,0)}] at (up4-east) {RightBandedBox={name=urb4,%
+	xlabel={{"64","64"}},zlabel=I/8,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=16,width={5,5},depth=16}};
+%%% unpool3, 
+\pic[shift={(1,0,0)}] at (urb4-east) {Box={name=up3,%
+	xlabel={{"32","dummy"}},fill=\UnpoolColor,opacity=0.5,height=24,width=2,depth=24}};
+% resupblock3
+\pic[shift={(0,0,0)}] at (up3-east) {RightBandedBox={name=urb3,%
+	xlabel={{"32","32"}},zlabel=I/4,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=24,width={3,3},depth=24}};
+%%% unpool2, 
+\pic[shift={(1,0,0)}] at (urb3-east) {Box={name=up2,%
+	xlabel={{"16","dummy"}},fill=\UnpoolColor,opacity=0.5,height=32,width=1,depth=32}};
+% resupblock2
+\pic[shift={(0,0,0)}] at (up2-east) {RightBandedBox={name=urb2,%
+	xlabel={{"16","16"}},zlabel=I/2,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=32,width={2,2},depth=32}};
+%%% unpool1 
+\pic[shift={(1,0,0)}] at (urb2-east) {Box={name=up1,%
+	xlabel={{"8","dummy"}},fill=\UnpoolColor,opacity=0.5,height=40,width=1,depth=40}};
+% resupblock1
+\pic[shift={(0,0,0)}] at (up1-east) {RightBandedBox={name=urb1,%
+	xlabel={{"8","8"}},zlabel=I,fill=\ResBlockColor,bandfill=\ConvReluColor,%
+	opacity=0.5,height=40,width={2,2},depth=40}};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Classifier 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% final conv
+\pic[shift={(1,0,0)}] at (urb1-east) {Box={name=cf,%
+	xlabel={"seg.\ classes","dummy"},zlabel=I,fill=\ConvColor,%
+        opacity=0.5,height=40,width=1,depth=40}};
+% upsamplefordeepsupervision2
+\pic[shift={(0,-5,0)}] at (cf-south) {Box={name=uds2,%
+	fill=\UpsampleColor,opacity=0.5,height=40,width=1,depth=40}};
+% deepsupervision2
+\pic[shift={(0,0,0)}] at (uds2-east) {Box={name=ds2,%
+	xlabel={{"seg.\ classes", "dummy"}},fill=\ConvColor,opacity=0.5,height=40,width=1,depth=40}};
+% upsamplefordeepsupervision3
+\pic[shift={(0,-5,0)}] at (uds2-south) {Box={name=uds3,%
+	fill=\UpsampleColor,opacity=0.5,height=40,width=1,depth=40}};
+% deepsupervision3
+\pic[shift={(0,0,0)}] at (uds3-east) {Box={name=ds3,%
+	xlabel={{"seg.\ classes", "dummy"}},fill=\ConvColor,opacity=0.5,height=40,width=1,depth=40}};
+%\pic[shift={(0.75,0,0)}] at (ucr1a-east) {Box={name=out,caption=Softmax,%
+        %zlabel=I,fill=\SoftmaxColor,height=40,width=1,depth=40}};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Draw connections
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\draw [connection]  (c1-east)    -- node {\midarrow} (rb1-west);
+\draw [connection]  (p1-east)    -- node {\midarrow} (rb2-west);
+\draw [connection]  (p2-east)    -- node {\midarrow} (rb3-west);
+\draw [connection]  (p3-east)    -- node {\midarrow} (rb4-west);
+\draw [connection]  (p4-east)    -- node {\midarrow} (rb5-west);
+\draw [connection]  (rb5-east)    -- node {\midarrow} (up4-west);
+\draw [connection]  (urb4-east)    -- node {\midarrow} (up3-west);
+\draw [connection]  (urb3-east)    -- node {\midarrow} (up2-west);
+\draw [connection]  (urb2-east)    -- node {\midarrow} (up1-west);
+\draw [connection]  (urb1-east)    -- node {\midarrow} (cf-west);
+
+\path (rb1-southwest) -- (rb1-north) coordinate[pos=1.25] (rb1-topeast) ;
+\path (rb1-southwest) -- (rb1-northwest) coordinate[pos=1.25] (rb1-topwest) ;
+\path (rb1-northwest) -- (rb1-south) coordinate[pos=1.25] (rb1-bottomeast) ;
+\coordinate (rb1-northmiddleeast) at (intersection of rb1-topeast--rb1-bottomeast and rb1-northwest--rb1-northeast);
+\path (rb2-southwest) -- (rb2-north) coordinate[pos=1.25] (rb2-topeast) ;
+\path (rb2-southwest) -- (rb2-northwest) coordinate[pos=1.25] (rb2-topwest) ;
+\path (rb2-northwest) -- (rb2-south) coordinate[pos=1.25] (rb2-bottomeast) ;
+\coordinate (rb2-northmiddleeast) at (intersection of rb2-topeast--rb2-bottomeast and rb2-northwest--rb2-northeast);
+\path (rb3-southwest) -- (rb3-north) coordinate[pos=1.25] (rb3-topeast) ;
+\path (rb3-southwest) -- (rb3-northwest) coordinate[pos=1.25] (rb3-topwest) ;
+\path (rb3-northwest) -- (rb3-south) coordinate[pos=1.25] (rb3-bottomeast) ;
+\coordinate (rb3-northmiddleeast) at (intersection of rb3-topeast--rb3-bottomeast and rb3-northwest--rb3-northeast);
+\path (rb4-southwest) -- (rb4-north) coordinate[pos=1.25] (rb4-topeast) ;
+\path (rb4-southwest) -- (rb4-northwest) coordinate[pos=1.25] (rb4-topwest) ;
+\path (rb4-northwest) -- (rb4-south) coordinate[pos=1.25] (rb4-bottomeast) ;
+\coordinate (rb4-northmiddleeast) at (intersection of rb4-topeast--rb4-bottomeast and rb4-northwest--rb4-northeast);
+\path (rb5-southwest) -- (rb5-north) coordinate[pos=1.25] (rb5-topeast) ;
+\path (rb5-southwest) -- (rb5-northwest) coordinate[pos=1.25] (rb5-topwest) ;
+\path (rb5-northwest) -- (rb5-south) coordinate[pos=1.25] (rb5-bottomeast) ;
+\coordinate (rb5-northmiddleeast) at (intersection of rb5-topeast--rb5-bottomeast and rb5-northwest--rb5-northeast);
+\path (urb1-southwest) -- (urb1-north) coordinate[pos=1.25] (urb1-topeast) ;
+\path (urb1-southwest) -- (urb1-northwest) coordinate[pos=1.25] (urb1-topwest) ;
+\path (urb1-northwest) -- (urb1-south) coordinate[pos=1.25] (urb1-bottomeast) ;
+\coordinate (urb1-northmiddleeast) at (intersection of urb1-topeast--urb1-bottomeast and urb1-northwest--urb1-northeast);
+\path (urb2-southwest) -- (urb2-north) coordinate[pos=1.25] (urb2-topeast) ;
+\path (urb2-southwest) -- (urb2-northwest) coordinate[pos=1.25] (urb2-topwest) ;
+\path (urb2-northwest) -- (urb2-south) coordinate[pos=1.25] (urb2-bottomeast) ;
+\coordinate (urb2-northmiddleeast) at (intersection of urb2-topeast--urb2-bottomeast and urb2-northwest--urb2-northeast);
+\path (urb3-southwest) -- (urb3-north) coordinate[pos=1.25] (urb3-topeast) ;
+\path (urb3-southwest) -- (urb3-northwest) coordinate[pos=1.25] (urb3-topwest) ;
+\path (urb3-northwest) -- (urb3-south) coordinate[pos=1.25] (urb3-bottomeast) ;
+\coordinate (urb3-northmiddleeast) at (intersection of urb3-topeast--urb3-bottomeast and urb3-northwest--urb3-northeast);
+\path (urb4-southwest) -- (urb4-north) coordinate[pos=1.25] (urb4-topeast) ;
+\path (urb4-southwest) -- (urb4-northwest) coordinate[pos=1.25] (urb4-topwest) ;
+\path (urb4-northwest) -- (urb4-south) coordinate[pos=1.25] (urb4-bottomeast) ;
+\coordinate (urb4-northmiddleeast) at (intersection of urb4-topeast--urb4-bottomeast and urb4-northwest--urb4-northeast);
+%%
+\draw [copyconnection]  (rb1-northwest)  
+-- node {\copymidarrow}(rb1-topwest)
+-- node {\copymidarrow}(rb1-topeast)
+-- node {\copymidarrow} (rb1-northmiddleeast);
+%%
+\draw [copyconnection]  (rb2-northwest)  
+-- node {\copymidarrow}(rb2-topwest)
+-- node {\copymidarrow}(rb2-topeast)
+-- node {\copymidarrow} (rb2-northmiddleeast);
+%%
+\draw [copyconnection]  (rb3-northwest)  
+-- node {\copymidarrow}(rb3-topwest)
+-- node {\copymidarrow}(rb3-topeast)
+-- node {\copymidarrow} (rb3-northmiddleeast);
+%%
+\draw [copyconnection]  (rb4-northwest)  
+-- node {\copymidarrow}(rb4-topwest)
+-- node {\copymidarrow}(rb4-topeast)
+-- node {\copymidarrow} (rb4-northmiddleeast);
+%%
+\draw [copyconnection]  (rb5-northwest)  
+-- node {\copymidarrow}(rb5-topwest)
+-- node {\copymidarrow}(rb5-topeast)
+-- node {\copymidarrow} (rb5-northmiddleeast);
+%%
+\draw [copyconnection]  (urb1-northwest)  
+-- node {\copymidarrow}(urb1-topwest)
+-- node {\copymidarrow}(urb1-topeast)
+-- node {\copymidarrow} (urb1-northmiddleeast);
+%%
+\draw [copyconnection]  (urb2-northwest)  
+-- node {\copymidarrow}(urb2-topwest)
+-- node {\copymidarrow}(urb2-topeast)
+-- node {\copymidarrow} (urb2-northmiddleeast);
+%%
+\draw [copyconnection]  (urb3-northwest)  
+-- node {\copymidarrow}(urb3-topwest)
+-- node {\copymidarrow}(urb3-topeast)
+-- node {\copymidarrow} (urb3-northmiddleeast);
+%%
+\draw [copyconnection]  (urb4-northwest)  
+-- node {\copymidarrow}(urb4-topwest)
+-- node {\copymidarrow}(urb4-topeast)
+-- node {\copymidarrow} (urb4-northmiddleeast);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{tikzpicture}
+\end{document}
