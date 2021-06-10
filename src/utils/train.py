@@ -275,10 +275,19 @@ class Solver():
         trainLogger.info("Training on device %s", self.device)
 
         # Optimizer and lr scheduling
-        self.optim = self.optim_class([
-            {'params': model.voxel_net.parameters()},
-            {'params': model.graph_net.parameters(), 'lr': 2.5e-5},
-        ], **self.optim_params)
+        if self.optim_params.get('graph_lr', None) is not None:
+            # Separate learning rates for voxel and graph network
+            graph_lr = self.optim_params['graph_lr']
+            del self.optim_params['graph_lr']
+            self.optim = self.optim_class([
+                {'params': model.voxel_net.parameters()},
+                {'params': model.graph_net.parameters(), 'lr': graph_lr},
+            ], **self.optim_params)
+        else:
+            # All parameters updated with the same lr
+            self.optim = self.optim_class(
+                model.parameters(), **self.optim_params
+            )
         self.optim.zero_grad()
         _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
         lr_scheduler = ReduceLROnPlateau(self.optim, lr_decay_mode,

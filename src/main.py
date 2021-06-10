@@ -48,7 +48,8 @@ hyper_ps = {
     ],
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
-        'lr': 1e-3,
+        'lr': 1e-3, # voxel lr if graph lr not None
+        'graph_lr': 2.5e-5,
         # SGD
         'momentum': 0.9,
         # Adam
@@ -67,7 +68,7 @@ hyper_ps = {
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
-    'MESH_LOCSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.1] # Tuned for geometric averaging
+    # 'MESH_LOCSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.1], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned

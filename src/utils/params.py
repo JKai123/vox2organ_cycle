@@ -68,8 +68,9 @@ hyper_ps_default={
     # The optimizer used for training
     'OPTIMIZER_CLASS': torch.optim.Adam,
 
-    # Parameters for the optimizer
-    'OPTIM_PARAMS': {'lr': 1e-4},
+    # Parameters for the optimizer. A separate learning rate for the graph
+    # network can be specified
+    'OPTIM_PARAMS': {'lr': 1e-4, 'graph_lr': None},
 
     # Data augmentation
     'AUGMENT_TRAIN': False,
