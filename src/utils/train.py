@@ -284,6 +284,8 @@ class Solver():
                 {'params': model.graph_net.parameters(), 'lr': graph_lr},
             ], **self.optim_params)
         else:
+            if 'graph_lr' in self.optim_params:
+                del self.optim_params['graph_lr']
             # All parameters updated with the same lr
             self.optim = self.optim_class(
                 model.parameters(), **self.optim_params
