@@ -16,7 +16,7 @@
 \def\UpsampleColor{rgb:blue,2}
 \def\FcColor{rgb:blue,5;red,2.5;white,5}
 \def\FcReluColor{rgb:blue,5;red,5;white,4}
-\def\SoftmaxColor{rgb:magenta,5;black,7}
+\def\CatColor{rgb:magenta,5;black,7}
 \def\GraphConvColor{rgb:green,5; white,2.5}
 \def\GraphReluColor{rgb:green,5;red,2.5;black,5}
 
@@ -36,7 +36,7 @@
 	xlabel={"16","dummy"},fill=\ConvColor,%
         height=40,width=1,depth=40}};
 % resblock1
-\pic[shift={(1,0,0)}] at (c1-east) {RightBandedBox={name=rb1,%
+\pic[shift={(2,0,0)}] at (c1-east) {RightBandedBox={name=rb1,%
 	xlabel={{"16","16"}},zlabel=I,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=40,width={2,2},depth=40}};
 %pool1
@@ -44,7 +44,7 @@
         xlabel={"32","dummy"},fill=\PoolColor,opacity=0.5,height=32,width=2,depth=32}};
 %%%%%%%%%%
 % resblock2
-\pic[shift={(1,0,0)}] at (p1-east) {RightBandedBox={name=rb2,%
+\pic[shift={(2,0,0)}] at (p1-east) {RightBandedBox={name=rb2,%
 	xlabel={{"32","32"}},zlabel=I/2,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=32,width={3,3},depth=32}};
 %pool2
@@ -52,7 +52,7 @@
         xlabel={"64","dummy"},fill=\PoolColor,opacity=0.5,height=24,width=4,depth=24}};
 %%%%%%%%%%
 % resblock3
-\pic[shift={(1,0,0)}] at (p2-east) {RightBandedBox={name=rb3,%
+\pic[shift={(2,0,0)}] at (p2-east) {RightBandedBox={name=rb3,%
 	xlabel={{"64","64"}},zlabel=I/4,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=24,width={5,5},depth=24}};
 %pool3
@@ -60,7 +60,7 @@
         xlabel={"128","dummy"},fill=\PoolColor,opacity=0.5,height=16,width=8,depth=16}};
 %%%%%%%%%%
 % resblock4
-\pic[shift={(1,0,0)}] at (p3-east) {RightBandedBox={name=rb4,%
+\pic[shift={(2,0,0)}] at (p3-east) {RightBandedBox={name=rb4,%
 	xlabel={{"128","128"}},zlabel=I/8,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=16,width={9,9},depth=16}};
 %pool4
@@ -69,35 +69,35 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Bottleneck
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% conv5_1,conv5_2,conv5_3
-\pic[shift={(0.75,0,0)}] at (p4-east) {RightBandedBox={name=rb5,caption=Bottleneck,%
+\pic[shift={(1,0,0)}] at (p4-east) {RightBandedBox={name=rb5,caption=Bottleneck,%
 	xlabel={{"256","256"}},zlabel=I/16,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	height=8,width={17,17},depth=8}};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Draw Decoder 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% unpool4, 
-\pic[shift={(1,0,0)}] at (rb5-east) {Box={name=up4,%
+\pic[shift={(2,0,0)}] at (rb5-east) {Box={name=up4,%
 	xlabel={{"64","dummy"}},fill=\UnpoolColor,opacity=0.5,height=16,width=4,depth=16}};
 % resupblock4
 \pic[shift={(0,0,0)}] at (up4-east) {RightBandedBox={name=urb4,%
 	xlabel={{"64","64"}},zlabel=I/8,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=16,width={5,5},depth=16}};
 %%% unpool3, 
-\pic[shift={(1,0,0)}] at (urb4-east) {Box={name=up3,%
+\pic[shift={(2,0,0)}] at (urb4-east) {Box={name=up3,%
 	xlabel={{"32","dummy"}},fill=\UnpoolColor,opacity=0.5,height=24,width=2,depth=24}};
 % resupblock3
 \pic[shift={(0,0,0)}] at (up3-east) {RightBandedBox={name=urb3,%
 	xlabel={{"32","32"}},zlabel=I/4,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=24,width={3,3},depth=24}};
 %%% unpool2, 
-\pic[shift={(1,0,0)}] at (urb3-east) {Box={name=up2,%
+\pic[shift={(2,0,0)}] at (urb3-east) {Box={name=up2,%
 	xlabel={{"16","dummy"}},fill=\UnpoolColor,opacity=0.5,height=32,width=1,depth=32}};
 % resupblock2
 \pic[shift={(0,0,0)}] at (up2-east) {RightBandedBox={name=urb2,%
 	xlabel={{"16","16"}},zlabel=I/2,fill=\ResBlockColor,bandfill=\ConvReluColor,%
 	opacity=0.5,height=32,width={2,2},depth=32}};
 %%% unpool1 
-\pic[shift={(1,0,0)}] at (urb2-east) {Box={name=up1,%
+\pic[shift={(2,0,0)}] at (urb2-east) {Box={name=up1,%
 	xlabel={{"8","dummy"}},fill=\UnpoolColor,opacity=0.5,height=40,width=1,depth=40}};
 % resupblock1
 \pic[shift={(0,0,0)}] at (up1-east) {RightBandedBox={name=urb1,%
@@ -129,7 +129,7 @@
 	xlabel={{"256", "256","256"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={8,8,8},depth=25}};
 %% step 1
-\pic[shift={(-4,0,0)}] at (grb0-west) {LeftBandedCylinder={name=grb1,caption=x3,%
+\pic[shift={(-6,0,0)}] at (grb0-west) {LeftBandedCylinder={name=grb1,caption=x3,%
 	xlabel={{"128", "128","128"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
@@ -141,7 +141,7 @@
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 2
-\pic[shift={(-4,0,0)}] at (gc1-west) {LeftBandedCylinder={name=grb2,caption=x3,%
+\pic[shift={(-5,0,0)}] at (gc1-west) {LeftBandedCylinder={name=grb2,caption=x3,%
 	xlabel={{"64", "64","64"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={3,3,3},depth=25}};
 %%
@@ -153,7 +153,7 @@
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 3
-\pic[shift={(-3,0,0)}] at (gc2-west) {LeftBandedCylinder={name=grb3,caption=x3,%
+\pic[shift={(-4,0,0)}] at (gc2-west) {LeftBandedCylinder={name=grb3,caption=x3,%
 	xlabel={{"32", "32","32"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={2,2,2},depth=25}};
 %%
@@ -186,6 +186,67 @@
 \draw [connection]  (urb3-east)    -- node {\midarrow} (up2-west);
 \draw [connection]  (urb2-east)    -- node {\midarrow} (up1-west);
 \draw [connection]  (urb1-east)    -- node {\midarrow} (cf-west);
+
+
+\path (grb0-west) -- (grb1-east) coordinate[pos=0.5] (co-gcat01);
+\pic at (co-gcat01) {Ball={name=gcat01,%
+        fill=\CatColor,opacity=0.6,%
+        radius=2.5,logo=cat}};
+\coordinate (cat01-top) at ([yshift=80pt] gcat01-north);
+\draw [connection] (rb5-southeast)
+	-- node {\midarrow} (cat01-top -| rb5-southeast)
+	-- (cat01-top)
+	-- node {\midarrow} (gcat01-north);
+\draw [connection]
+	(rb4-southeast)
+	-- node {\midarrow} (cat01-top -| rb4-southeast)
+	-- (cat01-top);
+\draw [connection] (grb0-west) -- node{\midarrow} (gcat01-east);
+\draw [connection] (gcat01-west) -- node{\midarrow} (grb1-east);
+%%
+\path (gc1-west) -- (grb2-east) coordinate[pos=0.5] (co-gcat02);
+\pic at (co-gcat02) {Ball={name=gcat02,%
+        fill=\CatColor,opacity=0.6,%
+        radius=2.5,logo=cat}};
+\coordinate (cat02-top) at ([yshift=80pt] gcat02-north);
+\draw [connection](cat02-top -| rb4-southeast)
+	-- (cat02-top)
+	-- node {\midarrow} (gcat02-north);
+\draw [connection] (rb3-southeast)
+	-- node {\midarrow} (cat02-top -| rb3-southeast)
+	-- (cat02-top);
+\draw [connection] (gc1-west) -- node{\midarrow} (gcat02-east);
+\draw [connection] (gcat02-west) -- node{\midarrow} (grb2-east);
+%%
+\path (gc2-west) -- (grb3-east) coordinate[pos=0.5] (co-gcat03);
+\pic at (co-gcat03) {Ball={name=gcat03,%
+        fill=\CatColor,opacity=0.6,%
+        radius=2.5,logo=cat}};
+\coordinate (cat03-top) at ([yshift=80pt] gcat03-north);
+\draw [connection](cat03-top -| rb3-southeast)
+	-- (cat03-top)
+	-- node {\midarrow} (gcat03-north);
+\draw [connection] (rb2-southeast)
+	-- node {\midarrow} (cat03-top -| rb2-southeast)
+	-- (cat03-top);
+\draw [connection] (gc2-west) -- node{\midarrow} (gcat03-east);
+\draw [connection] (gcat03-west) -- node{\midarrow} (grb3-east);
+%%
+\path (gc3-west) -- (grb4-east) coordinate[pos=0.5] (co-gcat04);
+\pic at (co-gcat04) {Ball={name=gcat04,%
+        fill=\CatColor,opacity=0.6,%
+        radius=2.5,logo=cat}};
+\coordinate (cat04-top) at ([yshift=80pt] gcat04-north);
+\draw [connection](cat04-top -| rb2-southeast)
+	-- (cat04-top)
+	-- node {\midarrow} (gcat04-north);
+\draw [connection]
+	(rb1-southeast)
+	-- node {\midarrow} (cat04-top -| rb1-southeast)
+	-- (cat04-top);
+\draw [connection] (gc3-west) -- node{\midarrow} (gcat04-east);
+\draw [connection] (gcat04-west) -- node{\midarrow} (grb4-east);
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw skip connections
