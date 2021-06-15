@@ -106,7 +106,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    'RAW_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 1,
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0,0],
@@ -115,7 +115,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': True
+    'PATCH_MODE': False
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
@@ -130,10 +130,10 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     else:
         hyper_ps_cortex['N_M_CLASSES'] = 2
         hyper_ps_cortex['PATCH_SIZE'] = (192, 224, 192)
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40770 # Convex template
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/white_matter/cortex_white_matter_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+            f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
