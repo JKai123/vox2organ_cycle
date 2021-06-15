@@ -115,16 +115,16 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': False
+    'PATCH_MODE': True
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     if hyper_ps_cortex['PATCH_MODE']:
         hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['PATCH_ORIGIN'] = (80, 0, 20)
-        hyper_ps_cortex['PATCH_SIZE'] = (80, 128, 160)
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 60000
+        hyper_ps_cortex['PATCH_SIZE'] = (80, 192, 176)
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 89738
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 90000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else:
