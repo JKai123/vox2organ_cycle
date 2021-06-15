@@ -197,7 +197,7 @@ class Cortex(DatasetHandler):
 
         return path
 
-    def store_convex_cortex_template(self, path, n_max_points=41000):
+    def store_convex_cortex_template(self, path, n_min_points=40000, n_max_points=41000):
         """ This template is created as follows:
             1. Take the convex hull of one of the two structures and subdivide
             faces until the required number of vertices is large enough
@@ -205,31 +205,39 @@ class Cortex(DatasetHandler):
             hemispheres
             3. Store both meshes together in one template
         """
-        template = Scene()
-        if len(self.mesh_label_names) == 2:
-            label_1, label_2 = self.mesh_label_names
-        else:
-            label_1 = self.mesh_labels[0]
-            label_2 = None
-        # Select mesh to generate the template from
-        vertices = self.mesh_labels[0].vertices[0]
-        faces = self.mesh_labels[0].faces[0]
+        n_points = 0
+        i = 0
+        while n_points > n_max_points or n_points < n_min_points:
+            if i >= len(self):
+                print("Template with the desired number of vertices could not"
+                      " be created. Aborting.")
+                return None
+            template = Scene()
+            if len(self.mesh_label_names) == 2:
+                label_1, label_2 = self.mesh_label_names
+            else:
+                label_1 = self.mesh_labels[0]
+                label_2 = None
+            # Select mesh to generate the template from
+            vertices = self.mesh_labels[i].vertices[0]
+            faces = self.mesh_labels[i].faces[0]
 
-        # Remove padded vertices
-        valid_ids = np.unique(faces)
-        valid_ids = valid_ids[valid_ids != -1]
-        vertices_ = vertices[valid_ids]
+            # Remove padded vertices
+            valid_ids = np.unique(faces)
+            valid_ids = valid_ids[valid_ids != -1]
+            vertices_ = vertices[valid_ids]
 
-        # Get convex hull of the mesh label
-        structure_1 = Trimesh(vertices_, faces, process=False).convex_hull
+            # Get convex hull of the mesh label
+            structure_1 = Trimesh(vertices_, faces, process=False).convex_hull
 
-        # Increase granularity until desired number of points is reached
-        while structure_1.subdivide().vertices.shape[0] < n_max_points:
-            structure_1 = structure_1.subdivide()
+            # Increase granularity until desired number of points is reached
+            while structure_1.subdivide().vertices.shape[0] < n_max_points:
+                structure_1 = structure_1.subdivide()
 
-        assert structure_1.is_watertight, "Mesh template should be watertight."
-        print(f"Template structure has {structure_1.vertices.shape[0]}"
-              " vertices.")
+            assert structure_1.is_watertight, "Mesh template should be watertight."
+            n_points = structure_1.vertices.shape[0]
+            print(f"Template structure {i} has {n_points} vertices.")
+            i += 1
         template.add_geometry(structure_1, geom_name=label_1)
 
         # Second structure = mirror of first structure
