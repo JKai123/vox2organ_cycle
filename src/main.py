@@ -57,7 +57,7 @@ hyper_ps = {
         # 'eps': 1e-8,
         # 'weight_decay': 0.0
     },
-    'LR_DECAY_AFTER': 500,
+    'LR_DECAY_AFTER': 700,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
