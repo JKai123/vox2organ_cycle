@@ -10,6 +10,7 @@ import logging
 from enum import IntEnum
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
@@ -64,12 +65,19 @@ class Cortex(DatasetHandler):
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param structure_type: Either 'white_matter' or 'cerebral_cortex'
+    :param patch_mode: Whether to extract patches from the data.
+    :param patch_origin: The anker of an extracted patch, only has an effect if
+    patch_mode is True.
+    :param select_patch_size: The size of the cut out patches. Can be different
+    to patch_size, e.g., if extracted patches should be resized after
+    extraction.
+    :param mc_step_size: The marching cubes step size.
     """
 
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
-                 patch_mode: bool, patch_origin=(0,0,0),
+                 patch_mode: bool, patch_origin=(0,0,0), select_patch_size=None,
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -94,8 +102,11 @@ class Cortex(DatasetHandler):
         self._augment = augment
         self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
+        self._mc_step_size = kwargs.get('mc_step_size', 1)
         self.patch_mode = patch_mode
         self.patch_size = patch_size
+        self.select_patch_size = select_patch_size if (
+            select_patch_size is not None) else patch_size
         self.n_m_classes = len(mesh_label_names)
         assert self.n_m_classes == kwargs.get("n_m_classes",
                                               len(mesh_label_names)),\
@@ -107,7 +118,7 @@ class Cortex(DatasetHandler):
         self.n_v_classes = 2
 
         # Image data
-        self.data = self._load_data3D(filename="mri.nii.gz")
+        self.data = self._load_data3D(filename="mri.nii.gz", is_label=False)
         # NORMALIZE images
         for i, d in enumerate(self.data):
             self.data[i] = normalize_min_max(d)
@@ -125,7 +136,8 @@ class Cortex(DatasetHandler):
         if 'voxelized_mesh' in seg_label_names:
             self.voxel_labels = self._create_voxel_labels_from_meshes()
         else:
-            self.voxel_labels = self._load_data3D(filename="aseg.nii.gz")
+            self.voxel_labels = self._load_data3D(filename="aseg.nii.gz",
+                                                  is_label=True)
             if seg_label_names == "all":
                 for vl in self.voxel_labels:
                     vl[vl > 1] = 1
@@ -382,7 +394,7 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_data3D(self, filename: str, pad_width=5):
+    def _load_data3D(self, filename: str, is_label: bool, pad_width=5):
         """Load the image data or load a patch of each image centered at 'patch_origin' and of
         shape 'patch_shape' with each side padded with 'pad' zeros. """
 
@@ -391,18 +403,35 @@ class Cortex(DatasetHandler):
         if not self.patch_mode:
             return data
 
+        # Limits for patch selection
         lower_limit = np.array(self._patch_origin) + pad_width
-        upper_limit = np.array(self._patch_origin) + np.array(self.patch_size) - pad_width
+        upper_limit = np.array(self._patch_origin) + np.array(self.select_patch_size) - pad_width
 
         data_patch = []
 
         for img in data:
             assert all(upper_limit <= img.shape), "Upper patch limit too high"
+            # Select patch from whole image
             img_patch = img
             img_patch = img_patch[lower_limit[0]:upper_limit[0],
                                   lower_limit[1]:upper_limit[1],
                                   lower_limit[2]:upper_limit[2]]
             img_patch = np.pad(img_patch, pad_width)
+            # Zoom to certain size
+            if self.patch_size != self.select_patch_size:
+                if is_label:
+                    img_patch = F.interpolate(
+                        torch.from_numpy(img_patch)[None][None],
+                        size=self.patch_size,
+                        mode='nearest',
+                    ).squeeze().numpy()
+                else:
+                    img_patch = F.interpolate(
+                        torch.from_numpy(img_patch)[None][None],
+                        size=self.patch_size,
+                        mode='trilinear',
+                        align_corners=False
+                    ).squeeze().numpy()
             data_patch.append(img_patch)
 
         return data_patch
@@ -493,10 +522,14 @@ class Cortex(DatasetHandler):
         return data, (centroids, radii)
 
     def _load_mc_dataMesh(self):
-        """ Create ground truth meshes from voxel labels """
+        """ Create ground truth meshes from voxel labels."""
         data = []
         for vl in self.voxel_labels:
-            mc_mesh = create_mesh_from_voxels(vl).to_pytorch3d_Meshes()
+            assert vl.shape == self.patch_size,\
+                    "Voxel label should be of correct size."
+            mc_mesh = create_mesh_from_voxels(
+                vl, mc_step_size=self._mc_step_size,
+            ).to_pytorch3d_Meshes()
             data.append(Mesh(
                 mc_mesh.verts_padded(),
                 mc_mesh.faces_padded(),

@@ -259,5 +259,5 @@ class DatasetHandler(torch.utils.data.Dataset):
                 nib.save(img, "../misc/data_voxel_label" + self._files[i] + ".nii.gz")
                 img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
                 nib.save(img, "../misc/data_mesh_label" + self._files[i] + ".nii.gz")
-                print("[Warning] Small IoU of voxel label and voxelized mesh label,"
-                      " maybe check files as ../misc/")
+                print(f"[Warning] Small IoU of voxel label ({j_vox}) and"
+                      " voxelized mesh label, check files as ../misc/")

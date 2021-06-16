@@ -78,13 +78,15 @@ def run_preprocess_check_cortex():
            'DATASET_SEED': 1532,
            'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
            # 'PATCH_SIZE': (192, 224, 192),
-           'PATCH_SIZE': (96, 192, 176),
+           'PATCH_SIZE': (48, 144, 128),
            'N_REF_POINTS_PER_STRUCTURE': 1400,
            'MESH_TARGET_TYPE': 'mesh',
            'STRUCTURE_TYPE': 'white_matter',
            'PATCH_ORIGIN': (0, 0, 0),
+           'SELECT_PATCH_SIZE': (96, 192, 176),
            'PATCH_MODE': True,
-           'OVERFIT': True
+           'OVERFIT': True,
+           'MC_STEP_SIZE': 1
           }
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
