@@ -81,8 +81,8 @@ class Cortex(DatasetHandler):
             mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
             if patch_mode:
-                seg_label_names = ("left_white_matter",)
-                mesh_label_names = ("lh_white",)
+                seg_label_names = ("right_white_matter",)
+                mesh_label_names = ("rh_white",)
             else:
                 seg_label_names = ("voxelized_mesh", "voxelized_mesh")
                 mesh_label_names = ("lh_white", "rh_white")
@@ -416,8 +416,9 @@ class Cortex(DatasetHandler):
             unnorm_verts = unnormalize_vertices(
                 vertices.view(-1, 3), torch.tensor(self.patch_size)[None]
             ).view(self.n_m_classes, -1, 3)
-            pv = Mesh(unnorm_verts,
-                      faces).get_occupied_voxels(self.patch_size)
+            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(np.flip(
+                          self.patch_size, axis=0
+            ))
             pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
             # Occupied voxels are considered to belong to one class
             voxel_label[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1

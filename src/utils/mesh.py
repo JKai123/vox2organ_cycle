@@ -91,7 +91,10 @@ class Mesh():
         t_mesh.export(path)
 
     def get_occupied_voxels(self, shape):
-        "Get the occupied voxels of the mesh lying within 'shape'"""
+        """Get the occupied voxels of the mesh lying within 'shape'.
+
+        Attention: 'shape' should be defined in the mesh coordinate system!
+        """
         assert len(shape) == 3, "Shape should represent 3 dimensions."
 
         voxelized = self.to_trimesh().voxelized(1.0).fill()

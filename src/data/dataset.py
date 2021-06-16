@@ -236,8 +236,9 @@ class DatasetHandler(torch.utils.data.Dataset):
             unnorm_verts = unnormalize_vertices(
                 vertices.view(-1, 3), shape
             ).view(self.n_m_classes, -1, 3)
-            pv = Mesh(unnorm_verts,
-                      faces).get_occupied_voxels(shape.squeeze().cpu().numpy())
+            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(np.flip(
+                          shape.squeeze().cpu().numpy(), axis=0
+            ))
             if pv is not None:
                 pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
                 # Occupied voxels are considered to belong to one class
@@ -253,7 +254,7 @@ class DatasetHandler(torch.utils.data.Dataset):
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 
-            if j_vox < 0.75:
+            if j_vox < 0.85:
                 img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
                 nib.save(img, "../misc/data_voxel_label" + self._files[i] + ".nii.gz")
                 img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
