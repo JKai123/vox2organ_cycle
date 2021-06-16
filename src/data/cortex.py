@@ -69,7 +69,7 @@ class Cortex(DatasetHandler):
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
-                 patch_mode: bool, patch_origin=(80,0,20),
+                 patch_mode: bool, patch_origin=(0,0,0),
                  **kwargs):
         super().__init__(ids, mode)
 
