@@ -397,6 +397,7 @@ class Cortex(DatasetHandler):
         data_patch = []
 
         for img in data:
+            assert all(upper_limit <= img.shape), "Upper patch limit too high"
             img_patch = img
             img_patch = img_patch[lower_limit[0]:upper_limit[0],
                                   lower_limit[1]:upper_limit[1],
