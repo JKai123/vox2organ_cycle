@@ -121,8 +121,8 @@ hyper_ps_cortex = {
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     if hyper_ps_cortex['PATCH_MODE']:
         hyper_ps_cortex['N_M_CLASSES'] = 1
-        hyper_ps_cortex['PATCH_ORIGIN'] = (80, 0, 20)
-        hyper_ps_cortex['PATCH_SIZE'] = (80, 192, 176)
+        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 0, 0)
+        hyper_ps_cortex['PATCH_SIZE'] = (96, 192, 176)
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 89738
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 90000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\

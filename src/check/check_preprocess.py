@@ -74,16 +74,17 @@ def run_preprocess_check_cortex():
 
     print("Loading data...")
 
-    hps = {'RAW_DATA_DIR': '/home/fabianb/data/preprocessed/MALC_CSR/',
+    hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
            'DATASET_SEED': 1532,
            'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
            # 'PATCH_SIZE': (192, 224, 192),
-           'PATCH_SIZE': (80, 192, 176),
+           'PATCH_SIZE': (96, 192, 176),
            'N_REF_POINTS_PER_STRUCTURE': 1400,
            'MESH_TARGET_TYPE': 'mesh',
            'STRUCTURE_TYPE': 'white_matter',
-           'PATCH_ORIGIN': (80, 0, 20),
-           'PATCH_MODE': True
+           'PATCH_ORIGIN': (0, 0, 0),
+           'PATCH_MODE': True,
+           'OVERFIT': True
           }
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
