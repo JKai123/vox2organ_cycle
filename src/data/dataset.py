@@ -228,7 +228,7 @@ class DatasetHandler(torch.utils.data.Dataset):
         for i in tqdm(range(len(self)),
                       desc="Checking IoU of voxel and mesh labels"):
             _, voxel_label, mesh = self.get_item_and_mesh_from_index(i)
-            shape = torch.tensor(voxel_label.shape)[None]
+            shape = torch.tensor(voxel_label.shape).flip(dims=[0])[None]
             vertices, faces = mesh.vertices, mesh.faces
             voxelized_mesh = torch.zeros_like(voxel_label, dtype=torch.long)
             vertices = vertices.view(self.n_m_classes, -1, 3)
@@ -236,9 +236,9 @@ class DatasetHandler(torch.utils.data.Dataset):
             unnorm_verts = unnormalize_vertices(
                 vertices.view(-1, 3), shape
             ).view(self.n_m_classes, -1, 3)
-            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(np.flip(
-                          shape.squeeze().cpu().numpy(), axis=0
-            ))
+            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(
+                shape.squeeze().cpu().numpy()
+            )
             if pv is not None:
                 pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
                 # Occupied voxels are considered to belong to one class

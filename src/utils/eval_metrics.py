@@ -37,17 +37,17 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     """
     input_img = data[0].cuda()
     voxel_target = data[1].cuda()
-    shape = torch.tensor(voxel_target.shape)[None]
+    shape = torch.tensor(voxel_target.shape).flip(dims=[0])[None]
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
     # Only mesh of last step considered and batch dimension squeezed out
     vertices = vertices[-1].view(n_m_classes, -1, 3)
     faces = faces[-1].view(n_m_classes, -1, 3)
     unnorm_verts = unnormalize_vertices(
-        vertices.view(-1, 3), shape
+        vertices.view(-1, 3), shape.flip(dims=[1])
     ).view(n_m_classes, -1, 3)
     pv = Mesh(unnorm_verts, faces).get_occupied_voxels(
-        np.flip(shape.squeeze().cpu().numpy(), axis=0)
+        shape.squeeze().cpu().numpy()
     )
     if pv is not None:
         pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x

@@ -444,7 +444,8 @@ class Cortex(DatasetHandler):
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             unnorm_verts = unnormalize_vertices(
-                vertices.view(-1, 3), torch.tensor(self.patch_size)[None]
+                vertices.view(-1, 3),
+                torch.tensor(self.patch_size).flip(dims=[0])[None]
             ).view(self.n_m_classes, -1, 3)
             pv = Mesh(unnorm_verts, faces).get_occupied_voxels(np.flip(
                           self.patch_size, axis=0
