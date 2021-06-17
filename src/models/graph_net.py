@@ -79,7 +79,6 @@ class GraphDecoder(nn.Module):
 
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks
-        f2f_connect_layers = [] # Single f2f graph convs
         f2v_layers = [] # Features to vertices
 
         # Whether or not to add the vertex coordinates to the features again
@@ -124,20 +123,7 @@ class GraphDecoder(nn.Module):
                 init='zero'
             ))
 
-            # Feature to feature layer that connects to the next decoder step
-            if i < self.num_steps - 1:
-                f2f_connect_layers.append(Features2FeaturesSimpleResidual(
-                    self.latent_features_count[i+1] + add_n,
-                    self.latent_features_count[i+1],
-                    batch_norm = batch_norm,
-                    GC=GC,
-                    weighted_edges=weighted_edges
-                ))
-            else:
-                f2f_connect_layers.append(GraphIdLayer())
-
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
-        self.f2f_connect_layers = nn.ModuleList(f2f_connect_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
 
         # Template (batch size 1)
@@ -203,12 +189,10 @@ class GraphDecoder(nn.Module):
 
             # Iterate over decoder steps
             for i, (f2f_res,
-                    f2f_connect,
                     f2v,
                     agg_indices,
                     do_unpool) in enumerate(zip(
                         self.f2f_res_layers,
-                        self.f2f_connect_layers,
                         self.f2v_layers,
                         self.aggregate_indices,
                         self.unpool_indices)):
@@ -272,11 +256,6 @@ class GraphDecoder(nn.Module):
                 # New latent features
                 if self.propagate_coords:
                     latent_features_packed = new_meshes.features_verts_packed()
-                latent_features_packed = f2f_connect(latent_features_packed,
-                                                     edges_packed)
-                new_meshes.update_features(
-                    latent_features_packed.view(batch_size, M, V_new, -1)
-                )
 
                 if do_unpool == 1 and self.use_adoptive_unpool:
                     raise NotImplementedError("Adoptive unpooling changes the"\
