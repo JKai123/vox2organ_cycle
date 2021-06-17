@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 500
+    hps['N_EPOCHS'] = 1000
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\

@@ -59,7 +59,7 @@ hyper_ps = {
     },
     'LR_DECAY_AFTER': 500,
     'DATASET_SEED': 1532,
-    'LOSS_AVERAGING': 'linear',
+    'LOSS_AVERAGING': 'geometric',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
@@ -67,8 +67,8 @@ hyper_ps = {
                        NormalConsistencyLoss(),
                        EdgeLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
-    # 'MESH_LOCSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.1], # Tuned for geometric averaging
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOCSS_FUNC_WEIGHTS': [1.0, 0.1, 0.01, 0.1], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
