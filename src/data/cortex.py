@@ -525,7 +525,7 @@ class Cortex(DatasetHandler):
         """ Create ground truth meshes from voxel labels."""
         data = []
         for vl in self.voxel_labels:
-            assert vl.shape == self.patch_size,\
+            assert tuple(vl.shape) == tuple(self.patch_size),\
                     "Voxel label should be of correct size."
             mc_mesh = create_mesh_from_voxels(
                 vl, mc_step_size=self._mc_step_size,
