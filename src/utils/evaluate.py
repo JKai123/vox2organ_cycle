@@ -78,7 +78,8 @@ class ModelEvaluator():
 
         return results
 
-    def store_meshes(self, pred, data, filename, epoch, model_class):
+    def store_meshes(self, pred, data, filename, epoch, model_class,
+                     show_all_steps=False):
         """ Save predicted meshes and ground truth created with marching
         cubes
         """
@@ -94,7 +95,6 @@ class ModelEvaluator():
             )
 
         # Mesh prediction
-        show_all_steps = False
         vertices, faces = model_class.pred_to_verts_and_faces(pred)
         if show_all_steps:
             # Visualize meshes of all steps
