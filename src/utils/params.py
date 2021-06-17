@@ -167,6 +167,9 @@ hyper_ps_default={
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],
 
+    # For selecting a patch from cortex dataset.
+    'SELECT_PATCH_SIZE': (192, 224, 192),
+
     # Seed for dataset splitting
     'DATASET_SEED': 1234,
 
