@@ -82,10 +82,10 @@ def run_preprocess_check_cortex():
            'N_REF_POINTS_PER_STRUCTURE': 1400,
            'MESH_TARGET_TYPE': 'mesh',
            'STRUCTURE_TYPE': 'white_matter',
-           'PATCH_ORIGIN': (0, 0, 0),
+           'PATCH_ORIGIN': (0, 10, 0),
            'SELECT_PATCH_SIZE': (96, 192, 176),
            'PATCH_MODE': True,
-           'OVERFIT': True,
+           'OVERFIT': False,
            'MC_STEP_SIZE': 1
           }
 
