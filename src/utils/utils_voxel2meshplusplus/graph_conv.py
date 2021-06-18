@@ -72,6 +72,8 @@ class GINConvWrapped(GINConv):
     pytorch3d convs.
     """
     def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        if 'init' in kwargs:
+            del kwargs['init']
         super().__init__(nn=nn.Linear(input_dim, output_dim), **kwargs)
 
         # Zero initialization to avoid large non-sense displacemnets at the
