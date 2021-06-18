@@ -34,11 +34,9 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 2000,
-    'EVAL_EVERY': 50,
+    'EVAL_EVERY': 100,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
-    'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
     'EVAL_METRICS': [
@@ -90,6 +88,8 @@ hyper_ps = {
 
 # Dataset specific parameters
 hyper_ps_hippocampus = {
+    'N_EPOCHS': 2000,
+    'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PATCH_SIZE': (64, 64, 64),
     'BATCH_SIZE': 15,
@@ -106,8 +106,10 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
+    'N_EPOCHS': 15000,
+    'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 6,
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0,0],
     },
@@ -121,7 +123,7 @@ hyper_ps_cortex = {
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     if hyper_ps_cortex['PATCH_MODE']:
         hyper_ps_cortex['N_M_CLASSES'] = 1
-        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 0, 0)
+        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 10, 0)
         hyper_ps_cortex['PATCH_SIZE'] = (64, 144, 128)
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = (96, 192, 176)
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
