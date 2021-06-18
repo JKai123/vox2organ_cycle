@@ -110,7 +110,6 @@ hyper_ps_cortex = {
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 5,
-    'BATCH_SIZE': 6,
     'MODEL_CONFIG': {
         'UNPOOL_INDICES': [0,0,0,0],
     },
