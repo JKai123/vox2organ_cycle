@@ -24,6 +24,7 @@ from utils.logging import (
     write_scatter_plot_if_debug,
 )
 from utils.utils import (
+    voxelize_mesh,
     sample_outer_surface_in_voxel,
     sample_inner_volume_in_voxel,
     unnormalize_vertices,
@@ -228,29 +229,14 @@ class DatasetHandler(torch.utils.data.Dataset):
         for i in tqdm(range(len(self)),
                       desc="Checking IoU of voxel and mesh labels"):
             _, voxel_label, mesh = self.get_item_and_mesh_from_index(i)
-            shape = torch.tensor(voxel_label.shape).flip(dims=[0])[None]
+            shape = voxel_label.shape
             vertices, faces = mesh.vertices, mesh.faces
-            voxelized_mesh = torch.zeros_like(voxel_label, dtype=torch.long)
             vertices = vertices.view(self.n_m_classes, -1, 3)
+            vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
             faces = faces.view(self.n_m_classes, -1, 3)
-            unnorm_verts = unnormalize_vertices(
-                vertices.view(-1, 3), shape
-            ).view(self.n_m_classes, -1, 3)
-            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(
-                shape.squeeze().cpu().numpy()
-            )
-            if pv is not None:
-                pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-                # Occupied voxels are considered to belong to one class
-                voxelized_mesh[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
-            else:
-                # No mesh in the valid range predicted --> keep zeros
-                pass
-
-            # Strip outer layer of voxelized mesh
-            strip = True
-            if strip:
-                voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+            voxelized_mesh = voxelize_mesh(
+                vertices, faces, shape, self.n_m_classes
+            ).cuda()
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 

@@ -22,6 +22,7 @@ from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
+    voxelize_mesh,
     create_mesh_from_voxels,
     unnormalize_vertices,
     sample_inner_volume_in_voxel,
@@ -442,21 +443,11 @@ class Cortex(DatasetHandler):
         for m in self.mesh_labels:
             voxel_label = torch.zeros(self.patch_size, dtype=torch.long)
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
+            vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
             faces = m.faces.view(self.n_m_classes, -1, 3)
-            unnorm_verts = unnormalize_vertices(
-                vertices.view(-1, 3),
-                torch.tensor(self.patch_size).flip(dims=[0])[None]
-            ).view(self.n_m_classes, -1, 3)
-            pv = Mesh(unnorm_verts, faces).get_occupied_voxels(np.flip(
-                          self.patch_size, axis=0
-            ))
-            pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-            # Occupied voxels are considered to belong to one class
-            voxel_label[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
-
-            # Strip off one layer of voxels (resembles the original voxel
-            # labels more)
-            voxel_label = sample_inner_volume_in_voxel(voxel_label)
+            voxel_label = voxelize_mesh(
+                vertices, faces, self.patch_size, self.n_m_classes
+            )
 
             data.append(voxel_label.numpy())
 

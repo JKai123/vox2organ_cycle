@@ -300,3 +300,38 @@ def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
             if isinstance(mesh, Trimesh) else Mesh(mirrored_verts, mesh.faces)
 
     return mirrored_mesh
+
+def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
+    """ Voxelize the mesh and return a segmentation map of 'shape'. 
+
+    :param vertices: The vertices of the mesh
+    :param faces: Corresponding faces as indices to vertices
+    :param shape: The shape the output image should have
+    :param n_m_classes: The number of mesh classes, i.e., the number of
+    different structures in the mesh. This is currently ignored but should be
+    implemented at some time.
+    :param strip: Whether to strip the outer layer of the voxelized mesh. This
+    is often a more accurate representation of the discrete volume occupied by
+    the mesh.
+    """
+    assert len(shape) == 3, "Shape should be 3D"
+    voxelized_mesh = torch.zeros(shape, dtype=torch.long)
+    vertices = vertices.view(n_m_classes, -1, 3)
+    faces = faces.view(n_m_classes, -1, 3)
+    unnorm_verts = unnormalize_vertices(
+        vertices.view(-1, 3), torch.tensor(shape)[None]
+    ).view(n_m_classes, -1, 3)
+    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(shape)
+    if pv is not None:
+        # Occupied voxels are considered to belong to one class
+        voxelized_mesh[pv[:,0], pv[:,1], pv[:,2]] = 1
+    else:
+        # No mesh in the valid range predicted --> keep zeros
+        pass
+
+    # Strip outer layer of voxelized mesh
+    if strip:
+        voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+
+    return voxelized_mesh
+

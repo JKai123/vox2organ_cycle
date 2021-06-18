@@ -13,7 +13,8 @@ from pytorch3d.loss import chamfer_distance
 from utils.mesh import Mesh
 from utils.utils import (
     unnormalize_vertices,
-    sample_inner_volume_in_voxel)
+    sample_inner_volume_in_voxel,
+    voxelize_mesh)
 from utils.logging import (
     write_img_if_debug,
     measure_time)
@@ -31,36 +32,31 @@ class EvalMetrics(IntEnum):
 
 @measure_time
 def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
-                     strip=True):
+                     strip=True, compare_with='voxel_gt'):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
     is compared against the voxel ground truth.
     """
+    assert compare_with in ("voxel_gt", "mesh_gt")
     input_img = data[0].cuda()
-    voxel_target = data[1].cuda()
-    shape = torch.tensor(voxel_target.shape).flip(dims=[0])[None]
+    voxel_gt = data[1].cuda()
+    shape = voxel_gt.shape
+    if compare_with == 'mesh_gt':
+        mesh_gt = data[2]
+        vertices, faces = mesh_gt.vertices, mesh_gt.faces
+        vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
+        voxel_target = voxelize_mesh(
+            vertices, faces, shape, n_m_classes
+        ).cuda()
+    else: # voxel gt
+        voxel_target = voxel_gt
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
-    voxel_pred = torch.zeros_like(voxel_target, dtype=torch.long)
     # Only mesh of last step considered and batch dimension squeezed out
     vertices = vertices[-1].view(n_m_classes, -1, 3)
+    vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
     faces = faces[-1].view(n_m_classes, -1, 3)
-    unnorm_verts = unnormalize_vertices(
-        vertices.view(-1, 3), shape.flip(dims=[1])
-    ).view(n_m_classes, -1, 3)
-    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(
-        shape.squeeze().cpu().numpy()
-    )
-    if pv is not None:
-        pv_flip = np.flip(pv, axis=1)  # convert x,y,z -> z, y, x
-        # Occupied voxels are considered to belong to one class
-        voxel_pred[pv_flip[:,0], pv_flip[:,1], pv_flip[:,2]] = 1
-    else:
-        # No mesh in the valid range predicted --> keep zeros
-        pass
-
-    # Strip off one layer of voxels. This is often closer to what is given in
-    # the voxel ground truth.
-    if strip:
-        voxel_pred = sample_inner_volume_in_voxel(voxel_pred)
+    voxel_pred = voxelize_mesh(
+        vertices, faces, shape, n_m_classes
+    ).cuda()
     write_img_if_debug(input_img.squeeze().cpu().numpy(),
                        "../misc/voxel_input_img_eval.nii.gz")
     write_img_if_debug(voxel_pred.squeeze().cpu().numpy(),
