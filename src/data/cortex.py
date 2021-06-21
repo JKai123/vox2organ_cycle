@@ -268,7 +268,7 @@ class Cortex(DatasetHandler):
 
     @staticmethod
     def split(raw_data_dir, dataset_seed, dataset_split_proportions,
-              augment_train, save_dir, overfit=False, **kwargs):
+              augment_train, save_dir, overfit=None, **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -293,9 +293,9 @@ class Cortex(DatasetHandler):
         # Split
         if overfit:
             # Only consider first element of available data
-            indices_train = slice(0, 1)
-            indices_val = slice(0, 1)
-            indices_test = slice(0, 1)
+            indices_train = slice(0, overfit)
+            indices_val = slice(0, overfit)
+            indices_test = slice(0, overfit)
         else:
             # No overfit
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."

@@ -219,7 +219,10 @@ def main(hps):
                            default='cuda:0',
                            help="Specify the device for execution.")
     argparser.add_argument('--overfit',
-                           action='store_true',
+                           type=int,
+                           nargs='?',
+                           const=1,
+                           default=None,
                            help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
@@ -249,9 +252,9 @@ def main(hps):
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
 
-    if args.exp_name == "debug":
+    if args.exp_name == "debug" and not args.overfit:
         # Overfit when debugging
-        hps['OVERFIT'] = True
+        hps['OVERFIT'] = 1
 
     torch.cuda.set_device(args.device)
 
