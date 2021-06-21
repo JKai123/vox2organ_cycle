@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
 from torch_geometric.nn import GCNConv, ChebConv, GINConv
+from torch_geometric.nn import GraphConv as GeoGraphConv
 from torch_sparse import SparseTensor
 
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
@@ -24,10 +25,6 @@ class GraphConvNorm(GraphConv):
     def __init__(self, input_dim: int, output_dim: int, init: str='normal',
                  directed: bool=False, **kwargs):
         super().__init__(input_dim, output_dim, init, directed)
-        # Bug in GraphConv: bias is not initialized to zero
-        if init == 'zero':
-            self.w0.bias.data.zero_()
-            self.w1.bias.data.zero_()
         if kwargs.get('weighted_edges', False) == True:
             raise ValueError(
                 "pytorch3d.ops.GraphConv cannot be edge-weighted."
@@ -36,6 +33,29 @@ class GraphConvNorm(GraphConv):
     def forward(self, verts, edges):
         D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
         return D_inv * super().forward(verts, edges)
+
+class GeoGraphConvNorm(GeoGraphConv):
+    """ Wrapper for torch_geometric.nn.GraphConv that normalizes the features
+    w.r.t. the degree of the vertices.
+    """
+    def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        # Maybe cached?
+        if 'init' in kwargs:
+            del kwargs['init']
+        super().__init__(input_dim, output_dim, **kwargs)
+
+        self.weighted_edges = weighted_edges
+
+    def forward(self, verts, edges):
+        D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
+        edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
+                                   dim=1)
+        if self.weighted_edges:
+            weights = Euclidean_weights(verts, edges_both_dir.T)
+        else:
+            weights = None
+
+        return D_inv * super().forward(verts, edges_both_dir, weights)
 
 class GCNConvWrapped(GCNConv):
     """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
@@ -46,10 +66,6 @@ class GCNConvWrapped(GCNConv):
         if 'init' in kwargs:
             del kwargs['init']
         super().__init__(input_dim, output_dim, improved=True, **kwargs)
-
-        # Zero initialization to avoid large non-sense displacements at the
-        # beginning
-        nn.init.constant_(self.weight, 0.0)
         self.weighted_edges = weighted_edges
 
     def forward(self, verts, edges):
@@ -75,10 +91,6 @@ class GINConvWrapped(GINConv):
         if 'init' in kwargs:
             del kwargs['init']
         super().__init__(nn=nn.Linear(input_dim, output_dim), **kwargs)
-
-        # Zero initialization to avoid large non-sense displacemnets at the
-        # beginning
-        nn.init.constant_(self.nn.weight, 0.0)
 
     def forward(self, verts, edges):
         edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
@@ -259,3 +271,21 @@ class GraphIdLayer(nn.Module):
 
     def forward(self, features, edges):
         return features
+
+def zero_weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.constant_(m.weight, 0.0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0.0)
+    elif isinstance(m, GINConv):
+        nn.init.constant_(m.nn.weight, 0.0)
+    elif isinstance(m, GraphConv):
+        # Bug in GraphConv: bias is not initialized to zero
+        nn.init.constant_(m.w0.weight, 0.0)
+        nn.init.constant_(m.w0.bias, 0.0)
+        nn.init.constant_(m.w1.weight, 0.0)
+        nn.init.constant_(m.w1.bias, 0.0)
+    elif isinstance(m, GCNConvWrapped):
+        nn.init.constant_(m.weight, 0.0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0.0)

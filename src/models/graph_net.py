@@ -15,7 +15,8 @@ from utils.utils_voxel2mesh.unpooling import uniform_unpool
 from utils.utils_voxel2meshplusplus.graph_conv import (
     Features2FeaturesSimpleResidual,
     GraphIdLayer,
-    Features2FeaturesResidual
+    Features2FeaturesResidual,
+    zero_weight_init
 )
 from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_from_indices
@@ -125,6 +126,9 @@ class GraphDecoder(nn.Module):
 
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
+
+        # Init f2v layers to zero
+        self.f2v_layers.apply(zero_weight_init)
 
         # Template (batch size 1)
         sphere_path = mesh_template

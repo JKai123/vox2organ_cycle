@@ -23,7 +23,8 @@ from utils.losses import (
 from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm,
     GCNConvWrapped,
-    GINConvWrapped
+    GINConvWrapped,
+    GeoGraphConvNorm
 )
 
 # Overwrite default parameters for a common training procedure
@@ -82,7 +83,7 @@ hyper_ps = {
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
         'VOXEL_DECODER': True,
-        'GC': GraphConvNorm
+        'GC': GeoGraphConvNorm
     },
 }
 
