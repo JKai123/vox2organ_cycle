@@ -124,43 +124,46 @@ class ResidualUNetDecoder(nn.Module):
         self.num_classes = num_classes
         self.channels = decoder_channels
         self.deep_supervision = deep_supervision
-        self.deep_supervision_pos = []
+        self.deep_supervision_pos = (1, 2)
         deep_supervision_layers = []
 
-        # First decoder step: Upsample
-        self.first_up = nn.ConvTranspose3d(
-            encoder.channels[-1],
-            self.channels[0],
-            kernel_size=2,
-            stride=2
-        )
-        # Decoder steps: Residual Block --> Upsample
         up_layers = []
-        for i in range(0, num_steps - 1):
+        # First decoder step: Upsample --> Residual Blocks
+        up_layers.append(nn.Sequential(
+            nn.ConvTranspose3d(
+                encoder.channels[-1],
+                self.channels[0],
+                kernel_size=2,
+                stride=2
+            ),
+            ResidualBlock(
+                encoder.channels[-2] + self.channels[0], self.channels[0]
+            )
+        ))
+
+        # Decoder steps: Upsample --> Residual Blocks
+        for i in range(1, num_steps):
             up_layers.append(nn.Sequential(
-                ResidualBlock(encoder.channels[-i-2] + self.channels[i],
-                              self.channels[i]),
-                nn.ConvTranspose3d(self.channels[i],
-                                   self.channels[i+1],
-                                   kernel_size=2,
-                                   stride=2)
+                nn.ConvTranspose3d(
+                    self.channels[i-1],
+                    self.channels[i],
+                    kernel_size=2,
+                    stride=2
+                ),
+                ResidualBlock(
+                    encoder.channels[-i-2] + self.channels[i],
+                    self.channels[i]
+                )
             ))
-            if deep_supervision and i != num_steps - 2:
-                self.deep_supervision_pos.append(i)
+            if deep_supervision and i in self.deep_supervision_pos:
                 deep_supervision_layers.append(nn.Sequential(
                     nn.Upsample(patch_shape, mode='trilinear',
                                 align_corners=False),
-                    nn.Conv3d(self.channels[i+1], num_classes, 1, bias=False)
+                    nn.Conv3d(self.channels[i], num_classes, 1, bias=False)
                 ))
 
         self.deep_supervision_layers = nn.ModuleList(
             deep_supervision_layers
-        )
-
-        # Final Residual Block
-        up_layers.append(
-            ResidualBlock(self.channels[-1] + encoder.channels[0],
-                          self.channels[-1])
         )
 
         # Segmenation layer
@@ -175,19 +178,21 @@ class ResidualUNetDecoder(nn.Module):
 
         x = down_skips[0]
 
-        # Upsample bottleneck
-        x = self.first_up(x)
-        up_skips = [x]
-
+        up_skips = []
         seg = []
+        i_ds = 0 # For counting deep supervisions
 
         for i, layer in enumerate(self.decoder):
+            # Upsample
+            x = layer[0](x)
             x = torch.cat((x, down_skips[i+1]), dim=1)
-            x = layer(x)
+            # Residual block
+            x = layer[1](x)
             up_skips.append(x)
 
             if i in self.deep_supervision_pos:
-                seg.append(self.deep_supervision_layers[i](x))
+                seg.append(self.deep_supervision_layers[i_ds](x))
+                i_ds += 1
 
         seg.append(self.final_layer(x))
 
