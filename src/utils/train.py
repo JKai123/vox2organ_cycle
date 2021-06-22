@@ -14,8 +14,10 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
+from utils.losses import ChamferAndNormalsLoss, ChamferLoss
 from utils.logging import (
     init_logging,
     log_losses,
@@ -32,7 +34,7 @@ from utils.evaluate import ModelEvaluator
 from utils.losses import (
     all_linear_loss_combine,
     voxel_linear_mesh_geometric_loss_combine)
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
 
 # Model names
@@ -44,8 +46,6 @@ class Solver():
     """
     Solver class for optimizing the weights of neural networks.
 
-    :param int n_classes: The number of classes to distinguish (including
-    background)
     :param torch.optim optimizer_class: The optimizer to use, e.g. Adam.
     :param dict optim_params: The parameters for the optimizer. If empty,
     default values are used.
@@ -73,11 +73,12 @@ class Solver():
     :param int lr_decay_after: see lr_decay_rate
     :param float lr_decay_rate: If no improvement for lr_decay_after epochs,
     then new_lr = old_lr * lr_decay_rate
+    :param str reduce_reg_loss_mode: The mode for reduction of regularization
+    losses, either 'linear' or 'none'
 
     """
 
     def __init__(self,
-                 n_classes,
                  optimizer_class,
                  optim_params,
                  evaluator,
@@ -95,9 +96,9 @@ class Solver():
                  mixed_precision,
                  lr_decay_rate,
                  lr_decay_after,
+                 reduce_reg_loss_mode,
                  **kwargs):
 
-        self.n_classes = n_classes
         self.optim_class = optimizer_class
         self.optim_params = optim_params
         self.optim = None # defined for each training separately
@@ -105,11 +106,13 @@ class Solver():
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
         self.voxel_loss_func_weights = voxel_loss_func_weights
+        self.reduce_reg_loss_mode = reduce_reg_loss_mode
         assert len(voxel_loss_func) == len(voxel_loss_func_weights),\
                 "Number of weights must be equal to number of 3D seg. losses."
 
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
+        self.mesh_loss_func_weights_start = mesh_loss_func_weights
         assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                 "Number of weights must be equal to number of mesh losses."
 
@@ -123,6 +126,23 @@ class Solver():
         self.mixed_precision = mixed_precision
         self.lr_decay_after = lr_decay_after
         self.lr_decay_rate = lr_decay_rate
+
+    def reduce_reg_losses(self, epoch, n_epochs):
+        """ Reduce the impact of regularization losses """
+        assert self.loss_averaging != 'geometric' or\
+                self.reduce_reg_loss_mode == 'none',\
+                "No regularization loss reduction for geometric loss average!"
+
+        for i, (w0, n) in enumerate(zip(self.mesh_loss_func_weights_start,
+                                        self.mesh_loss_func)):
+            if not isinstance(n, (ChamferLoss, ChamferAndNormalsLoss)):
+                if self.reduce_reg_loss_mode == 'linear':
+                    self.mesh_loss_func_weights[i] = w0 - epoch/n_epochs * w0
+                elif self.reduce_reg_loss_mode == 'none':
+                    pass
+                else:
+                    raise ValueError("Unknown mode for reduction of"
+                                     " regularization loss weights.")
 
     @measure_time
     def training_step(self, model, data, iteration):
@@ -155,17 +175,24 @@ class Solver():
 
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
-        # make data compatible
-        model_data = model.__class__.convert_data(data,
-                                               self.n_classes,
-                                               ExecModes.TRAIN)
+        # Chop data
+        x, y, points, faces, normals = data
+        if normals.nelement() == 0:
+            # Only point reference
+            mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
+        else:
+            # Points and normals as reference
+            mesh_target = [(p.cuda(), n.cuda()) for p, n in
+                           zip(points.permute(1,0,2,3), normals.permute(1,0,2,3))]
+
+        # Predict
         with autocast(self.mixed_precision):
-            pred = model(model_data['x'])
+            pred = model(x.cuda())
 
         # Log
-        write_img_if_debug(model_data['x'].cpu().squeeze().numpy(),
+        write_img_if_debug(x.cpu().squeeze().numpy(),
                            "../misc/voxel_input_img_train.nii.gz")
-        write_img_if_debug(model_data['y_voxels'].cpu().squeeze().numpy(),
+        write_img_if_debug(y.cpu().squeeze().numpy(),
                            "../misc/voxel_target_img_train.nii.gz")
         if model.__class__.pred_to_voxel_pred(pred) is not None:
             write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
@@ -185,21 +212,21 @@ class Solver():
                     self.voxel_loss_func,
                     self.voxel_loss_func_weights,
                     model.__class__.pred_to_raw_voxel_pred(pred),
-                    model_data['y_voxels'],
+                    y.cuda(),
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    model_data['surface_points'])
+                    mesh_target)
             elif self.loss_averaging == 'geometric':
                 losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
                     self.voxel_loss_func,
                     self.voxel_loss_func_weights,
                     model.__class__.pred_to_raw_voxel_pred(pred),
-                    model_data['y_voxels'],
+                    y.cuda(),
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
-                    model_data['surface_points'])
+                    mesh_target)
             else:
                 raise ValueError("Unknown loss averaging.")
 
@@ -248,7 +275,21 @@ class Solver():
         trainLogger.info("Training on device %s", self.device)
 
         # Optimizer and lr scheduling
-        self.optim = self.optim_class(model.parameters(), **self.optim_params)
+        if self.optim_params.get('graph_lr', None) is not None:
+            # Separate learning rates for voxel and graph network
+            graph_lr = self.optim_params['graph_lr']
+            del self.optim_params['graph_lr']
+            self.optim = self.optim_class([
+                {'params': model.voxel_net.parameters()},
+                {'params': model.graph_net.parameters(), 'lr': graph_lr},
+            ], **self.optim_params)
+        else:
+            if 'graph_lr' in self.optim_params:
+                del self.optim_params['graph_lr']
+            # All parameters updated with the same lr
+            self.optim = self.optim_class(
+                model.parameters(), **self.optim_params
+            )
         self.optim.zero_grad()
         _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
         lr_scheduler = ReduceLROnPlateau(self.optim, lr_decay_mode,
@@ -274,6 +315,7 @@ class Solver():
         for epoch in range(start_epoch, n_epochs+1):
             model.train()
 
+            self.reduce_reg_losses(epoch, n_epochs)
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     trainLogger.info("Iteration: %d", iteration)
@@ -450,7 +492,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
 
     model = ModelHandler[hps['ARCHITECTURE']].value(\
                                         ndims=hps['NDIMS'],
-                                        num_classes=hps['N_CLASSES'],
+                                        n_v_classes=hps['N_V_CLASSES'],
+                                        n_m_classes=hps['N_M_CLASSES'],
                                         patch_shape=hps['PATCH_SIZE'],
                                         **model_config)
     trainLogger.info("%d parameters in the model.", model.count_parameters())

@@ -11,7 +11,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
-from torch_geometric.nn import GCNConv, ChebConv
+from torch_geometric.nn import GCNConv, ChebConv, GINConv
+from torch_geometric.nn import GraphConv as GeoGraphConv
+from torch_sparse import SparseTensor
+
+from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
+from utils.utils import Euclidean_weights
 
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.utils import Euclidean_weights
@@ -32,13 +37,38 @@ class GraphConvNorm(GraphConv):
         D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
         return D_inv * super().forward(verts, edges)
 
-class PTGeoConvWrapped(GCNConv):
+class GeoGraphConvNorm(GeoGraphConv):
+    """ Wrapper for torch_geometric.nn.GraphConv that normalizes the features
+    w.r.t. the degree of the vertices.
+    """
+    def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        # Maybe cached?
+        if 'init' in kwargs:
+            del kwargs['init']
+        super().__init__(input_dim, output_dim, **kwargs)
+
+        self.weighted_edges = weighted_edges
+
+    def forward(self, verts, edges):
+        D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
+        edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
+                                   dim=1)
+        if self.weighted_edges:
+            weights = Euclidean_weights(verts, edges_both_dir.T)
+        else:
+            weights = None
+
+        return D_inv * super().forward(verts, edges_both_dir, weights)
+
+class GCNConvWrapped(GCNConv):
     """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
     pytorch3d convs.
     """
     def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        # Maybe cached?
+        if 'init' in kwargs:
+            del kwargs['init']
         super().__init__(input_dim, output_dim, improved=True, **kwargs)
-        nn.init.constant_(self.weight, 0.0)
         self.weighted_edges = weighted_edges
 
     def forward(self, verts, edges):
@@ -55,6 +85,22 @@ class PTGeoConvWrapped(GCNConv):
             weights = None
 
         return super().forward(verts, edges_both_dir, weights)
+
+class GINConvWrapped(GINConv):
+    """ Wrapper for torch_geometric.nn graph convolution s.t. inputs are the same as for
+    pytorch3d convs.
+    """
+    def __init__(self, input_dim, output_dim, weighted_edges, **kwargs):
+        if 'init' in kwargs:
+            del kwargs['init']
+        super().__init__(nn=nn.Linear(input_dim, output_dim), **kwargs)
+
+    def forward(self, verts, edges):
+        edges_both_dir = torch.cat([edges.T, torch.flip(edges.T, dims=[0])],
+                                   dim=1)
+        # A_sparse = SparseTensor(row=edges_both_dir[0], col=edges_both_dir[1]).t()
+
+        return super().forward(verts, edges_both_dir)
 
 class Features2Features(nn.Module):
     """ A graph conv block """
@@ -135,27 +181,33 @@ class Features2FeaturesResidual(nn.Module):
     """ A residual graph conv block consisting of 'hidden_layer_count' many graph convs """
 
     def __init__(self, in_features, out_features, hidden_layer_count,
-                 batch_norm=False, GC=GraphConv, weighted_edges=False):
+                 norm='batch', GC=GraphConv, weighted_edges=False):
+        assert norm in ('none', 'layer', 'batch'), "Invalid norm."
+
         super().__init__()
 
         self.out_features = out_features
 
         self.gconv_first = GC(in_features, out_features, weighted_edges=weighted_edges)
-        if batch_norm:
-            self.bn_first = nn.BatchNorm1d(out_features)
-        else:
-            self.bn_first = IdLayer()
+        if norm == 'batch':
+            self.norm_first = nn.BatchNorm1d(out_features)
+        elif norm == 'layer':
+            self.norm_first = nn.LayerNorm(out_features)
+        else: # none
+            self.norm_first = IdLayer()
 
         gconv_hidden = []
         for _ in range(hidden_layer_count):
             # No weighted edges and no propagated coordinates in hidden layers
             gc_layer = GC(out_features, out_features, weighted_edges=False)
-            if batch_norm:
-                bn_layer = nn.BatchNorm1d(out_features)
-            else:
-                bn_layer = IdLayer() # Id
+            if norm == 'batch':
+                norm_layer = nn.BatchNorm1d(out_features)
+            elif norm == 'layer':
+                norm_layer = nn.LayerNorm(out_features)
+            else: # none
+                norm_layer = IdLayer() # Id
 
-            gconv_hidden += [nn.Sequential(gc_layer, bn_layer)]
+            gconv_hidden += [nn.Sequential(gc_layer, norm_layer)]
 
         self.gconv_hidden = nn.Sequential(*gconv_hidden)
 
@@ -167,25 +219,48 @@ class Features2FeaturesResidual(nn.Module):
                                 mode='nearest').squeeze(1)
 
         # Conv --> Norm --> ReLU
-        features = F.relu(self.bn_first(self.gconv_first(features, edges)))
-        for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
-            # Adding residual before last relu
+        features = F.relu(self.norm_first(self.gconv_first(features, edges)))
+        for i, (gconv, nl) in enumerate(self.gconv_hidden, 1):
             if i == len(self.gconv_hidden):
-                features = bn(gconv(features, edges)) + res
-                features = F.relu(features)
+                # Conv --> Norm --> Addition --> ReLU
+                features = F.relu(nl(gconv(features, edges)) + res)
             else:
-                features = F.relu(bn(gconv(features, edges)))
+                # Conv --> Norm --> ReLU
+                features = F.relu(nl(gconv(features, edges)))
 
         return features
 
 class Features2FeaturesSimple(nn.Module):
-    """ A simple graph conv + batch norm (optional) + ReLU """
+    """ A simple graph conv + norm (optional) + ReLU """
+
+    def __init__(self, in_features, out_features,
+                 norm='batch', GC=GraphConv,
+                 weighted_edges=False):
+        assert norm in ('none', 'layer', 'batch'), "Invalid norm."
+
+        super().__init__()
+
+        self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
+        if norm == 'batch':
+            self.norm = nn.BatchNorm1d(out_features)
+        elif norm == 'layer':
+            self.norm = nn.LayerNorm(out_features)
+        else:
+            self.norm = IdLayer()
+
+    def forward(self, features, edges):
+        # Conv --> Norm --> ReLU
+        return F.relu(self.norm(self.gconv(features, edges)))
+
+class Features2FeaturesSimpleResidual(nn.Module):
+    """ A simple residual graph conv + batch norm (optional) + ReLU """
 
     def __init__(self, in_features, out_features,
                  batch_norm=False, GC=GraphConv,
                  weighted_edges=False):
         super().__init__()
 
+        self.out_features = out_features
         self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
         if batch_norm:
             self.bn = nn.BatchNorm1d(out_features)
@@ -193,8 +268,13 @@ class Features2FeaturesSimple(nn.Module):
             self.bn = IdLayer()
 
     def forward(self, features, edges):
+        if features.shape[-1] == self.out_features:
+            res = features
+        else:
+            res = F.interpolate(features.unsqueeze(1), self.out_features,
+                                mode='nearest').squeeze(1)
         # Conv --> Norm --> ReLU
-        return F.relu(self.bn(self.gconv(features, edges)))
+        return F.relu(self.bn(self.gconv(features, edges)) + res)
 
 class GraphIdLayer(nn.Module):
     """ Graph identity layer """
@@ -204,3 +284,21 @@ class GraphIdLayer(nn.Module):
 
     def forward(self, features, edges):
         return features
+
+def zero_weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.constant_(m.weight, 0.0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0.0)
+    elif isinstance(m, GINConv):
+        nn.init.constant_(m.nn.weight, 0.0)
+    elif isinstance(m, GraphConv):
+        # Bug in GraphConv: bias is not initialized to zero
+        nn.init.constant_(m.w0.weight, 0.0)
+        nn.init.constant_(m.w0.bias, 0.0)
+        nn.init.constant_(m.w1.weight, 0.0)
+        nn.init.constant_(m.w1.bias, 0.0)
+    elif isinstance(m, GCNConvWrapped):
+        nn.init.constant_(m.weight, 0.0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0.0)

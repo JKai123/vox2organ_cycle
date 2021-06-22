@@ -17,8 +17,7 @@ from utils.losses import (
     EdgeLoss
 )
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    GraphConvNorm,
-    PTGeoConvWrapped
+    GraphConvNorm
 )
 
 hyper_ps_default={
@@ -27,11 +26,38 @@ hyper_ps_default={
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
 
-    # The number of classes to distinguish (including background)
-    'N_CLASSES': 2,
+    # The number of vertex classes to distinguish (including background)
+    'N_V_CLASSES': 2,
+
+    # The number of mesh classes. This is usually the number of non-connected
+    # components/structures
+    'N_M_CLASSES': 2,
+
+    # The number of vertices in a single template structure
+    'N_TEMPLATE_VERTICES': 162,
+
+    # The number of reference points in a cortex structure
+    'N_REF_POINTS_PER_STRUCTURE': 40962,
+
+    # Either use a mesh or a pointcloud as ground truth. Basically, if one
+    # wants to compute only point losses like the Chamfer loss, a pointcloud is
+    # sufficient while other losses like cosine distance between vertex normals
+    # require a mesh (pointcloud + faces)
+    'MESH_TARGET_TYPE': "pointcloud",
+
+    # The mode for reduction of mesh regularization losses, either 'linear' or
+    # 'none'
+    'REDUCE_REG_LOSS_MODE': 'none',
+
+    # The structure type for cortex data, either 'cerebral_cortex' or
+    # 'white_matter'
+    'STRUCTURE_TYPE': "white_matter",
 
     # The batch size used during training
     'BATCH_SIZE': 1,
+
+    # Activate/deactivate patch mode for the cortex dataset
+    'PATCH_MODE': False,
 
     # Accumulate n gradients before doing a backward pass
     'ACCUMULATE_N_GRADIENTS': 1,
@@ -42,12 +68,9 @@ hyper_ps_default={
     # The optimizer used for training
     'OPTIMIZER_CLASS': torch.optim.Adam,
 
-    # Parameters for the optimizer
-    'OPTIM_PARAMS': {#
-        'lr': 1e-4,
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0},
+    # Parameters for the optimizer. A separate learning rate for the graph
+    # network can be specified
+    'OPTIM_PARAMS': {'lr': 1e-4, 'graph_lr': None},
 
     # Data augmentation
     'AUGMENT_TRAIN': False,
@@ -118,7 +141,7 @@ hyper_ps_default={
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
         'DEEP_SUPERVISION': False, # For voxel net
-        'BATCH_NORM': False, # Only for graph convs, always True in voxel layers
+        'NORM': 'none', # Only for graph convs, batch norm always used in voxel layers
         # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
@@ -143,6 +166,9 @@ hyper_ps_default={
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],
+
+    # For selecting a patch from cortex dataset.
+    'SELECT_PATCH_SIZE': (192, 224, 192),
 
     # Seed for dataset splitting
     'DATASET_SEED': 1234,

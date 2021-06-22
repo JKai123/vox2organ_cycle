@@ -16,7 +16,7 @@ from utils.modes import ExecModes
 from utils.logging import init_logging
 from utils.evaluate import ModelEvaluator
 from models.model_handler import ModelHandler
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 
 def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     """
@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 10
+    hps['N_EPOCHS'] = 1000
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\
@@ -102,11 +102,13 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         hps_lower = dict((k.lower(), v) for k, v in hps.items())
         model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
-        model = ModelHandler[hps['ARCHITECTURE']].value(\
-                                            ndims=hps['N_DIMS'],
-                                            num_classes=hps['N_CLASSES'],
-                                            patch_shape=hps['PATCH_SIZE'],
-                                            **model_config)
+        model = ModelHandler[hps['ARCHITECTURE']].value(
+            ndims=hps['NDIMS'],
+            n_v_classes=hps['N_V_CLASSES'],
+            n_m_classes=hps['N_M_CLASSES'],
+            patch_shape=hps['PATCH_SIZE'],
+            **model_config
+        )
         # New training
         start_epoch = 1
 

@@ -14,7 +14,7 @@ from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
-from data.dataset import dataset_split_handler
+from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
 
 def write_test_results(results: dict, model_name: str, experiment_dir: str):
@@ -94,11 +94,13 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                                **hps_lower)
 
     # Test models
-    model = ModelHandler[training_hps['ARCHITECTURE']].value(\
-                                        ndims=training_hps['NDIMS'],
-                                        num_classes=training_hps['N_CLASSES'],
-                                        patch_shape=training_hps['PATCH_SIZE'],
-                                        **model_config).float().cuda()
+    model = ModelHandler[training_hps['ARCHITECTURE']].value(
+        ndims=training_hps['NDIMS'],
+        n_v_classes=training_hps['N_V_CLASSES'],
+        n_m_classes=training_hps['N_M_CLASSES'],
+        patch_shape=training_hps['PATCH_SIZE'],
+        **model_config
+    ).float().cuda()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:

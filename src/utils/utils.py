@@ -13,9 +13,8 @@ import numpy as np
 import nibabel as nib
 import torch
 import torch.nn.functional as F
-
+from trimesh import Trimesh
 from skimage import measure
-
 from plyfile import PlyData
 
 from utils.modes import ExecModes
@@ -82,7 +81,7 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
     return mesh
 
 def normalize_vertices(vertices, shape):
-    """ From https://github.com/cvlab-epfl/voxel2mesh """
+    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1] """
     assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
     assert shape.shape[0] == 1, "first dim of shape should be length 1"
 
@@ -95,7 +94,7 @@ def unnormalize_vertices(vertices, shape):
 
     return (0.5 * vertices + 0.5) * (torch.max(shape) - 1)
 
-def create_mesh_from_voxels(volume, mc_step_size):
+def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
     """ Convert a voxel volume to mesh using marching cubes
 
     :param volume: The voxel volume.
@@ -113,9 +112,15 @@ def create_mesh_from_voxels(volume, mc_step_size):
                                     step_size=mc_step_size,
                                     allow_degenerate=False)
 
-    vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
-    vertices_mc = normalize_vertices(vertices_mc, shape)
+    if flip:
+        vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
+        vertices_mc = normalize_vertices(vertices_mc, shape.flip(dims=[1]))
+    else:
+        vertices_mc = normalize_vertices(vertices_mc, shape)
     faces_mc = torch.from_numpy(faces_mc).long()
+
+    # ! Normals are not valid anymore after normalization of vertices
+    normals = None
 
     return Mesh(vertices_mc, faces_mc, normals, values)
 
@@ -276,3 +281,57 @@ def score_is_better(old_value, new_value, name):
         return new_value < old_value, 'min'
     else:
         raise ValueError("Unknown score name.")
+
+def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
+    """ Mirror a mesh at a plane and return the mirrored mesh.
+    The normal should point in the direction of the 'empty' side of the plane,
+    i.e. the side where the mesh should be mirrored to.
+    """
+    # Normalize plane normal
+    if not np.isclose(np.sqrt(np.sum(plane_normal ** 2)), 1):
+        plane_normal = plane_normal / np.sqrt(np.sum(plane_normal ** 2))
+
+    d = np.dot(plane_normal, plane_point)
+    d_verts = -1 * (plane_normal @ mesh.vertices.T - d)
+    mirrored_verts = mesh.vertices + 2 * (plane_normal[:,None] * d_verts).T
+
+    # Preserve data type
+    mirrored_mesh = Trimesh(mirrored_verts, mesh.faces)\
+            if isinstance(mesh, Trimesh) else Mesh(mirrored_verts, mesh.faces)
+
+    return mirrored_mesh
+
+def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
+    """ Voxelize the mesh and return a segmentation map of 'shape'. 
+
+    :param vertices: The vertices of the mesh
+    :param faces: Corresponding faces as indices to vertices
+    :param shape: The shape the output image should have
+    :param n_m_classes: The number of mesh classes, i.e., the number of
+    different structures in the mesh. This is currently ignored but should be
+    implemented at some time.
+    :param strip: Whether to strip the outer layer of the voxelized mesh. This
+    is often a more accurate representation of the discrete volume occupied by
+    the mesh.
+    """
+    assert len(shape) == 3, "Shape should be 3D"
+    voxelized_mesh = torch.zeros(shape, dtype=torch.long)
+    vertices = vertices.view(n_m_classes, -1, 3)
+    faces = faces.view(n_m_classes, -1, 3)
+    unnorm_verts = unnormalize_vertices(
+        vertices.view(-1, 3), torch.tensor(shape)[None]
+    ).view(n_m_classes, -1, 3)
+    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(shape)
+    if pv is not None:
+        # Occupied voxels are considered to belong to one class
+        voxelized_mesh[pv[:,0], pv[:,1], pv[:,2]] = 1
+    else:
+        # No mesh in the valid range predicted --> keep zeros
+        pass
+
+    # Strip outer layer of voxelized mesh
+    if strip:
+        voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+
+    return voxelized_mesh
+

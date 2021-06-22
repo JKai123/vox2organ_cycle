@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from itertools import chain
 from typing import Union
+from deprecated import deprecated
 
 import numpy as np
 import torch.nn as nn
@@ -38,7 +39,10 @@ class Voxel2MeshPlusPlus(V2MModel):
     https://github.com/cvlab-epfl/voxel2mesh
 
     :param ndims: Number of input dimensions, only tested with ndims=3
-    :param num_classes: Number of classes to distinguish
+    :param n_v_classes: Number of vertex classes to distinguish
+    :param n_m_classes: Number of mesh classes to distinguish. This is included
+    for compatibility but has not effect since support for mesh classes has
+    been added later in Voxel2MeshPlusPlusGeneric
     :param patch_shape: The shape of the input patches, e.g. (64, 64, 64)
     :param num_input_channels: The number of channels of the input image.
     :param first_layer_channels: The number of channels of the first encoder
@@ -60,7 +64,8 @@ class Voxel2MeshPlusPlus(V2MModel):
 
     def __init__(self,
                  ndims: int,
-                 num_classes: int,
+                 n_v_classes: int,
+                 n_m_classes: int,
                  patch_shape,
                  num_input_channels,
                  first_layer_channels,
@@ -83,7 +88,7 @@ class Voxel2MeshPlusPlus(V2MModel):
         else:
             raise ValueError("Invalid number of dimensions")
 
-        self.num_classes = num_classes
+        self.n_v_classes = n_v_classes
         self.unpool_indices = unpool_indices
         self.use_adoptive_unpool = use_adoptive_unpool
 
@@ -120,7 +125,7 @@ class Voxel2MeshPlusPlus(V2MModel):
                 # Lowest decoder level
                 grid_upconv_layer = None
                 grid_unet_layer = None
-                for _ in range(1, self.num_classes):
+                for _ in range(1, self.n_v_classes):
                     graph_unet_layers += [Features2Features(self.skip_count[i] + dim,
                                                             self.latent_features_count[i],
                                                             hidden_layer_count=graph_conv_layer_count)]
@@ -134,14 +139,14 @@ class Voxel2MeshPlusPlus(V2MModel):
                 grid_unet_layer = UNetLayer(first_layer_channels * 2 ** (steps - i + 1),
                                             first_layer_channels * 2**(steps-i),
                                             ndims)
-                for _ in range(1, self.num_classes):
+                for _ in range(1, self.n_v_classes):
                     graph_unet_layers += [Features2Features(
                         self.skip_count[i] + self.latent_features_count[i-1] + dim,
                         self.latent_features_count[i],
                         hidden_layer_count=graph_conv_layer_count,
                         batch_norm=batch_norm)]
 
-            for _ in range(1, self.num_classes):
+            for _ in range(1, self.n_v_classes):
                 feature2vertex_layers +=\
                     [Feature2VertexLayer(self.latent_features_count[i],
                                          hidden_layer_count=3,
@@ -162,7 +167,7 @@ class Voxel2MeshPlusPlus(V2MModel):
         ''' Final layer (for voxel decoder)'''
         self.final_layer =\
             ConvLayer(in_channels=first_layer_channels,
-                      out_channels=self.num_classes, kernel_size=1)
+                      out_channels=self.n_v_classes, kernel_size=1)
 
         sphere_path=mesh_template
         sphere_vertices, sphere_faces = read_obj(sphere_path)
@@ -211,8 +216,8 @@ class Voxel2MeshPlusPlus(V2MModel):
             down_outputs.append(x)
 
         # A separate mesh prediction per class (None for background class 0)
-        pred = [None] * self.num_classes
-        for k in range(1, self.num_classes):
+        pred = [None] * self.n_v_classes
+        for k in range(1, self.n_v_classes):
             # See definition of the prediction at the end of the function
             pred[k] = [[temp_meshes.clone(),
                         temp_meshes.clone(),
@@ -246,7 +251,7 @@ class Voxel2MeshPlusPlus(V2MModel):
             # https://github.com/pytorch/pytorch/issues/42218
             with autocast(enabled=False):
                 # Iterate over classes ignoring background class 0
-                for k in range(1, self.num_classes):
+                for k in range(1, self.n_v_classes):
 
                     # Load mesh information from previous iteration for class k
                     prev_meshes = pred[k][i][0]
@@ -353,7 +358,8 @@ class Voxel2MeshPlusPlus(V2MModel):
 
     @staticmethod
     @measure_time
-    def convert_data(data, n_classes, mode):
+    @deprecated
+    def convert_data(data, n_v_classes, mode):
         """ Convert data such that it's compatible with the above voxel2mesh
         implementation.
         """
@@ -365,7 +371,7 @@ class Voxel2MeshPlusPlus(V2MModel):
         shape = torch.tensor(y.shape[1:]) # (D, H, W)
         batch_size = y.shape[0]
         surface_points_normalized_all = []
-        for c in range(1, n_classes):
+        for c in range(1, n_v_classes):
             y_outer = sample_outer_surface_in_voxel((y==c).long())
             surface_points = torch.nonzero(y_outer)
             # Coord. 0 = index of data within batch
@@ -474,7 +480,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     decoder. The primary reference for this implementation is
     https://arxiv.org/abs/2102.07899.
 
-    :param num_classes: Number of classes to distinguish
+    :param n_v_classes: Number of voxel classes to distinguish
+    :param n_m_classes: Number of mesh classes to distinguish
     :param patch_shape: The shape of the input patches, e.g. (64, 64, 64)
     :param num_input_channels: The number of channels of the input image.
     :param encoder_channels: The number of channels of the encoder
@@ -497,13 +504,14 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     """
 
     def __init__(self,
-                 num_classes: int,
+                 n_v_classes: int,
+                 n_m_classes: int,
                  patch_shape: Union[list, tuple],
                  num_input_channels: int,
                  encoder_channels: Union[list, tuple],
                  decoder_channels: Union[list, tuple],
                  graph_channels: Union[list, tuple],
-                 batch_norm: bool,
+                 norm: str,
                  mesh_template: str,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
@@ -517,7 +525,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         super().__init__()
 
         # Voxel network
-        self.voxel_net = ResidualUNet(num_classes=num_classes,
+        self.voxel_net = ResidualUNet(num_classes=n_v_classes,
                                       num_input_channels=num_input_channels,
                                       patch_shape=patch_shape,
                                       down_channels=encoder_channels,
@@ -525,12 +533,12 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       deep_supervision=deep_supervision,
                                       voxel_decoder=voxel_decoder)
         # Graph network
-        self.graph_net = GraphDecoder(batch_norm=batch_norm,
+        self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
                                       unpool_indices=unpool_indices,
                                       use_adoptive_unpool=use_adoptive_unpool,
                                       graph_channels=graph_channels,
-                                      skip_channels=encoder_channels,
+                                      skip_channels=encoder_channels+decoder_channels,
                                       weighted_edges=weighted_edges,
                                       propagate_coords=propagate_coords,
                                       GC=gc)
@@ -539,7 +547,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     def forward(self, x):
 
         encoder_skips, decoder_skips, seg_out = self.voxel_net(x)
-        pred_meshes, pred_deltaV = self.graph_net(encoder_skips)
+        pred_meshes, pred_deltaV = self.graph_net(encoder_skips + decoder_skips)
 
         # pred has the form
         # ( - batch of pytorch3d prediction Meshes with the last 3 features
@@ -561,12 +569,13 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
     @staticmethod
     @measure_time
-    def convert_data(data, n_classes, mode):
+    @deprecated
+    def convert_data(data, n_v_classes, mode):
         """ Convert data such that it's compatible with the above voxel2mesh
         implementation. Currently, it's the same as for Voxel2MeshPlusPlus but
         it may change in the future.
         """
-        return Voxel2MeshPlusPlus.convert_data(data, n_classes, mode)
+        return Voxel2MeshPlusPlus.convert_data(data, n_v_classes, mode)
 
     @staticmethod
     def pred_to_displacements(pred):
@@ -575,8 +584,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         # No displacements for step 0
         displacements = pred[2][1:]
         # Mean over vertices since t|V| can vary among steps
-        displacements = [d.mean(dim=1, keepdim=True) for d in displacements]
-        displacements = torch.stack(displacements).unsqueeze(1)
+        displacements = [d.mean(dim=2, keepdim=True) for d in displacements]
+        displacements = torch.stack(displacements)
 
         return displacements
 
@@ -585,8 +594,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         """ Get the final voxel prediction with argmax over classes applied """
         if pred[1] is not None:
             return pred[1][-1].argmax(dim=1).squeeze()
-        else:
-            return None
+        return None
 
     @staticmethod
     def pred_to_raw_voxel_pred(pred):
@@ -598,15 +606,20 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     def pred_to_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """
-        C = 2
+        C = pred[0][0].verts_padded().shape[1]
         S = len(pred[0])
 
-        vertices = np.empty((S,C), object)
-        faces = np.empty((S,C), object)
+        vertices = []
+        faces = []
         meshes = pred[0]
         for s, m in enumerate(meshes):
-            vertices[s,1] = m.verts_padded()[:,:,-3:]
-            faces[s,1] = m.faces_padded()
+            v_s = []
+            f_s = []
+            for c in range(C):
+                v_s.append(m.verts_padded()[:,c,:,:])
+                f_s.append(m.faces_padded()[:,c,:,:])
+            vertices.append(torch.stack(v_s))
+            faces.append(torch.stack(f_s))
 
         return vertices, faces
 
@@ -614,9 +627,6 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
         vertices, faces = Voxel2MeshPlusPlusGeneric.pred_to_verts_and_faces(pred)
-        # Ignore step 0 and class 0
-        pred_meshes = verts_faces_to_Meshes(vertices[1:,1:], faces[1:,1:], 2) # pytorch3d
-
-        return pred_meshes
+        pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
 
         return pred_meshes

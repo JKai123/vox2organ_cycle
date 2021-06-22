@@ -7,10 +7,30 @@ def get_commont_vertex(edge_pair):
 
     return edge_pair[:, 0][a + b]
 
-def uniform_unpool(vertices_, faces_, identical_face_batch=True):
-    if vertices_ is None:
+def uniform_unpool(vertices_in, faces_in, identical_face_batch=True):
+    if vertices_in is None:
         return None, None
-    batch_size , _, _ = vertices_.shape
+
+    assert vertices_in.ndim == faces_in.ndim,\
+            "Vertices and faces should either be both 3D or 4D."
+
+    assert faces_in.shape[-1] == 3, "Faces should be triangles."
+
+    # If dim = 4, the first two dimensions are combined and treated as the
+    # batch dimension
+    if vertices_in.ndim == 4:
+        vertices_ = vertices_in.view(-1, vertices_in.shape[2], vertices_in.shape[3])
+        batch_size, M, _, C = vertices_in.shape
+        dim = 4
+    else:
+        vertices_ = vertices_in
+        batch_size, _, C = vertices_in.shape
+        dim = 3
+    if faces_in.ndim ==4:
+        faces_ = faces_in.view(-1, faces_in.shape[2], faces_in.shape[3])
+    else:
+        faces_ = faces_in
+
     new_faces_all = []
     new_vertices_all = []
 
@@ -48,12 +68,22 @@ def uniform_unpool(vertices_, faces_, identical_face_batch=True):
         new_faces_all += [torch.cat([corner_faces, middle_face], dim=0)[None]]  # new faces-3
 
         if identical_face_batch:
-            new_vertices_all = new_vertices_all[0].repeat(batch_size, 1, 1)
-            new_faces_all = new_faces_all[0].repeat(batch_size, 1, 1)
+            if dim == 3:
+                new_vertices_all = new_vertices_all[0].repeat(batch_size, 1, 1)
+                new_faces_all = new_faces_all[0].repeat(batch_size, 1, 1)
+            else: # dim == 4
+                new_vertices_all = new_vertices_all[0].repeat(batch_size, M, 1, 1)
+                new_faces_all = new_faces_all[0].repeat(batch_size, M, 1, 1)
+
             return new_vertices_all, new_faces_all
 
     new_vertices_all = torch.cat(new_vertices_all, dim=0)
     new_faces_all = torch.cat(new_faces_all, dim=0)
+
+    if dim == 4:
+        new_vertices_all = new_vertices_all.view(batch_size, M, -1, C)
+        new_faces_all = new_faces_all.view(batch_size, M, -1, 3)
+
     return new_vertices_all, new_faces_all
 
 

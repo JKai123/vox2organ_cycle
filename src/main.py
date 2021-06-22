@@ -13,7 +13,19 @@ from utils.train import training_routine
 from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
-from utils.losses import ChamferLoss
+from utils.losses import (
+    ChamferLoss,
+    ChamferAndNormalsLoss,
+    LaplacianLoss,
+    NormalConsistencyLoss,
+    EdgeLoss
+)
+from utils.utils_voxel2meshplusplus.graph_conv import (
+    GraphConvNorm,
+    GCNConvWrapped,
+    GINConvWrapped,
+    GeoGraphConvNorm
+)
 
 # Overwrite default parameters for a common training procedure
 hyper_ps = {
@@ -23,12 +35,9 @@ hyper_ps = {
                               # should be set with console argument
     #######################
     # Learning
-    'N_EPOCHS': 2000,
-    'EVAL_EVERY': 50,
+    'EVAL_EVERY': 100,
     'LOG_EVERY': 'epoch',
-    'BATCH_SIZE': 15,
     'ACCUMULATE_N_GRADIENTS': 1,
-    'AUGMENT_TRAIN': True,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
     'EVAL_METRICS': [
@@ -36,36 +45,116 @@ hyper_ps = {
         'JaccardMesh',
         'Chamfer'
     ],
-    'OPTIM_PARAMS': {#
-        'lr': 1e-4,
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0},
-    'LR_DECAY_AFTER': 300,
+    'OPTIMIZER_CLASS': torch.optim.SGD,
+    'OPTIM_PARAMS': {
+        'lr': 1e-3, # voxel lr if graph lr not None
+        'graph_lr': 2.5e-5,
+        # SGD
+        'momentum': 0.9,
+        # Adam
+        # 'betas': [0.9, 0.999],
+        # 'eps': 1e-8,
+        # 'weight_decay': 0.0
+    },
+    'LR_DECAY_AFTER': 500,
     'DATASET_SEED': 1532,
-    'LOSS_AVERAGING': 'linear',
+    'LOSS_AVERAGING': 'geometric',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    # Chamfer, Laplacian, NormalConsistency, Edge
-    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16],
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+    'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
+                       LaplacianLoss(),
+                       NormalConsistencyLoss(),
+                       EdgeLoss()],
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # Model
     'MODEL_CONFIG': {
-        'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
+        'NORM': 'layer', # Only for graph convs
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
-        'GRAPH_CHANNELS': [128, 64, 32, 16],
+        # 'GRAPH_CHANNELS': [128, 64, 32, 16],
+        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
-        'UNPOOL_INDICES': [0,1,1],
         'WEIGHTED_EDGES': False,
-        'VOXEL_DECODER': True
+        'PROPAGATE_COORDS': True,
+        'VOXEL_DECODER': True,
+        'GC': GraphConvNorm
     },
-    # Data directories
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
-    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/Task04_Hippocampus/"
 }
+
+# Dataset specific parameters
+hyper_ps_hippocampus = {
+    'N_EPOCHS': 2000,
+    'AUGMENT_TRAIN': True,
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
+    'PATCH_SIZE': (64, 64, 64),
+    'BATCH_SIZE': 15,
+    'N_M_CLASSES': 1,
+    'N_REF_POINTS_PER_STRUCTURE': 1400,
+    'N_TEMPLATE_VERTICES': 162,
+    'MODEL_CONFIG': {
+        'UNPOOL_INDICES': [0,1,1],
+    },
+    'PROJ_NAME': "hippocampus",
+    'MESH_TARGET_TYPE': "mesh"
+}
+hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+    f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
+
+hyper_ps_cortex = {
+    'N_EPOCHS': 15000,
+    'AUGMENT_TRAIN': False,
+    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
+    'BATCH_SIZE': 5,
+    'MODEL_CONFIG': {
+        'UNPOOL_INDICES': [0,0,0,0],
+    },
+    'PROJ_NAME': "cortex",
+    'MESH_TARGET_TYPE': "mesh",
+    'STRUCTURE_TYPE': 'white_matter',
+    'REDUCE_REG_LOSS_MODE': 'none',
+    'PATCH_MODE': True
+}
+# Automatically set parameters
+if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
+    if hyper_ps_cortex['PATCH_MODE']:
+        hyper_ps_cortex['N_M_CLASSES'] = 1
+        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 10, 0)
+        hyper_ps_cortex['PATCH_SIZE'] = (64, 144, 128)
+        hyper_ps_cortex['SELECT_PATCH_SIZE'] = (96, 192, 176)
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 38000
+        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    else:
+        hyper_ps_cortex['N_M_CLASSES'] = 2
+        hyper_ps_cortex['PATCH_SIZE'] = (192, 224, 192)
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
+        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
+    hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+        f"../supplementary_material/spheres/cortex_cerebral_cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
+# Overwrite params for overfitting (fewer epochs, no augmentation, smaller
+# dataset)
+hyper_ps_overfit = {
+    # Learning
+    'N_EPOCHS': 15000,
+    'EVAL_EVERY': 100,
+    'BATCH_SIZE': 1,
+    'AUGMENT_TRAIN': False,
+    'MIXED_PRECISION': True,
+}
+
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
@@ -91,19 +180,19 @@ def main(hps):
     """
     argparser = ArgumentParser(description="cortex-parcellation-using-meshes",
                                formatter_class=RawTextHelpFormatter)
-    argparser.add_argument('architecture',
-                           nargs='?',
+    argparser.add_argument('--architecture',
                            type=str,
-                           default="voxel2meshplusplus",
+                           default="voxel2meshplusplusgeneric",
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2mesh\n"
-                           "- voxel2meshplusplus")
-    argparser.add_argument('dataset',
-                           nargs='?',
+                           "- voxel2meshplusplus\n"
+                           "- voxel2meshplusplusgeneric")
+    argparser.add_argument('--dataset',
                            type=str,
-                           default="Hippocampus",
+                           default="Cortex",
                            help="The name of the dataset. Supported:\n"
-                           "- Hippocampus")
+                           "- Hippocampus\n"
+                           "- Cortex")
     argparser.add_argument('--train',
                            action='store_true',
                            help="Train a model.")
@@ -128,7 +217,7 @@ def main(hps):
     argparser.add_argument('--proj',
                            type=str,
                            dest='proj_name',
-                           default='cortex',
+                           default=None,
                            help="Specify the name of the wandb project.")
     argparser.add_argument('--group',
                            type=str,
@@ -141,8 +230,11 @@ def main(hps):
                            default='cuda:0',
                            help="Specify the device for execution.")
     argparser.add_argument('--overfit',
-                           action='store_true',
-                           help="Overfit on a single training sample.")
+                           type=int,
+                           nargs='?',
+                           const=1,
+                           default=None,
+                           help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
@@ -171,14 +263,20 @@ def main(hps):
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
 
-    if args.exp_name == "debug":
+    if args.exp_name == "debug" and not args.overfit:
         # Overfit when debugging
-        hps['OVERFIT'] = True
+        hps['OVERFIT'] = 1
 
     torch.cuda.set_device(args.device)
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
+
+    # Dataset specific params
+    if args.dataset == 'Hippocampus':
+        hps = update_dict(hps, hyper_ps_hippocampus)
+    if args.dataset == 'Cortex':
+        hps = update_dict(hps, hyper_ps_cortex)
 
     # Update again for overfitting
     if hps['OVERFIT']:
@@ -209,7 +307,6 @@ def main(hps):
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
-
 
     # Run
     routine = mode_handler[mode]
