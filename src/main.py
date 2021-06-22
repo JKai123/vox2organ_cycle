@@ -83,7 +83,7 @@ hyper_ps = {
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
         'VOXEL_DECODER': True,
-        'GC': GeoGraphConvNorm
+        'GC': GraphConvNorm
     },
 }
 
