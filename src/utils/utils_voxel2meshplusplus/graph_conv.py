@@ -187,9 +187,9 @@ class Features2FeaturesResidual(nn.Module):
 
         self.gconv_first = GC(in_features, out_features, weighted_edges=weighted_edges)
         if norm == 'batch':
-            self.norm_first = nn.BatchNorm1d(in_features)
+            self.norm_first = nn.BatchNorm1d(out_features)
         elif norm == 'layer':
-            self.norm_first = nn.LayerNorm(in_features)
+            self.norm_first = nn.LayerNorm(out_features)
         else: # none
             self.norm_first = IdLayer()
 
@@ -238,9 +238,9 @@ class Features2FeaturesSimple(nn.Module):
         super().__init__()
 
         self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
-        if norm=='batch':
+        if norm == 'batch':
             self.norm = nn.BatchNorm1d(out_features)
-        elif norm=='layer':
+        elif norm == 'layer':
             self.norm = nn.LayerNorm(out_features)
         else:
             self.norm = IdLayer()
