@@ -185,7 +185,7 @@ class Features2FeaturesResidual(nn.Module):
 
         self.gconv_first = GC(in_features, out_features, weighted_edges=weighted_edges)
         if batch_norm:
-            self.bn_first = nn.BatchNorm1d(out_features)
+            self.bn_first = nn.BatchNorm1d(in_features)
         else:
             self.bn_first = IdLayer()
 
@@ -209,15 +209,17 @@ class Features2FeaturesResidual(nn.Module):
             res = F.interpolate(features.unsqueeze(1), self.out_features,
                                 mode='nearest').squeeze(1)
 
-        # Conv --> Norm --> ReLU
-        features = F.relu(self.bn_first(self.gconv_first(features, edges)))
+        # Norm --> ReLU --> Conv (preactivation)
+        features = self.gconv_first(F.relu(self.bn_first(features)), edges)
         for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
-            # Adding residual before last relu
             if i == len(self.gconv_hidden):
-                features = bn(gconv(features, edges)) + res
+                # Norm --> ReLU --> Conv --> Addition
+                features = bn(features)
                 features = F.relu(features)
+                features = gconv(features, edges) + res
             else:
-                features = F.relu(bn(gconv(features, edges)))
+                # Norm --> ReLU --> Conv
+                features = gconv(F.relu(bn(features)), edges)
 
         return features
 
