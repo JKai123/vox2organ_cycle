@@ -220,7 +220,7 @@ class Features2FeaturesResidual(nn.Module):
         for i, (gconv, nl) in enumerate(self.gconv_hidden, 1):
             if i == len(self.gconv_hidden):
                 # Norm --> ReLU --> Conv --> Addition
-                features = nl(features)
+                features = gconv(F.relu(nl(features)), edges) + res
             else:
                 # Norm --> ReLU --> Conv
                 features = gconv(F.relu(nl(features)), edges)
