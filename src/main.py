@@ -40,11 +40,6 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
-    'EVAL_METRICS': [
-        'JaccardVoxel',
-        'JaccardMesh',
-        'Chamfer'
-    ],
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
         'lr': 1e-3, # voxel lr if graph lr not None
