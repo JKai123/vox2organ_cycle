@@ -256,16 +256,21 @@ class Features2FeaturesSimpleResidual(nn.Module):
     """ A simple residual graph conv + batch norm (optional) + ReLU """
 
     def __init__(self, in_features, out_features,
-                 batch_norm=False, GC=GraphConv,
+                 norm='batch', GC=GraphConv,
                  weighted_edges=False):
+
+        assert norm in ('none', 'layer', 'batch'), "Invalid norm."
+
         super().__init__()
 
         self.out_features = out_features
         self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
-        if batch_norm:
-            self.bn = nn.BatchNorm1d(out_features)
+        if norm == 'batch':
+            self.norm = nn.BatchNorm1d(out_features)
+        elif norm == 'layer':
+            self.norm = nn.LayerNorm(out_features)
         else:
-            self.bn = IdLayer()
+            self.norm = IdLayer()
 
     def forward(self, features, edges):
         if features.shape[-1] == self.out_features:
@@ -274,7 +279,7 @@ class Features2FeaturesSimpleResidual(nn.Module):
             res = F.interpolate(features.unsqueeze(1), self.out_features,
                                 mode='nearest').squeeze(1)
         # Conv --> Norm --> ReLU
-        return F.relu(self.bn(self.gconv(features, edges)) + res)
+        return F.relu(self.norm(self.gconv(features, edges)) + res)
 
 class GraphIdLayer(nn.Module):
     """ Graph identity layer """
