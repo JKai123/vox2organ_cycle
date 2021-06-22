@@ -511,7 +511,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  encoder_channels: Union[list, tuple],
                  decoder_channels: Union[list, tuple],
                  graph_channels: Union[list, tuple],
-                 batch_norm: bool,
+                 norm: str,
                  mesh_template: str,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
@@ -533,7 +533,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       deep_supervision=deep_supervision,
                                       voxel_decoder=voxel_decoder)
         # Graph network
-        self.graph_net = GraphDecoder(batch_norm=batch_norm,
+        self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
                                       unpool_indices=unpool_indices,
                                       use_adoptive_unpool=use_adoptive_unpool,

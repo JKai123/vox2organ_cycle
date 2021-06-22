@@ -30,7 +30,7 @@ class GraphDecoder(nn.Module):
     """ A graph decoder that takes a template mesh and voxel features as input.
     """
     def __init__(self,
-                 batch_norm: bool,
+                 norm: str,
                  mesh_template: str,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
@@ -74,7 +74,7 @@ class GraphDecoder(nn.Module):
 
         # Initial creation of latent features from coordinates
         self.graph_conv_first = Features2FeaturesResidual(
-            dim, graph_channels[0], n_f2f_hidden_layer, batch_norm=batch_norm,
+            dim, graph_channels[0], n_f2f_hidden_layer, norm=norm,
             GC=GC, weighted_edges=weighted_edges
         )
 
@@ -99,7 +99,7 @@ class GraphDecoder(nn.Module):
                 skip_features_count + self.latent_features_count[i] + add_n,
                 self.latent_features_count[i+1],
                 hidden_layer_count=n_f2f_hidden_layer,
-                batch_norm=batch_norm,
+                norm=norm,
                 GC=GC,
                 weighted_edges=weighted_edges
             )]
@@ -108,7 +108,7 @@ class GraphDecoder(nn.Module):
                     self.latent_features_count[i+1],
                     self.latent_features_count[i+1],
                     hidden_layer_count=n_f2f_hidden_layer,
-                    batch_norm=batch_norm,
+                    norm=norm,
                     GC=GC,
                     weighted_edges=False # No weighted edges here
                 ))

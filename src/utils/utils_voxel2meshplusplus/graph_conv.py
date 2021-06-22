@@ -178,27 +178,33 @@ class Features2FeaturesResidual(nn.Module):
     """ A residual graph conv block consisting of 'hidden_layer_count' many graph convs """
 
     def __init__(self, in_features, out_features, hidden_layer_count,
-                 batch_norm=False, GC=GraphConv, weighted_edges=False):
+                 norm='batch', GC=GraphConv, weighted_edges=False):
+        assert norm in ('none', 'layer', 'batch'), "Invalid norm."
+
         super().__init__()
 
         self.out_features = out_features
 
         self.gconv_first = GC(in_features, out_features, weighted_edges=weighted_edges)
-        if batch_norm:
-            self.bn_first = nn.BatchNorm1d(in_features)
-        else:
-            self.bn_first = IdLayer()
+        if norm == 'batch':
+            self.norm_first = nn.BatchNorm1d(in_features)
+        elif norm == 'layer':
+            self.norm_first = nn.LayerNorm(in_features)
+        else: # none
+            self.norm_first = IdLayer()
 
         gconv_hidden = []
         for _ in range(hidden_layer_count):
             # No weighted edges and no propagated coordinates in hidden layers
             gc_layer = GC(out_features, out_features, weighted_edges=False)
-            if batch_norm:
-                bn_layer = nn.BatchNorm1d(out_features)
-            else:
-                bn_layer = IdLayer() # Id
+            if norm == 'batch':
+                norm_layer = nn.BatchNorm1d(out_features)
+            elif norm == 'layer':
+                norm_layer = nn.LayerNorm(out_features)
+            else: # none
+                norm_layer = IdLayer() # Id
 
-            gconv_hidden += [nn.Sequential(gc_layer, bn_layer)]
+            gconv_hidden += [nn.Sequential(gc_layer, norm_layer)]
 
         self.gconv_hidden = nn.Sequential(*gconv_hidden)
 
@@ -210,36 +216,38 @@ class Features2FeaturesResidual(nn.Module):
                                 mode='nearest').squeeze(1)
 
         # Norm --> ReLU --> Conv (preactivation)
-        features = self.gconv_first(F.relu(self.bn_first(features)), edges)
-        for i, (gconv, bn) in enumerate(self.gconv_hidden, 1):
+        features = self.gconv_first(F.relu(self.norm_first(features)), edges)
+        for i, (gconv, nl) in enumerate(self.gconv_hidden, 1):
             if i == len(self.gconv_hidden):
                 # Norm --> ReLU --> Conv --> Addition
-                features = bn(features)
-                features = F.relu(features)
-                features = gconv(features, edges) + res
+                features = nl(features)
             else:
                 # Norm --> ReLU --> Conv
-                features = gconv(F.relu(bn(features)), edges)
+                features = gconv(F.relu(nl(features)), edges)
 
         return features
 
 class Features2FeaturesSimple(nn.Module):
-    """ A simple graph conv + batch norm (optional) + ReLU """
+    """ A simple graph conv + norm (optional) + ReLU """
 
     def __init__(self, in_features, out_features,
-                 batch_norm=False, GC=GraphConv,
+                 norm='batch', GC=GraphConv,
                  weighted_edges=False):
+        assert norm in ('none', 'layer', 'batch'), "Invalid norm."
+
         super().__init__()
 
         self.gconv = GC(in_features, out_features, weighted_edges=weighted_edges)
-        if batch_norm:
-            self.bn = nn.BatchNorm1d(out_features)
+        if norm=='batch':
+            self.norm = nn.BatchNorm1d(out_features)
+        elif norm=='layer':
+            self.norm = nn.LayerNorm(out_features)
         else:
-            self.bn = IdLayer()
+            self.norm = IdLayer()
 
     def forward(self, features, edges):
         # Conv --> Norm --> ReLU
-        return F.relu(self.bn(self.gconv(features, edges)))
+        return F.relu(self.norm(self.gconv(features, edges)))
 
 class Features2FeaturesSimpleResidual(nn.Module):
     """ A simple residual graph conv + batch norm (optional) + ReLU """

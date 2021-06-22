@@ -141,7 +141,7 @@ hyper_ps_default={
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
         'DEEP_SUPERVISION': False, # For voxel net
-        'BATCH_NORM': False, # Only for graph convs, always True in voxel layers
+        'NORM': 'none', # Only for graph convs, batch norm always used in voxel layers
         # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
         'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',

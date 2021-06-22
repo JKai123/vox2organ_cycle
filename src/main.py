@@ -73,7 +73,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # Model
     'MODEL_CONFIG': {
-        'BATCH_NORM': True, # Only for graph convs, always True in voxel layers
+        'NORM': 'layer', # Only for graph convs
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2
