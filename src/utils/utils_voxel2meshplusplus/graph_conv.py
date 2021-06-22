@@ -215,15 +215,15 @@ class Features2FeaturesResidual(nn.Module):
             res = F.interpolate(features.unsqueeze(1), self.out_features,
                                 mode='nearest').squeeze(1)
 
-        # Norm --> ReLU --> Conv (preactivation)
-        features = self.gconv_first(F.relu(self.norm_first(features)), edges)
+        # Conv --> Norm --> ReLU
+        features = F.relu(self.norm_first(self.gconv_first(features, edges)))
         for i, (gconv, nl) in enumerate(self.gconv_hidden, 1):
             if i == len(self.gconv_hidden):
-                # Norm --> ReLU --> Conv --> Addition
-                features = gconv(F.relu(nl(features)), edges) + res
+                # Conv --> Norm --> Addition --> ReLU
+                features = F.relu(nl(gconv(features, edges)) + res)
             else:
-                # Norm --> ReLU --> Conv
-                features = gconv(F.relu(nl(features)), edges)
+                # Conv --> Norm --> ReLU
+                features = F.relu(nl(gconv(features, edges)))
 
         return features
 
