@@ -43,10 +43,10 @@ class GraphDecoder(nn.Module):
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2,
-                 aggregate_indices=((6,3,4),
-                                    (7,2,3),
-                                    (7,1,2),
-                                    (8,0,1))): # 8 = last decoder skip
+                 aggregate_indices=((3,4,5,6),
+                                    (2,3,6,7),
+                                    (1,2,7,8),
+                                    (0,1,7,8))): # 8 = last decoder skip
         super().__init__()
 
         assert (len(graph_channels) - 1 ==\
