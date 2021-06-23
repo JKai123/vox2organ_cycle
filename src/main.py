@@ -40,11 +40,6 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
-    'EVAL_METRICS': [
-        'JaccardVoxel',
-        'JaccardMesh',
-        'Chamfer'
-    ],
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
         'lr': 1e-3, # voxel lr if graph lr not None
@@ -73,7 +68,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
     # Model
     'MODEL_CONFIG': {
-        'NORM': 'layer', # Only for graph convs
+        'NORM': 'batch', # Only for graph convs
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
         # Graph decoder channels should be multiples of 2

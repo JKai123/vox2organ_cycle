@@ -9,6 +9,7 @@ from enum import IntEnum
 import numpy as np
 import torch
 from pytorch3d.loss import chamfer_distance
+from scipy.spatial.distance import directed_hausdorff
 
 from utils.mesh import Mesh
 from utils.utils import (
@@ -29,6 +30,31 @@ class EvalMetrics(IntEnum):
 
     # Jaccard score/ Intersection over Union from mesh prediction
     JaccardMesh = 3
+
+    # Symmetric Hausdorff distance between two meshes
+    SymmetricHausdorff = 4
+
+@measure_time
+def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
+    """ Symmetric Hausdorff distance between predicted point clouds. If
+    multiple structures are present, the maximum over the structures is
+    returned.
+    """
+    # Ground truth
+    mesh_gt = data[2]
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, 3)
+
+    # Prediction: Only consider mesh of last step
+    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, 3).cpu().numpy()
+
+    hds = []
+    for pred, gt in zip(pred_vertices, gt_vertices):
+        d = max(directed_hausdorff(pred, gt)[0],
+                directed_hausdorff(gt, pred)[0])
+        hds.append(d)
+
+    return np.max(hds)
 
 @measure_time
 def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
@@ -149,5 +175,6 @@ def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
 EvalMetricHandler = {
     EvalMetrics.JaccardVoxel.name: JaccardVoxelScore,
     EvalMetrics.JaccardMesh.name: JaccardMeshScore,
-    EvalMetrics.Chamfer.name: ChamferScore
+    EvalMetrics.Chamfer.name: ChamferScore,
+    EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore
 }
