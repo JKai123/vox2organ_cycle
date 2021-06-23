@@ -33,8 +33,8 @@ class ResidualBlock(nn.Module):
     implementation at https://github.com/MIC-DKFZ/nnUNet
     """
 
-    def __init__(self, num_channels_in, num_channels_out,
-                 norm=nn.BatchNorm3d, p_dropout=None):
+    def __init__(self, num_channels_in: int, num_channels_out: int,
+                 norm=nn.BatchNorm3d, p_dropout: float=None):
 
         super().__init__()
         self.conv1 = nn.Conv3d(num_channels_in, num_channels_out,
@@ -59,13 +59,12 @@ class ResidualBlock(nn.Module):
             self.adapt_skip = IdLayer()
 
     def forward(self, x):
-        x_out = self.dropout(self.conv1(x))
+        # Conv --> Norm --> ReLU --> (Dropout)
+        x_out = self.conv1(x)
         x_out = F.relu(self.norm1(x_out))
-
+        x_out = self.dropout(x_out)
         x_out = self.norm2(self.conv2(x_out))
-
         res = self.adapt_skip(x)
-
         x_out += res
 
         return F.relu(x_out)
@@ -77,7 +76,7 @@ class ResidualUNetEncoder(nn.Module):
     :param encoder_channels: List of channel dimensions of all feature maps
     :returns: Encoded feature maps for every encoder step
     """
-    def __init__(self, input_channels: int, encoder_channels):
+    def __init__(self, input_channels: int, encoder_channels, p_dropout: float):
         super().__init__()
 
         self.num_steps = len(encoder_channels)
@@ -86,7 +85,8 @@ class ResidualUNetEncoder(nn.Module):
         # Initial step: Conv --> Residual block
         down_layers = [nn.Sequential(
             nn.Conv3d(input_channels, self.channels[0], 3, padding=1),
-            ResidualBlock(self.channels[0], self.channels[0])
+            ResidualBlock(self.channels[0], self.channels[0],
+                          p_dropout=p_dropout)
         )]
         for i in range(1, self.num_steps):
             # Downsample --> Residual Block
@@ -94,7 +94,8 @@ class ResidualUNetEncoder(nn.Module):
                 # Compared to Kong et al. we use 2x2x2 convs (instead of 3x3x3)
                 # for downsampling
                 nn.Conv3d(self.channels[i-1], self.channels[i], 2, stride=2),
-                ResidualBlock(self.channels[i], self.channels[i])
+                ResidualBlock(self.channels[i], self.channels[i],
+                              p_dropout=p_dropout)
             ))
 
         self.encoder = nn.ModuleList(down_layers)
@@ -117,7 +118,7 @@ class ResidualUNetDecoder(nn.Module):
     :returns: Segmentation output
     """
     def __init__(self, encoder, decoder_channels, num_classes, patch_shape,
-                 deep_supervision):
+                 deep_supervision, p_dropout):
         super().__init__()
         # Decoder has one step less
         num_steps = encoder.num_steps - 1
@@ -137,7 +138,8 @@ class ResidualUNetDecoder(nn.Module):
                 stride=2
             ),
             ResidualBlock(
-                encoder.channels[-2] + self.channels[0], self.channels[0]
+                encoder.channels[-2] + self.channels[0], self.channels[0],
+                p_dropout=p_dropout
             )
         ))
 
@@ -152,7 +154,8 @@ class ResidualUNetDecoder(nn.Module):
                 ),
                 ResidualBlock(
                     encoder.channels[-i-2] + self.channels[i],
-                    self.channels[i]
+                    self.channels[i],
+                    p_dropout=p_dropout
                 )
             ))
             if deep_supervision and i in self.deep_supervision_pos:
@@ -206,17 +209,19 @@ class ResidualUNet(nn.Module):
     """
     def __init__(self, num_classes: int, num_input_channels: int, patch_shape,
                  down_channels, up_channels, deep_supervision,
-                 voxel_decoder: bool):
+                 voxel_decoder: bool, p_dropout: float=None):
         assert len(up_channels) == len(down_channels) - 1,\
                 "Encoder should have one more step than decoder."
         super().__init__()
         self.num_classes = num_classes
 
-        self.encoder = ResidualUNetEncoder(num_input_channels, down_channels)
+        self.encoder = ResidualUNetEncoder(num_input_channels, down_channels,
+                                           p_dropout)
         if voxel_decoder:
             self.decoder = ResidualUNetDecoder(self.encoder, up_channels,
                                                num_classes, patch_shape,
-                                               deep_supervision)
+                                               deep_supervision,
+                                               p_dropout)
         else:
             self.decoder = None
 

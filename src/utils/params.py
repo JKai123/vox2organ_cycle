@@ -157,7 +157,9 @@ hyper_ps_default={
         'GC': GraphConvNorm,
         # Whether to propagate coordinates in the graph decoder in addition to
         # voxel features
-        'PROPAGATE_COORDS': False
+        'PROPAGATE_COORDS': False,
+        # Dropout probability of UNet blocks
+        'P_DROPOUT': None
     },
 
     # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no

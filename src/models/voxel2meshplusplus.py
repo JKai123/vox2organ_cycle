@@ -501,6 +501,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param voxel_decoder: Whether or not to use a voxel decoder
     :param GC: The graph conv implementation to use
     :param propagate_coords: Whether to propagate coordinates in the graph conv
+    :param p_dropout: Dropout probability for UNet blocks
     """
 
     def __init__(self,
@@ -520,6 +521,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  voxel_decoder: bool,
                  gc,
                  propagate_coords: bool,
+                 p_dropout: float,
                  **kwargs
                  ):
         super().__init__()
@@ -531,7 +533,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       down_channels=encoder_channels,
                                       up_channels=decoder_channels,
                                       deep_supervision=deep_supervision,
-                                      voxel_decoder=voxel_decoder)
+                                      voxel_decoder=voxel_decoder,
+                                      p_dropout=p_dropout)
         # Graph network
         self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
