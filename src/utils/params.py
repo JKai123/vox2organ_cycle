@@ -116,6 +116,7 @@ hyper_ps_default={
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
+        'Wasserstein',
         'SymmetricHausdorff',
         'JaccardVoxel',
         'JaccardMesh',

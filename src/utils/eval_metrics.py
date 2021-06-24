@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from pytorch3d.loss import chamfer_distance
 from scipy.spatial.distance import directed_hausdorff
+from geomloss import SamplesLoss
 
 from utils.mesh import Mesh
 from utils.utils import (
@@ -33,6 +34,44 @@ class EvalMetrics(IntEnum):
 
     # Symmetric Hausdorff distance between two meshes
     SymmetricHausdorff = 4
+
+    # Wasserstein distance between point clouds
+    Wasserstein = 5
+
+@measure_time
+def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
+    """ Approximate Wasserstein distance with Sinkhorn iteration.
+    If multiple structures are present, the average is returned.
+    """
+    # Ground truth
+    mesh_gt = data[2]
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, 3).cuda()
+
+    # Prediction: Only consider mesh of last step
+    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, 3)
+
+    # Loss criterion: Sinkhorn divergence with L2 ground distance
+    dist = SamplesLoss(loss="sinkhorn", p=2, diameter=2, blur=0.05)
+
+    wds = []
+
+    for p, gt in zip(pred_vertices, gt_vertices):
+        # Select an equal number of points
+        if len(p) < len(gt):
+            p_ = p
+            perm = torch.randperm(len(gt))
+            perm = perm[:len(p)]
+            gt_ = gt[perm, :]
+        else:
+            gt_ = gt
+            perm = torch.randperm(len(p))
+            perm = perm[:len(gt)]
+            p_ = p[perm, :]
+
+        wds.append(dist(p_, gt_).cpu().item())
+
+    return np.mean(wds)
 
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
@@ -176,5 +215,6 @@ EvalMetricHandler = {
     EvalMetrics.JaccardVoxel.name: JaccardVoxelScore,
     EvalMetrics.JaccardMesh.name: JaccardMeshScore,
     EvalMetrics.Chamfer.name: ChamferScore,
-    EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore
+    EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
+    EvalMetrics.Wasserstein.name: WassersteinScore
 }
