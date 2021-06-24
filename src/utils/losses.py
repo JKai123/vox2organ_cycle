@@ -27,6 +27,7 @@ from pytorch3d.loss import (chamfer_distance,
                             mesh_normal_consistency)
 from pytorch3d.ops import sample_points_from_meshes
 from torch.cuda.amp import autocast
+from geomloss import SamplesLoss
 
 class MeshLoss(ABC):
     def __str__(self):
@@ -58,7 +59,47 @@ class MeshLoss(ABC):
                                pytorch3d.structures.Meshes,
                                tuple,
                                list]):
-        pass
+        raise NotImplementedError()
+
+class WassersteinLoss(MeshLoss):
+    """ Wasserstein loss: it is approximated using Sinkhorn's iteration. The
+    resulting distance is also frequently called 'Sinkhorn divergence'.
+
+    Note: In contrast to the Wasserstein evaluation score, this function treats
+    every scene of multiple structures as one pointcloud. However, losses are
+    averaged over the batch.
+    """
+
+    def __init__(self):
+        self.loss_func = SamplesLoss(loss="sinkhorn", p=2, diameter=2, blur=0.05)
+
+    def get_loss(self, pred_meshes, target):
+        pred_ = pred_meshes.verts_padded()
+        if isinstance(target, pytorch3d.structures.Pointclouds):
+            target_ = target.points_padded()
+        if isinstance(target, pytorch3d.structures.Meshes):
+            target_ = target.verts_padded()
+        if isinstance(target, (tuple, list)):
+            # target = (verts, normals)
+            target_ = target[0] # Only vertices relevant
+        # Select an equal number of points
+        if pred_.shape[1] < target_.shape[1]:
+            n_points = pred_.shape[1]
+            perm = torch.randperm(target_.shape[1])
+            perm = perm[:n_points]
+            target_ = target_[:, perm, :]
+        else:
+            n_points = target_.shape[1]
+            perm = torch.randperm(pred_.shape[1])
+            perm = perm[:n_points]
+            pred_ = pred_[:, perm, :]
+
+        w_loss = torch.tensor(0.0, requires_grad=True).cuda()
+        for p, t in zip(pred_, target_):
+            w_loss += self.loss_func(p, t)
+
+        # Average over batch
+        return w_loss / float(pred_.shape[0])
 
 class ChamferLoss(MeshLoss):
     """ Chamfer distance between the predicted mesh and randomly sampled
