@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import logging
+import glob
 
 import numpy as np
 import torch
@@ -79,16 +80,28 @@ class ModelEvaluator():
         return results
 
     def store_meshes(self, pred, data, filename, epoch, model_class,
-                     show_all_steps=False):
+                     show_all_steps=False, remove_previous=True):
         """ Save predicted meshes and ground truth created with marching
         cubes
         """
+        # Remove previously stored files to avoid dumping storage
+        if remove_previous:
+            for suffix in ("*_meshpred.ply", "*_voxelpred.ply"):
+                files_to_delete = glob.glob(os.path.join(
+                    self._mesh_dir, filename + suffix
+                ))
+                for f in files_to_delete:
+                    try:
+                        os.remove(f)
+                    except:
+                        print("Error while deleting file ", f)
         # Label
         gt_mesh = data[2]
         gt_filename = filename + "_gt.ply"
+        gt_filename = os.path.join(self._mesh_dir, gt_filename)
         if not os.path.isfile(gt_filename):
             # gt file does not exist yet
-            gt_mesh.store(os.path.join(self._mesh_dir, gt_filename))
+            gt_mesh.store(gt_filename)
             logging.getLogger(ExecModes.TEST.name).debug(
                 "%d vertices in ground truth mesh",
                 len(gt_mesh.vertices.view(-1,3))
