@@ -41,7 +41,10 @@ class MeshLoss(ABC):
         i.e. one tensor per class
         :return: The calculated loss.
         """
-        mesh_loss = torch.tensor(0).float().cuda()
+        if isinstance(self, ChamferAndNormalsLoss):
+            mesh_loss = torch.tensor([0,0]).float().cuda()
+        else:
+            mesh_loss = torch.tensor(0).float().cuda()
 
         S = len(pred_meshes)
         C = len(pred_meshes[0])
@@ -133,7 +136,8 @@ class ChamferAndNormalsLoss(MeshLoss):
         d_chamfer, d_cosine = chamfer_distance(pred_points, target_points,
                                                x_normals=pred_normals,
                                                y_normals=target_normals)
-        return d_chamfer + 0.1 * d_cosine
+
+        return torch.stack([d_chamfer, d_cosine])
 
 class LaplacianLoss(MeshLoss):
     def get_loss(self, pred_meshes, target=None):
@@ -204,7 +208,13 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                 losses[str(lf)] += lf(vp, voxel_target)
     # Mesh losses
     for lf in mesh_loss_func:
-        losses[str(lf)] = lf(mesh_pred, mesh_target)
+        ml = lf(mesh_pred, mesh_target)
+        if isinstance(lf, ChamferAndNormalsLoss):
+            assert len(ml) == 2
+            losses['ChamferLoss()'] = ml[0]
+            losses['CosineLoss()'] = ml[1]
+        else:
+            losses[str(lf)] = ml
 
     # Merge loss weights into one list
     combined_loss_weights = voxel_loss_func_weights +\
@@ -242,7 +252,15 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
 
     # Mesh losses
     mesh_losses_combined = []
-    mesh_losses = {str(lf): [] for lf in mesh_loss_func}
+    # Init
+    mesh_losses = {}
+    for lf in mesh_loss_func:
+        if isinstance(lf, ChamferAndNormalsLoss):
+            mesh_losses['ChamferLoss()'] = []
+            mesh_losses['CosineLoss()'] = []
+        else:
+            mesh_losses[str(lf)] = []
+
     S = len(mesh_pred)
     C = len(mesh_pred[0])
     for s in range(S):
@@ -250,8 +268,17 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
             mesh_losses_sc = {}
             for lf in mesh_loss_func:
                 ml = lf([[mesh_pred[s][c]]], [mesh_target[c]])
-                mesh_losses_sc[str(lf)] = ml
-                mesh_losses[str(lf)].append(ml.detach().cpu()) # log
+                if isinstance(lf, ChamferAndNormalsLoss):
+                    assert len(ml) == 2
+                    mesh_losses_sc['ChamferLoss()'] = ml[0]
+                    mesh_losses['ChamferLoss()'].append(
+                        ml[0].detach().cpu()) # log
+                    mesh_losses_sc['CosineLoss()'] = ml[1]
+                    mesh_losses['CosineLoss()'].append(
+                        ml[1].detach().cpu()) # log
+                else:
+                    mesh_losses_sc[str(lf)] = ml
+                    mesh_losses[str(lf)].append(ml.detach().cpu()) # log
             # Geometric combination of losses at a certain step and for a
             # certain class
             mesh_loss_sc = geometric_loss_combine(mesh_losses_sc.values(),
@@ -264,7 +291,7 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
         loss_total += ml
 
     # Log mean over S and C per loss
-    mesh_losses= {k: torch.mean(torch.tensor(v)) for k, v in mesh_losses.items()}
+    mesh_losses = {k: torch.mean(torch.tensor(v)) for k, v in mesh_losses.items()}
 
     # All losses in one dictionary
     losses = {**voxel_losses, **mesh_losses}

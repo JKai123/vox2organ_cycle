@@ -113,8 +113,13 @@ class Solver():
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
-        assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
-                "Number of weights must be equal to number of mesh losses."
+        if any([isinstance(lf, ChamferAndNormalsLoss)
+                 for lf in self.mesh_loss_func]):
+            assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
+        else:
+            assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
 
         self.loss_averaging = loss_averaging
         self.save_path = save_path

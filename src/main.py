@@ -65,6 +65,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
+    'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
