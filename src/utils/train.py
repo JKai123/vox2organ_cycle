@@ -333,7 +333,9 @@ class Solver():
                 iteration += 1
 
             # Evaluate
-            if epoch % eval_every == 0 or epoch == n_epochs or epoch == 1:
+            if (epoch % eval_every == 0 or
+                epoch == n_epochs or
+                epoch == start_epoch):
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=5)

@@ -17,6 +17,7 @@ import trimesh
 from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
+from pytorch3d.loss import mesh_edge_loss
 
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
@@ -24,15 +25,15 @@ from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
     voxelize_mesh,
     create_mesh_from_voxels,
-    unnormalize_vertices,
+    unnormalize_vertices_per_max_dim,
+    normalize_vertices_per_max_dim,
     sample_inner_volume_in_voxel,
     normalize_min_max,
-    normalize_vertices,
     mirror_mesh_at_plane
 )
 from data.dataset import (
     DatasetHandler,
-    augment_data,
+    flip_img,
     img_with_patch_size,
     offset_due_to_padding
 )
@@ -82,9 +83,6 @@ class Cortex(DatasetHandler):
                  **kwargs):
         super().__init__(ids, mode)
 
-        if augment:
-            raise NotImplementedError("Cortex dataset does not support"\
-                                      " augmentation at the moment.")
         if structure_type == "cerebral_cortex":
             seg_label_names = 'all' # all present labels are combined
             mesh_label_names = ("rh_pial", "lh_pial")
@@ -147,13 +145,34 @@ class Cortex(DatasetHandler):
                     combine_labels(l, seg_label_names) for l in self.voxel_labels
                 ]
 
-        # Mesh labels if patch mode
+        # Marching cubes mesh labels if patch mode
         if patch_mode:
             self.mesh_labels = self._load_mc_dataMesh()
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
+
+    def mean_edge_length(self):
+        """ Average edge length in dataset.
+
+        Code partly from pytorch3d.loss.mesh_edge_loss.
+        """
+        edge_lengths = []
+        for m in self.mesh_labels:
+            m_ = m.to_pytorch3d_Meshes()
+            edges_packed = m_.edges_packed()
+            verts_packed = m_.verts_packed()
+            edge_to_mesh_idx = m_.edges_packed_to_mesh_idx()
+            num_edges_per_mesh = m_.num_edges_per_mesh()
+
+            verts_edges = verts_packed[edges_packed]
+            v0, v1 = verts_edges.unbind(1)
+            edge_lengths.append(
+                (v0 - v1).norm(dim=1, p=2).mean().item()
+            )
+
+        return torch.tensor(edge_lengths).mean()
 
     def store_sphere_template(self, path):
         """ Template for dataset. This can be stored and later used during
@@ -332,40 +351,70 @@ class Cortex(DatasetHandler):
         return len(self._files)
 
     @measure_time
-    def get_item_from_index(self, index: int):
+    def get_item_from_index(self, index: int, mesh_target_type: str=None,
+                            *args, **kwargs):
         """
         One data item has the form
-        (3D input image, 3D voxel label, points)
-        with types
-        (torch.tensor, torch.tensor, torch.tensor)
+        (3D input image, 3D voxel label, points, faces, normals)
+        with types all of type torch.Tensor
         """
+        # Use mesh target type of object if not specified
+        if mesh_target_type is None:
+            mesh_target_type = self._mesh_target_type
+
+        # Raw data
         img = self.data[index]
         voxel_label = self.voxel_labels[index]
-        target_points,\
-                target_faces,\
-                target_normals = self._get_mesh_target(index)
-
-        # TODO: implement augmentation
+        target_points, target_faces, target_normals = self._get_mesh_target(
+            index, mesh_target_type
+        )
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)[None]
-        voxel_label = img_with_patch_size(voxel_label, self.patch_size, True)
+        img = img_with_patch_size(img, self.patch_size, False)
+        voxel_label = img_with_patch_size(voxel_label,
+                                          self.patch_size, True)
+
+        # Potentially augment
+        if self._augment:
+            assert all(
+                (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
+            ), "Padding must be symmetric for augmentation."
+
+            # Mesh coordinates --> image coordinates
+            target_points = unnormalize_vertices_per_max_dim(
+                target_points.view(-1, 3), self.patch_size
+            )
+            # Augment
+            img, voxel_label, target_points = self.augment_data(img.numpy(),
+                                                                voxel_label.numpy(),
+                                                                target_points)
+            # Image coordinates --> mesh coordinates
+            target_points = normalize_vertices_per_max_dim(
+                target_points, self.patch_size
+            ).view(self.n_m_classes, -1, 3)
+
+            img = torch.from_numpy(img)
+            voxel_label = torch.from_numpy(voxel_label)
+
+
+        # Channel dimension
+        img = img[None]
 
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
         return img, voxel_label, target_points, target_faces, target_normals
 
-    def _get_mesh_target(self, index):
+    def _get_mesh_target(self, index, target_type):
         """ Ground truth points and optionally normals """
-        if self._mesh_target_type == 'pointcloud':
+        if target_type == 'pointcloud':
             points = self.mesh_labels[index].vertices
             normals = np.array([]) # Empty, not used
             faces = np.array([]) # Empty, not used
             perm = torch.randperm(points.shape[1])
             perm = perm[:self.n_ref_points_per_structure]
             points = points[:,perm,:]
-        elif self._mesh_target_type == 'mesh':
+        elif target_type == 'mesh':
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
             faces = np.array([]) # Empty, not used
@@ -373,6 +422,10 @@ class Cortex(DatasetHandler):
             perm = perm[:self.n_ref_points_per_structure]
             points = points[:,perm,:]
             normals = normals[:,perm,:]
+        elif target_type == 'full_mesh':
+            points = self.mesh_labels[index].vertices
+            normals = self.mesh_labels[index].normals
+            faces = self.mesh_labels[index].faces
         else:
             raise ValueError("Invalid mesh target type.")
 
@@ -380,8 +433,10 @@ class Cortex(DatasetHandler):
 
     def get_item_and_mesh_from_index(self, index):
         """ Get image, segmentation ground truth and reference mesh"""
-        img, voxel_label, _, _, _ = self.get_item_from_index(index)
-        mesh_label = self.mesh_labels[index]
+        img, voxel_label, vertices, faces, normals = self.get_item_from_index(
+            index, mesh_target_type='full_mesh'
+        )
+        mesh_label = Mesh(vertices, faces, normals)
 
         return img, voxel_label, mesh_label
 
@@ -395,7 +450,7 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_data3D(self, filename: str, is_label: bool, pad_width=5):
+    def _load_data3D(self, filename: str, is_label: bool, pad_width=2):
         """Load the image data or load a patch of each image centered at 'patch_origin' and of
         shape 'patch_shape' with each side padded with 'pad' zeros. """
 
@@ -443,7 +498,6 @@ class Cortex(DatasetHandler):
         for m in self.mesh_labels:
             voxel_label = torch.zeros(self.patch_size, dtype=torch.long)
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
-            vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
                 vertices, faces, self.patch_size, self.n_m_classes
@@ -481,10 +535,9 @@ class Cortex(DatasetHandler):
                 # Padding offset in voxel coords
                 new_verts = new_verts + offset_due_to_padding(orig.shape,
                                                               self.patch_size)
-                new_verts = normalize_vertices(new_verts,
-                                               torch.tensor(self.patch_size)[None])
-                # Convert z,y,x --> x,y,z
-                new_verts = torch.flip(new_verts, dims=[1])
+                new_verts = normalize_vertices_per_max_dim(new_verts,
+                                                           self.patch_size)
+                new_verts = torch.from_numpy(new_verts)
                 file_vertices.append(new_verts)
                 file_faces.append(torch.from_numpy(mesh.faces))
                 center = new_verts.mean(dim=0)
@@ -529,3 +582,7 @@ class Cortex(DatasetHandler):
             ))
 
         return data
+
+    def augment_data(self, img, label, coordinates):
+        assert self._augment, "No augmentation in this dataset."
+        return flip_img(img, label, coordinates)

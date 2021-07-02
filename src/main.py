@@ -43,7 +43,7 @@ hyper_ps = {
     'MIXED_PRECISION': True,
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
-        'lr': 1e-3, # voxel lr if graph lr not None
+        'lr': 1e-3, # voxel lr
         'graph_lr': 2.5e-5,
         # SGD
         'momentum': 0.9,
@@ -57,27 +57,26 @@ hyper_ps = {
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    # 'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
-                       # LaplacianLoss(),
-                       # NormalConsistencyLoss(),
-                       # EdgeLoss()],
-    'MESH_LOSS_FUNC': [WassersteinLoss()],
+    'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
+                       WassersteinLoss(),
+                       LaplacianLoss(),
+                       NormalConsistencyLoss(),
+                       EdgeLoss(0.01777)],
+    # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 10.0], # Wickramasinghe + Wasserstein
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0], # Wasserstein loss
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0], # Wasserstein loss
     # Model
     'MODEL_CONFIG': {
         'NORM': 'batch', # Only for graph convs
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
-        # Graph decoder channels should be multiples of 2
-        # 'GRAPH_CHANNELS': [128, 64, 32, 16],
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
@@ -97,7 +96,11 @@ hyper_ps_hippocampus = {
     'N_REF_POINTS_PER_STRUCTURE': 1400,
     'N_TEMPLATE_VERTICES': 162,
     'MODEL_CONFIG': {
+        'GRAPH_CHANNELS': [128, 64, 32, 16],
         'UNPOOL_INDICES': [0,1,1],
+        'AGGREGATE_INDICES': [[5,6],
+                              [6,7],
+                              [7,8]], # 8 = last decoder skip
     },
     'PROJ_NAME': "hippocampus",
     'MESH_TARGET_TYPE': "mesh"
@@ -111,7 +114,12 @@ hyper_ps_cortex = {
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 5,
     'MODEL_CONFIG': {
+        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'UNPOOL_INDICES': [0,0,0,0],
+        'AGGREGATE_INDICES': [[3,4,5,6],
+                              [2,3,6,7],
+                              [1,2,7,8],
+                              [0,1,7,8]], # 8 = last decoder skip
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
@@ -122,12 +130,25 @@ hyper_ps_cortex = {
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     if hyper_ps_cortex['PATCH_MODE']:
-        hyper_ps_cortex['N_M_CLASSES'] = 1
-        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 10, 0)
-        hyper_ps_cortex['PATCH_SIZE'] = (64, 144, 128)
-        hyper_ps_cortex['SELECT_PATCH_SIZE'] = (96, 192, 176)
+        ## Large
+        hyper_ps_cortex['PATCH_ORIGIN'] = [0, 5, 0]
+        hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
+        hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 38000
+        ## Small
+        # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
+        # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
+        # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 64, 64]
+        # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+        # hyper_ps_cortex['PATCH_ORIGIN'] = [40, 120, 60]
+        # hyper_ps_cortex['PATCH_SIZE'] = [64, 80, 48]
+        # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 96, 48]
+        # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+        ## General
+        hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else:
@@ -296,6 +317,9 @@ def main(hps):
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
+
+    # Add patch size to model config
+    hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
 
     # Run
     routine = mode_handler[mode]

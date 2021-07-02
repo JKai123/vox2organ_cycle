@@ -14,7 +14,6 @@ from geomloss import SamplesLoss
 
 from utils.mesh import Mesh
 from utils.utils import (
-    unnormalize_vertices,
     sample_inner_volume_in_voxel,
     voxelize_mesh)
 from utils.logging import (
@@ -108,7 +107,6 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     if compare_with == 'mesh_gt':
         mesh_gt = data[2]
         vertices, faces = mesh_gt.vertices, mesh_gt.faces
-        vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
         voxel_target = voxelize_mesh(
             vertices, faces, shape, n_m_classes
         ).cuda()
@@ -117,7 +115,6 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     # Only mesh of last step considered and batch dimension squeezed out
     vertices = vertices[-1].view(n_m_classes, -1, 3)
-    vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
     faces = faces[-1].view(n_m_classes, -1, 3)
     voxel_pred = voxelize_mesh(
         vertices, faces, shape, n_m_classes

@@ -100,7 +100,8 @@ class Mesh():
     def get_occupied_voxels(self, shape):
         """Get the occupied voxels of the mesh lying within 'shape'.
 
-        Attention: 'shape' should be defined in the mesh coordinate system!
+        Attention: 'shape' should be defined in the same coordinte system as
+        the mesh.
         """
         assert len(shape) == 3, "Shape should represent 3 dimensions."
 

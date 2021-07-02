@@ -8,6 +8,7 @@ import copy
 import inspect
 import collections.abc
 from enum import Enum
+from typing import Union, Tuple
 
 import numpy as np
 import nibabel as nib
@@ -80,21 +81,60 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
 
     return mesh
 
-def normalize_vertices(vertices, shape):
-    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1] """
-    assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
-    assert shape.shape[0] == 1, "first dim of shape should be length 1"
+def normalize_vertices(vertices: Union[torch.Tensor, np.array],
+                       shape: Tuple[int, int, int]):
+    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1]
+    treating each dimension separately and flip x- and z-axis.
+    """
+    assert len(vertices.shape) == 2, "Vertices should be packed."
+    assert len(shape) == 3 and vertices.shape[1] == 3,\
+            "Coordinates should be 3 dim."
 
-    return 2*(vertices/(torch.max(shape)-1) - 0.5)
+    if isinstance(vertices, torch.Tensor):
+        shape = torch.tensor(shape).float().to(vertices.device).flip(dims=[0])
+        vertices = vertices.flip(dims=[1])
+    if isinstance(vertices, np.ndarray):
+        shape = np.flip(np.array(shape, dtype=float), axis=0)
+        vertices = np.flip(vertices, axis=1)
 
-def unnormalize_vertices(vertices, shape):
+    return 2*(vertices/(shape-1) - 0.5)
+
+def unnormalize_vertices(vertices: Union[torch.Tensor, np.array],
+                         shape: Tuple[int, int, int]):
     """ Inverse of 'normalize vertices' """
-    assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
-    assert shape.shape[0] == 1, "first dim of shape should be length 1"
+    assert len(vertices.shape) == 2, "Vertices should be packed."
+    assert len(shape) == 3 and vertices.shape[1] == 3,\
+            "Coordinates should be 3 dim."
 
-    return (0.5 * vertices + 0.5) * (torch.max(shape) - 1)
+    if isinstance(vertices, torch.Tensor):
+        shape = torch.tensor(shape).float().to(vertices.device)
+        vertices = vertices.flip(dims=[1])
+    if isinstance(vertices, np.ndarray):
+        shape = np.array(shape, dtype=float)
+        vertices = np.flip(vertices, axis=1)
 
-def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
+    return (0.5 * vertices + 0.5) * (shape - 1)
+
+def normalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
+                                   shape: Tuple[int, int, int]):
+    """ Normalize vertex coordinates w.r.t. the maximum input dimension.
+    """
+    assert len(vertices.shape) == 2, "Vertices should be packed."
+    assert len(shape) == 3 and vertices.shape[1] == 3,\
+            "Coordinates should be 3 dim."
+
+    return 2*(vertices/(np.max(shape)-1) - 0.5)
+
+def unnormalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
+                                     shape: Tuple[int, int, int]):
+    """ Inverse of 'normalize vertices_per_max_dim' """
+    assert len(vertices.shape) == 2, "Vertices should be packed."
+    assert len(shape) == 3 and vertices.shape[1] == 3,\
+            "Coordinates should be 3 dim."
+
+    return (0.5 * vertices + 0.5) * (np.max(shape) - 1)
+
+def create_mesh_from_voxels(volume, mc_step_size=1):
     """ Convert a voxel volume to mesh using marching cubes
 
     :param volume: The voxel volume.
@@ -104,7 +144,7 @@ def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
     if isinstance(volume, torch.Tensor):
         volume = volume.cpu().data.numpy()
 
-    shape = torch.tensor(volume.shape)[None].float()
+    shape = volume.shape
 
     vertices_mc, faces_mc, normals, values = measure.marching_cubes(
                                     volume,
@@ -112,12 +152,12 @@ def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
                                     step_size=mc_step_size,
                                     allow_degenerate=False)
 
-    if flip:
-        vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
-        vertices_mc = normalize_vertices(vertices_mc, shape.flip(dims=[1]))
-    else:
-        vertices_mc = normalize_vertices(vertices_mc, shape)
-    faces_mc = torch.from_numpy(faces_mc).long()
+    vertices_mc = normalize_vertices_per_max_dim(
+        torch.from_numpy(vertices_mc).float(), shape
+    )
+    # measure.marching_cubes uses left-hand rule for normal directions, our
+    # convention is right-hand rule
+    faces_mc = torch.from_numpy(faces_mc).long().flip(dims=[1])
 
     # ! Normals are not valid anymore after normalization of vertices
     normals = None
@@ -318,8 +358,8 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
     voxelized_mesh = torch.zeros(shape, dtype=torch.long)
     vertices = vertices.view(n_m_classes, -1, 3)
     faces = faces.view(n_m_classes, -1, 3)
-    unnorm_verts = unnormalize_vertices(
-        vertices.view(-1, 3), torch.tensor(shape)[None]
+    unnorm_verts = unnormalize_vertices_per_max_dim(
+        vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
     pv = Mesh(unnorm_verts, faces).get_occupied_voxels(shape)
     if pv is not None:
