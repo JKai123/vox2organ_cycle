@@ -57,17 +57,17 @@ hyper_ps = {
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
-                       WassersteinLoss(),
+    'MESH_LOSS_FUNC': [WassersteinLoss(),
+                       ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
                        EdgeLoss(0.01777)],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 10.0], # Wickramasinghe + Wasserstein
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 0.1, 10.0], # Wasserstein, Chamfer, Cosine, Laplacian, NormalConsistency, Edge
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
-    'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
@@ -110,7 +110,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 
 hyper_ps_cortex = {
     'N_EPOCHS': 15000,
-    'AUGMENT_TRAIN': False,
+    'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 5,
     'MODEL_CONFIG': {
