@@ -52,27 +52,27 @@ class ModelEvaluator():
             results_all[m] = []
 
         # Iterate over data split
-        with torch.no_grad():
-            for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
-                data = self._dataset.get_item_and_mesh_from_index(i)
-                write_img_if_debug(data[1].squeeze().cpu().numpy(),
-                                   "../misc/raw_voxel_target_img_eval.nii.gz")
-                write_img_if_debug(data[0].squeeze().cpu().numpy(),
-                                   "../misc/raw_voxel_input_img_eval.nii.gz")
+        for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
+            data = self._dataset.get_item_and_mesh_from_index(i)
+            write_img_if_debug(data[1].squeeze().cpu().numpy(),
+                               "../misc/raw_voxel_target_img_eval.nii.gz")
+            write_img_if_debug(data[0].squeeze().cpu().numpy(),
+                               "../misc/raw_voxel_input_img_eval.nii.gz")
+            with torch.no_grad():
                 pred = model(data[0][None].cuda())
 
-                for metric in self._eval_metrics:
-                    res = EvalMetricHandler[metric](pred, data,
-                                                    self._n_v_classes,
-                                                    self._n_m_classes,
-                                                    model_class)
-                    results_all[metric].append(res)
+            for metric in self._eval_metrics:
+                res = EvalMetricHandler[metric](pred, data,
+                                                self._n_v_classes,
+                                                self._n_m_classes,
+                                                model_class)
+                results_all[metric].append(res)
 
-                if i < save_meshes: # Store meshes for visual inspection
-                    filename =\
-                            self._dataset.get_file_name_from_index(i).split(".")[0]
-                    self.store_meshes(pred, data, filename, epoch,
-                                      model_class)
+            if i < save_meshes: # Store meshes for visual inspection
+                filename =\
+                        self._dataset.get_file_name_from_index(i).split(".")[0]
+                self.store_meshes(pred, data, filename, epoch,
+                                  model_class)
 
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
