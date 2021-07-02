@@ -4,7 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from itertools import chain
-from typing import Union
+from typing import Union, Tuple
 from deprecated import deprecated
 
 import numpy as np
@@ -17,7 +17,7 @@ from torch.cuda.amp import autocast
 from utils.utils import (
     crop_and_merge,
     sample_outer_surface_in_voxel,
-    normalize_vertices)
+    normalize_vertices_per_max_dim)
 from utils.utils_voxel2meshplusplus.graph_conv import (
     Feature2VertexLayer,
     Features2Features)
@@ -377,13 +377,14 @@ class Voxel2MeshPlusPlus(V2MModel):
             # Coord. 0 = index of data within batch
             batch_ids = surface_points[:,0]
             # Point coordinates
-            surface_points_normalized = normalize_vertices(surface_points[:,1:], shape[None])
+            surface_points_normalized = normalize_vertices_per_max_dim(
+                surface_points[:,1:], shape
+            )
 
             surface_points_normalized_batch = []
             # Iterate over minibatch
             for b in range(batch_size):
                 points = surface_points_normalized[batch_ids == b]
-                points = torch.flip(points, dims=[1]).float() # convert z,y,x -> x, y, z
 
                 # debug
                 write_scatter_plot_if_debug(points,
@@ -501,6 +502,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param voxel_decoder: Whether or not to use a voxel decoder
     :param GC: The graph conv implementation to use
     :param propagate_coords: Whether to propagate coordinates in the graph conv
+    :param patch_size: The used patch size of input images.
+    :param aggregate_indices: Where to take the features from the UNet
     :param p_dropout: Dropout probability for UNet blocks
     """
 
@@ -521,6 +524,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  voxel_decoder: bool,
                  gc,
                  propagate_coords: bool,
+                 patch_size: Tuple[int, int, int],
+                 aggregate_indices: Tuple[Tuple[int]],
                  p_dropout: float,
                  **kwargs
                  ):
@@ -544,6 +549,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       skip_channels=encoder_channels+decoder_channels,
                                       weighted_edges=weighted_edges,
                                       propagate_coords=propagate_coords,
+                                      patch_size=patch_size,
+                                      aggregate_indices=aggregate_indices,
                                       GC=gc)
 
     @measure_time

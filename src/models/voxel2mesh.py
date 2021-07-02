@@ -34,7 +34,7 @@ from models.base_model import V2MModel
 
   
  
- 
+@deprecated 
 class Voxel2Mesh(V2MModel):
     """ Voxel2Mesh  """
  
@@ -197,7 +197,6 @@ class Voxel2Mesh(V2MModel):
         return pred
 
 
-    @deprecated # Use model-independent loss calculation instead
     def loss(self, data, epoch):
 
          

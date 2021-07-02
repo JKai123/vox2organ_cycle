@@ -4,7 +4,7 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
-from typing import Union
+from typing import Union, Tuple
 
 import torch
 import torch.nn as nn
@@ -25,6 +25,12 @@ from utils.file_handle import read_obj
 from utils.logging import measure_time
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.mesh import MeshesOfMeshes
+from utils.utils import (
+    normalize_vertices,
+    unnormalize_vertices,
+    unnormalize_vertices_per_max_dim,
+    normalize_vertices_per_max_dim
+)
 
 class GraphDecoder(nn.Module):
     """ A graph decoder that takes a template mesh and voxel features as input.
@@ -39,14 +45,12 @@ class GraphDecoder(nn.Module):
                  weighted_edges: bool,
                  GC,
                  propagate_coords: bool,
+                 patch_size: Tuple[int, int, int],
+                 aggregate_indices: Tuple[Tuple[int]],
                  dim: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
-                 n_f2f_hidden_layer: int=2,
-                 aggregate_indices=((3,4,5,6),
-                                    (2,3,6,7),
-                                    (1,2,7,8),
-                                    (0,1,7,8))): # 8 = last decoder skip
+                 n_f2f_hidden_layer: int=2):
         super().__init__()
 
         assert (len(graph_channels) - 1 ==\
@@ -68,6 +72,7 @@ class GraphDecoder(nn.Module):
         self.unpool_indices = unpool_indices
         self.use_adoptive_unpool = use_adoptive_unpool
         self.GC = GC
+        self.patch_size = patch_size
 
         # Aggregation of voxel features
         self.aggregate = aggregate
@@ -135,11 +140,15 @@ class GraphDecoder(nn.Module):
         sphere_vertices, sphere_faces, _ = read_obj(sphere_path)
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
 
-        # Normalize template only if coords not in [-1, 1]
-        if sphere_vertices.max() > 1 or sphere_vertices.min() < -1:
-            self.sphere_vertices = sphere_vertices/torch.sqrt(torch.sum(sphere_vertices**2, dim=1)[:,None])[None]
+        # Normalize template
+        if "icosahedron" in sphere_path:
+            self.sphere_vertices = normalize_vertices_per_max_dim(
+                unnormalize_vertices(sphere_vertices.view(-1,3), patch_size),
+                patch_size
+            ).view(sphere_vertices.shape)[None]
         else:
-            self.sphere_vertices = sphere_vertices[None]
+            raise NotImplementedError("Normalization not implemented for"
+                                      " non-sphere templates.")
 
         self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
 
@@ -222,13 +231,22 @@ class GraphDecoder(nn.Module):
                     faces_padded = faces_padded_new
                 V_new = latent_features_padded.shape[2]
 
+                # Mesh coordinates for F.grid_sample
+                verts_img_co = normalize_vertices(
+                    unnormalize_vertices_per_max_dim(
+                        vertices_padded.view(-1, 3),
+                        self.patch_size
+                    ),
+                    self.patch_size
+                ).view(batch_size, -1, 3)
+
                 # Latent features of vertices from voxels
                 # Avoid bug related to automatic mixed precision, see also
                 # https://github.com/pytorch/pytorch/issues/42218
                 with autocast(enabled=False):
                     skipped_features = aggregate_from_indices(
                         skips,
-                        vertices_padded.view(batch_size, -1, 3),
+                        verts_img_co,
                         agg_indices,
                         mode=self.aggregate
                     ).view(batch_size, M, V_new, -1)

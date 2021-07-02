@@ -123,7 +123,11 @@ class ChamferLoss(MeshLoss):
 
 class ChamferAndNormalsLoss(MeshLoss):
     """ Chamfer distance + cosine distance between the vertices and normals of
-    the predicted mesh and a reference mesh. """
+    the predicted mesh and a reference mesh.
+
+    Attention: When using this loss function, it should be assured that the
+    prediction and the target follow the same normal convention.
+    """
     def get_loss(self, pred_meshes, target):
         if len(target) != 2:
             raise TypeError("ChamferAndNormalsLoss requires vertices and"\
@@ -155,8 +159,10 @@ class NormalConsistencyLoss(MeshLoss):
         return mesh_normal_consistency(pred_meshes)
 
 class EdgeLoss(MeshLoss):
+    def __init__(self, target_length):
+        self.target_length = target_length
     def get_loss(self, pred_meshes, target=None):
-        return mesh_edge_loss(pred_meshes)
+        return mesh_edge_loss(pred_meshes, target_length=self.target_length)
 
 def linear_loss_combine(losses, weights):
     """ Compute the losses in a linear manner, e.g.
