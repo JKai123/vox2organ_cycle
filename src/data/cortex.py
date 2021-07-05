@@ -18,6 +18,7 @@ from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.loss import mesh_edge_loss
+from pytorch3d.ops import sample_points_from_meshes
 
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
@@ -148,6 +149,8 @@ class Cortex(DatasetHandler):
         # Marching cubes mesh labels if patch mode
         if patch_mode:
             self.mesh_labels = self._load_mc_dataMesh()
+
+        self.point_labels, self.normal_labels = self._load_ref_points()
 
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
@@ -408,20 +411,13 @@ class Cortex(DatasetHandler):
     def _get_mesh_target(self, index, target_type):
         """ Ground truth points and optionally normals """
         if target_type == 'pointcloud':
-            points = self.mesh_labels[index].vertices
+            points = self.point_labels[index]
             normals = np.array([]) # Empty, not used
             faces = np.array([]) # Empty, not used
-            perm = torch.randperm(points.shape[1])
-            perm = perm[:self.n_ref_points_per_structure]
-            points = points[:,perm,:]
         elif target_type == 'mesh':
-            points = self.mesh_labels[index].vertices
-            normals = self.mesh_labels[index].normals
+            points = self.point_labels[index]
+            normals = self.normal_labels[index]
             faces = np.array([]) # Empty, not used
-            perm = torch.randperm(points.shape[1])
-            perm = perm[:self.n_ref_points_per_structure]
-            points = points[:,perm,:]
-            normals = normals[:,perm,:]
         elif target_type == 'full_mesh':
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
@@ -582,6 +578,20 @@ class Cortex(DatasetHandler):
             ))
 
         return data
+
+    def _load_ref_points(self):
+        """ Sample surface points from meshes """
+        points, normals = [], []
+        for m in self.mesh_labels:
+            p, n = sample_points_from_meshes(
+                m.to_pytorch3d_Meshes(),
+                self.n_ref_points_per_structure,
+                return_normals=True
+            )
+            points.append(p)
+            normals.append(n)
+
+        return points, normals
 
     def augment_data(self, img, label, coordinates):
         assert self._augment, "No augmentation in this dataset."

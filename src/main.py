@@ -135,7 +135,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 38000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
         ## Small
         # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
         # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
