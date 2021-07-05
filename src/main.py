@@ -125,11 +125,11 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': True
+    'PATCH_MODE': "multi-patch"
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
-    if hyper_ps_cortex['PATCH_MODE']:
+    if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
         ## Large
         hyper_ps_cortex['PATCH_ORIGIN'] = [0, 5, 0]
         hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]

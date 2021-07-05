@@ -8,6 +8,7 @@ import os
 import random
 import logging
 from enum import IntEnum
+from copy import deepcopy
 
 import torch
 import torch.nn.functional as F
@@ -17,7 +18,6 @@ import trimesh
 from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
-from pytorch3d.loss import mesh_edge_loss
 from pytorch3d.ops import sample_points_from_meshes
 
 from utils.modes import DataModes, ExecModes
@@ -28,7 +28,6 @@ from utils.utils import (
     create_mesh_from_voxels,
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
-    sample_inner_volume_in_voxel,
     normalize_min_max,
     mirror_mesh_at_plane
 )
@@ -80,18 +79,24 @@ class Cortex(DatasetHandler):
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
-                 patch_mode: bool, patch_origin=(0,0,0), select_patch_size=None,
+                 patch_mode: str="no", patch_origin=(0,0,0), select_patch_size=None,
                  **kwargs):
         super().__init__(ids, mode)
+
+        assert patch_mode in ("multi-patch", "single-patch", "no"),\
+                "Unknown patch mode."
 
         if structure_type == "cerebral_cortex":
             seg_label_names = 'all' # all present labels are combined
             mesh_label_names = ("rh_pial", "lh_pial")
         elif structure_type == "white_matter":
-            if patch_mode:
+            if patch_mode=="single-patch":
                 seg_label_names = ("right_white_matter",)
                 mesh_label_names = ("rh_white",)
-            else:
+            elif patch_mode == "multi-patch":
+                seg_label_names = ("left_white_matter", "right_white_matter")
+                mesh_label_names = ("all",)
+            else: # not patch mode
                 seg_label_names = ("voxelized_mesh", "voxelized_mesh")
                 mesh_label_names = ("lh_white", "rh_white")
         else:
@@ -117,39 +122,54 @@ class Cortex(DatasetHandler):
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
 
-        # Image data
-        self.data = self._load_data3D(filename="mri.nii.gz", is_label=False)
+        # Mesh labels if not patch mode
+        assert patch_mode == "no" or 'voxelized_mesh' not in seg_label_names,\
+            "Voxelized mesh not possible as voxel ground truth in patch mode."
+        assert patch_mode != "single-patch" or len(seg_label_names) == 1,\
+                "Can only use one segmentation class in single-patch mode."
+
+        if patch_mode != "multi-patch": # no patch mode or single-patch
+            # Image data
+            self.data = self._load_single_data3D(
+                filename="mri.nii.gz", is_label=False,
+                extract_patch=patch_mode in ("single-patch", "no")
+            )
+
+            # Freesurfer mesh labels if not patch mode
+            if patch_mode == "no":
+                self.mesh_labels, (self.centers, self.radii) =\
+                        self._load_dataMesh(meshnames=mesh_label_names)
+
+            # Voxel labels
+            if 'voxelized_mesh' in seg_label_names:
+                self.voxel_labels = self._create_voxel_labels_from_meshes()
+            else:
+                self.voxel_labels = self._load_single_data3D(
+                    filename="aseg.nii.gz", is_label=True,
+                    extract_patch=(patch_mode in ("single-patch", "no"))
+                )
+                if seg_label_names == "all":
+                    for vl in self.voxel_labels:
+                        vl[vl > 1] = 1
+                else:
+                    self.voxel_labels = [
+                        combine_labels(l, seg_label_names) for l in self.voxel_labels
+                    ]
+
+        else: # multi-patch mode
+            self.data, self.voxel_labels, self._files = self._get_multi_patches(
+                img_filename=self.img_filename, label_filename=self.label_filename
+            )
+
+        # Marching cubes mesh labels if any patch mode
+        if patch_mode != "no":
+            self.mesh_labels = self._load_mc_dataMesh()
+
         # NORMALIZE images
         for i, d in enumerate(self.data):
             self.data[i] = normalize_min_max(d)
 
-        # Mesh labels if not patch mode
-        assert not patch_mode or 'voxelized_mesh' not in seg_label_names,\
-            "Voxelized mesh not possible as voxel ground truth in patch mode."
-        assert not patch_mode or len(seg_label_names) == 1,\
-                "Can only use one segmentation class in patch mode."
-        if not patch_mode:
-            self.mesh_labels, (self.centers, self.radii) =\
-                    self._load_dataMesh(meshnames=mesh_label_names)
-
-        # Voxel labels
-        if 'voxelized_mesh' in seg_label_names:
-            self.voxel_labels = self._create_voxel_labels_from_meshes()
-        else:
-            self.voxel_labels = self._load_data3D(filename="aseg.nii.gz",
-                                                  is_label=True)
-            if seg_label_names == "all":
-                for vl in self.voxel_labels:
-                    vl[vl > 1] = 1
-            else:
-                self.voxel_labels = [
-                    combine_labels(l, seg_label_names) for l in self.voxel_labels
-                ]
-
-        # Marching cubes mesh labels if patch mode
-        if patch_mode:
-            self.mesh_labels = self._load_mc_dataMesh()
-
+        # Point and normal labels
         self.point_labels, self.normal_labels = self._load_ref_points()
 
         assert self.__len__() == len(self.data)
@@ -166,8 +186,6 @@ class Cortex(DatasetHandler):
             m_ = m.to_pytorch3d_Meshes()
             edges_packed = m_.edges_packed()
             verts_packed = m_.verts_packed()
-            edge_to_mesh_idx = m_.edges_packed_to_mesh_idx()
-            num_edges_per_mesh = m_.num_edges_per_mesh()
 
             verts_edges = verts_packed[edges_packed]
             v0, v1 = verts_edges.unbind(1)
@@ -446,47 +464,120 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_data3D(self, filename: str, is_label: bool, pad_width=2):
-        """Load the image data or load a patch of each image centered at 'patch_origin' and of
-        shape 'patch_shape' with each side padded with 'pad' zeros. """
+    def _load_single_data3D(self, filename: str, is_label: bool,
+                            extract_patch: bool):
+        """Load the image data or load a single patch of each image centered
+        at 'patch_origin' and of shape 'patch_shape' with each side padded
+        with 'pad' zeros. """
 
         data = self._load_data3D_raw(filename)
 
-        if not self.patch_mode:
+        if not extract_patch:
             return data
+
+        data_patch = []
+        for img in data:
+            data_patch.append(self._get_single_patch(img, is_label))
+        return data_patch
+
+    def _get_single_patch(self, img, is_label, pad_width=2):
+        """ Extract a single patch from an image. """
 
         # Limits for patch selection
         lower_limit = np.array(self._patch_origin) + pad_width
         upper_limit = np.array(self._patch_origin) + np.array(self.select_patch_size) - pad_width
 
-        data_patch = []
+        assert all(upper_limit <= img.shape), "Upper patch limit too high"
+        # Select patch from whole image
+        img_patch = img
+        img_patch = img_patch[lower_limit[0]:upper_limit[0],
+                              lower_limit[1]:upper_limit[1],
+                              lower_limit[2]:upper_limit[2]]
+        img_patch = np.pad(img_patch, pad_width)
+        # Zoom to certain size
+        if self.patch_size != self.select_patch_size:
+            if is_label:
+                img_patch = F.interpolate(
+                    torch.from_numpy(img_patch)[None][None],
+                    size=self.patch_size,
+                    mode='nearest',
+                ).squeeze().numpy()
+            else:
+                img_patch = F.interpolate(
+                    torch.from_numpy(img_patch)[None][None],
+                    size=self.patch_size,
+                    mode='trilinear',
+                    align_corners=False
+                ).squeeze().numpy()
 
-        for img in data:
-            assert all(upper_limit <= img.shape), "Upper patch limit too high"
-            # Select patch from whole image
-            img_patch = img
-            img_patch = img_patch[lower_limit[0]:upper_limit[0],
-                                  lower_limit[1]:upper_limit[1],
-                                  lower_limit[2]:upper_limit[2]]
-            img_patch = np.pad(img_patch, pad_width)
-            # Zoom to certain size
-            if self.patch_size != self.select_patch_size:
-                if is_label:
-                    img_patch = F.interpolate(
-                        torch.from_numpy(img_patch)[None][None],
-                        size=self.patch_size,
-                        mode='nearest',
-                    ).squeeze().numpy()
-                else:
-                    img_patch = F.interpolate(
-                        torch.from_numpy(img_patch)[None][None],
-                        size=self.patch_size,
-                        mode='trilinear',
-                        align_corners=False
-                    ).squeeze().numpy()
-            data_patch.append(img_patch)
+        return img_patch
 
-        return data_patch
+    def _get_multi_patches(self, img_filename: str, label_filename: str, pad_width=2):
+        """ Load 4 patches per hemisphere """
+        data, labels, ids = [], [], []
+        raw_data= self._load_single_data3D(img_filename, is_label=True,
+                                           extract_patch=False)
+        raw_labels = self._load_single_data3D(label_filename, is_label=True,
+                                              extract_patch=False)
+        for img, lab, fn in zip(raw_data, raw_labels, self._files):
+            img_patches, label_patches = self._create_patches(
+                img, lab, pad_width
+            )
+            for i in range(len(img_patches)):
+                ids.append(fn + "_patch_" + str(i))
+            data += img_patches
+            labels += label_patches
+
+        return data, labels, ids
+
+    def _create_patches(self, img, label, pad_width):
+        """ Create 3D patches from an image and the respective voxel label """
+        ndims = 3
+        # the volume that should be occupied in the patch by non-zero labels
+        occ_volume = 0.1 * np.prod(self.patch_size)
+        idxs = []
+        shape = np.asarray(label.shape)
+        patch_size = np.asarray(self.patch_size)
+        boundary1 = shape / 2 - patch_size / 2 + pad_width
+        boundary2 = shape / 2 + patch_size / 2 - pad_width
+        boundary1 = boundary1.astype(int)
+        boundary2 = boundary2.astype(int)
+        for d in range(ndims):
+            idxs.append(slice(boundary1[d], boundary2[d]))
+        w = torch.ones(tuple(patch_size - 2*pad_width)).float()[None][None]
+        img_patches = []
+        label_patches = []
+        for ln in self.seg_label_names:
+            label_struct = combine_labels(label, [ln])
+            for d in range(ndims):
+                idx = deepcopy(idxs)
+                # -->
+                idx[d] = slice(0, label.shape[d])
+                tmp_label = torch.from_numpy(
+                    label_struct[tuple(idx)]
+                ).float()[None][None]
+                tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
+                pos = np.min(np.nonzero(tmp_label_conv > occ_volume))
+                idx[d] = slice(
+                    pos + pad_width, pos + self.patch_size[d] - pad_width
+                )
+                img_patches.append(np.pad(img[tuple(idx)], pad_width))
+                label_patches.append(np.pad(label_struct[tuple(idx)], pad_width))
+                # <--
+                idx[d] = slice(-1, -label.shape[d]-1, -1)
+                tmp_label = torch.from_numpy(
+                    label_struct[tuple(idx)].copy()
+                ).float()[None][None]
+                tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
+                pos = np.min(np.nonzero(tmp_label_conv > occ_volume))
+                idx[d] = slice(
+                    -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
+                )
+                img_patches.append(np.pad(img[tuple(idx)], pad_width))
+                label_patches.append(np.pad(label_struct[tuple(idx)], pad_width))
+
+        return img_patches, label_patches
+
 
     def _create_voxel_labels_from_meshes(self):
         """ Return the voxelized meshes as 3D voxel labels """
