@@ -57,15 +57,15 @@ hyper_ps = {
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    'MESH_LOSS_FUNC': [WassersteinLoss(),
+    'MESH_LOSS_FUNC': [
                        ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss(0.01777)],
+                       EdgeLoss(0.039)],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 0.1, 10.0], # Wasserstein, Chamfer, Cosine, Laplacian, NormalConsistency, Edge
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 10.0], # Wickramasinghe (adapted)
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 0.1, 10.0], # Wasserstein, Chamfer, Cosine, Laplacian, NormalConsistency, Edge
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
@@ -112,7 +112,7 @@ hyper_ps_cortex = {
     'N_EPOCHS': 15000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 10,
     'MODEL_CONFIG': {
         'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'UNPOOL_INDICES': [0,0,0,0],
@@ -151,6 +151,13 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
+        hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
+        hyper_ps_cortex['N_M_CLASSES'] = 1
+        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else:
         hyper_ps_cortex['N_M_CLASSES'] = 2
         hyper_ps_cortex['PATCH_SIZE'] = (192, 224, 192)
@@ -168,9 +175,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'N_EPOCHS': 15000,
-    'EVAL_EVERY': 100,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 4,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
 }

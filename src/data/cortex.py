@@ -575,7 +575,6 @@ class Cortex(DatasetHandler):
                         break
                     except ValueError: # No volume found --> reduce threshold
                         occ_volume -= 0.1
-                print("Occupied volume: ", occ_volume)
 
                 if occ_volume <= 0:
                     raise RuntimeError("No patch could be found.")
@@ -604,7 +603,6 @@ class Cortex(DatasetHandler):
                         break
                     except ValueError: # No volume found --> reduce threshold
                         occ_volume -= 0.1
-                print("Occupied volume: ", occ_volume)
 
                 if occ_volume <= 0:
                     raise RuntimeError("No patch could be found.")
