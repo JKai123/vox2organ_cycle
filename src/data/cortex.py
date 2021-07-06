@@ -553,6 +553,7 @@ class Cortex(DatasetHandler):
         w = torch.ones(tuple(patch_size - 2*pad_width)).float()[None][None]
         img_patches = []
         label_patches = []
+        label_struct_all = combine_labels(label, self.seg_label_names)
         for ln in self.seg_label_names:
             label_struct = combine_labels(label, [ln])
             for d in range(ndims):
@@ -583,7 +584,7 @@ class Cortex(DatasetHandler):
                     pos + pad_width, pos + self.patch_size[d] - pad_width
                 )
                 img_patches.append(np.pad(img[tuple(idx)], pad_width))
-                label_patches.append(np.pad(label_struct[tuple(idx)], pad_width))
+                label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
 
                 # <--
                 idx[d] = slice(-1, -label.shape[d]-1, -1)
@@ -611,7 +612,7 @@ class Cortex(DatasetHandler):
                     -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
                 )
                 img_patches.append(np.pad(img[tuple(idx)], pad_width))
-                label_patches.append(np.pad(label_struct[tuple(idx)], pad_width))
+                label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
 
         return img_patches, label_patches
 
