@@ -76,6 +76,9 @@ class Cortex(DatasetHandler):
     :param mc_step_size: The marching cubes step size.
     """
 
+    img_filename = "mri.nii.gz"
+    label_filename = "aseg.nii.gz"
+
     def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
@@ -118,6 +121,7 @@ class Cortex(DatasetHandler):
                 "Number of mesh classes incorrect."
         self.n_ref_points_per_structure = n_ref_points_per_structure
         self.mesh_label_names = mesh_label_names
+        self.seg_label_names = seg_label_names
         self.n_structures = len(mesh_label_names)
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
@@ -131,7 +135,7 @@ class Cortex(DatasetHandler):
         if patch_mode != "multi-patch": # no patch mode or single-patch
             # Image data
             self.data = self._load_single_data3D(
-                filename="mri.nii.gz", is_label=False,
+                filename=self.img_filename, is_label=False,
                 extract_patch=patch_mode in ("single-patch", "no")
             )
 
@@ -145,7 +149,7 @@ class Cortex(DatasetHandler):
                 self.voxel_labels = self._create_voxel_labels_from_meshes()
             else:
                 self.voxel_labels = self._load_single_data3D(
-                    filename="aseg.nii.gz", is_label=True,
+                    filename=self.label_filename, is_label=True,
                     extract_patch=(patch_mode in ("single-patch", "no"))
                 )
                 if seg_label_names == "all":
@@ -533,8 +537,10 @@ class Cortex(DatasetHandler):
     def _create_patches(self, img, label, pad_width):
         """ Create 3D patches from an image and the respective voxel label """
         ndims = 3
-        # the volume that should be occupied in the patch by non-zero labels
-        occ_volume = 0.1 * np.prod(self.patch_size)
+        # The relative volume that should be occupied in the patch by non-zero
+        # labels. If this cannot be fulfilled, a smaller threshold is selected, see
+        # below.
+        occ_volume_max = 0.5
         idxs = []
         shape = np.asarray(label.shape)
         patch_size = np.asarray(self.patch_size)
@@ -557,19 +563,52 @@ class Cortex(DatasetHandler):
                     label_struct[tuple(idx)]
                 ).float()[None][None]
                 tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
-                pos = np.min(np.nonzero(tmp_label_conv > occ_volume))
+
+                # Try to extract a patch with highest possible occupied volume
+                occ_volume = occ_volume_max
+                while occ_volume >= 0.1:
+                    try:
+                        pos = np.min(np.nonzero(
+                            tmp_label_conv >
+                            occ_volume * np.prod(self.patch_size)
+                        ))
+                        break
+                    except ValueError: # No volume found --> reduce threshold
+                        occ_volume -= 0.1
+                print("Occupied volume: ", occ_volume)
+
+                if occ_volume <= 0:
+                    raise RuntimeError("No patch could be found.")
+
                 idx[d] = slice(
                     pos + pad_width, pos + self.patch_size[d] - pad_width
                 )
                 img_patches.append(np.pad(img[tuple(idx)], pad_width))
                 label_patches.append(np.pad(label_struct[tuple(idx)], pad_width))
+
                 # <--
                 idx[d] = slice(-1, -label.shape[d]-1, -1)
                 tmp_label = torch.from_numpy(
                     label_struct[tuple(idx)].copy()
                 ).float()[None][None]
                 tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
-                pos = np.min(np.nonzero(tmp_label_conv > occ_volume))
+
+                # Try to extract a patch with highest possible occupied volume
+                occ_volume = occ_volume_max
+                while occ_volume >= 0.1:
+                    try:
+                        pos = np.min(np.nonzero(
+                            tmp_label_conv >
+                            occ_volume * np.prod(self.patch_size)
+                        ))
+                        break
+                    except ValueError: # No volume found --> reduce threshold
+                        occ_volume -= 0.1
+                print("Occupied volume: ", occ_volume)
+
+                if occ_volume <= 0:
+                    raise RuntimeError("No patch could be found.")
+
                 idx[d] = slice(
                     -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
                 )
@@ -603,7 +642,7 @@ class Cortex(DatasetHandler):
         for fn in self._files:
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
-                                         'mri.nii.gz'))
+                                         self.img_filename))
             vox2world_affine = orig.affine
             world2vox_affine = np.linalg.inv(vox2world_affine)
             file_vertices = []

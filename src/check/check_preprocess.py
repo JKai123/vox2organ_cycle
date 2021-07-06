@@ -76,16 +76,16 @@ def run_preprocess_check_cortex():
            'DATASET_SEED': 1532,
            'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
            # 'PATCH_SIZE': (192, 224, 192),
-           'PATCH_SIZE': (64, 144, 128),
-           # 'PATCH_SIZE': (64, 64, 64),
-           'N_REF_POINTS_PER_STRUCTURE': 0, # irrelevant for check
+           # 'PATCH_SIZE': (64, 144, 128),
+           'PATCH_SIZE': (64, 64, 64),
+           'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
            'MESH_TARGET_TYPE': 'mesh',
            'STRUCTURE_TYPE': 'white_matter',
-           'PATCH_ORIGIN': (0, 5, 0),
+           # 'PATCH_ORIGIN': (0, 5, 0),
            # 'PATCH_ORIGIN': (30, 128, 60),
-           'SELECT_PATCH_SIZE': (96, 208, 176),
+           # 'SELECT_PATCH_SIZE': (96, 208, 176),
            # 'SELECT_PATCH_SIZE': (64, 64, 64),
-           'PATCH_MODE': True,
+           'PATCH_MODE': "multi-patch",
            'OVERFIT': False,
            'MC_STEP_SIZE': 1
           }
