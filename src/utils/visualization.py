@@ -172,3 +172,4 @@ def show_slices(slices, labels=None, save_path=None):
         plt.show()
     else:
         plt.savefig(save_path)
+        plt.close()

@@ -77,7 +77,7 @@ def run_preprocess_check_cortex():
            'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
            # 'PATCH_SIZE': (192, 224, 192),
            # 'PATCH_SIZE': (64, 144, 128),
-           'PATCH_SIZE': (64, 64, 64),
+           'PATCH_SIZE': (48, 48, 48),
            'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
            'MESH_TARGET_TYPE': 'mesh',
            'STRUCTURE_TYPE': 'white_matter',
@@ -112,7 +112,7 @@ def run_preprocess_check_cortex():
                                                 **hps_lower)
     training_set_augment.check_data()
 
-    n_samples = np.min((5, len(training_set)))
+    n_samples = np.min((6, len(training_set)))
     for iter_in_epoch in tqdm(range(n_samples), desc="Testing...", position=0, leave=True):
         # w/o augmentation
         img, label, mesh = training_set.get_item_and_mesh_from_index(iter_in_epoch)

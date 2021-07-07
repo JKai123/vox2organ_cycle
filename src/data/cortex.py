@@ -541,78 +541,93 @@ class Cortex(DatasetHandler):
         # labels. If this cannot be fulfilled, a smaller threshold is selected, see
         # below.
         occ_volume_max = 0.5
-        idxs = []
+
         shape = np.asarray(label.shape)
         patch_size = np.asarray(self.patch_size)
-        boundary1 = shape / 2 - patch_size / 2 + pad_width
-        boundary2 = shape / 2 + patch_size / 2 - pad_width
-        boundary1 = boundary1.astype(int)
-        boundary2 = boundary2.astype(int)
-        for d in range(ndims):
-            idxs.append(slice(boundary1[d], boundary2[d]))
+        idxs = [
+            [-1,
+             slice(int(shape[1] / 2 - patch_size[1] / 2 + pad_width),
+                   int(shape[1] / 2 + patch_size[1] / 2 - pad_width)),
+             slice(int(shape[2] / 2 - patch_size[2] / 2 + pad_width),
+                   int(shape[2] / 2 + patch_size[2] / 2 - pad_width))
+            ],
+            [slice(int(shape[0] / 4 - patch_size[0] / 2 + pad_width),
+                   int(shape[0] / 4 + patch_size[0] / 2 - pad_width)),
+             -1,
+             slice(int(shape[2] / 2 - patch_size[2] / 2 + pad_width),
+                   int(shape[2] / 2 + patch_size[2] / 2 - pad_width))
+            ],
+            [slice(int(3 * shape[0] / 4 - patch_size[0] / 2 + pad_width),
+                   int(3 * shape[0] / 4 + patch_size[0] / 2 - pad_width)),
+             slice(int(shape[1] / 2 - patch_size[1] / 2 + pad_width),
+                   int(shape[1] / 2 + patch_size[1] / 2 - pad_width)),
+             -1
+            ]
+        ]
         w = torch.ones(tuple(patch_size - 2*pad_width)).float()[None][None]
         img_patches = []
         label_patches = []
         label_struct_all = combine_labels(label, self.seg_label_names)
-        for ln in self.seg_label_names:
-            label_struct = combine_labels(label, [ln])
-            for d in range(ndims):
-                idx = deepcopy(idxs)
-                # -->
-                idx[d] = slice(0, label.shape[d])
-                tmp_label = torch.from_numpy(
-                    label_struct[tuple(idx)]
-                ).float()[None][None]
-                tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
 
-                # Try to extract a patch with highest possible occupied volume
-                occ_volume = occ_volume_max
-                while occ_volume >= 0.1:
-                    try:
-                        pos = np.min(np.nonzero(
-                            tmp_label_conv >
-                            occ_volume * np.prod(self.patch_size)
-                        ))
-                        break
-                    except ValueError: # No volume found --> reduce threshold
-                        occ_volume -= 0.1
+        # Iterate over dimensions
+        for idx_i in idxs:
+            idx = deepcopy(idx_i)
+            d = idx_i.index(-1) # -1 indicates the dimension to conv over
+            # -->
+            idx[d] = slice(0, label.shape[d])
+            tmp_label = torch.from_numpy(
+                label_struct_all[tuple(idx)]
+            ).float()[None][None]
+            tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
 
-                if occ_volume <= 0:
-                    raise RuntimeError("No patch could be found.")
+            # Try to extract a patch with highest possible occupied volume
+            occ_volume = occ_volume_max
+            while occ_volume >= 0.1:
+                try:
+                    pos = np.min(np.nonzero(
+                        tmp_label_conv >
+                        occ_volume * np.prod(self.patch_size)
+                    ))
+                    break
+                except ValueError: # No volume found --> reduce threshold
+                    occ_volume -= 0.1
 
-                idx[d] = slice(
-                    pos + pad_width, pos + self.patch_size[d] - pad_width
-                )
-                img_patches.append(np.pad(img[tuple(idx)], pad_width))
-                label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
+            if occ_volume < 0.1:
+                raise RuntimeError("No patch could be found.")
 
-                # <--
-                idx[d] = slice(-1, -label.shape[d]-1, -1)
-                tmp_label = torch.from_numpy(
-                    label_struct[tuple(idx)].copy()
-                ).float()[None][None]
-                tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
+            idx[d] = slice(
+                pos + pad_width, pos + self.patch_size[d] - pad_width
+            )
+            img_patches.append(np.pad(img[tuple(idx)], pad_width))
+            label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
 
-                # Try to extract a patch with highest possible occupied volume
-                occ_volume = occ_volume_max
-                while occ_volume >= 0.1:
-                    try:
-                        pos = np.min(np.nonzero(
-                            tmp_label_conv >
-                            occ_volume * np.prod(self.patch_size)
-                        ))
-                        break
-                    except ValueError: # No volume found --> reduce threshold
-                        occ_volume -= 0.1
+            # <--
+            idx[d] = slice(-1, -label.shape[d]-1, -1)
+            tmp_label = torch.from_numpy(
+                label_struct_all[tuple(idx)].copy()
+            ).float()[None][None]
+            tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
 
-                if occ_volume <= 0:
-                    raise RuntimeError("No patch could be found.")
+            # Try to extract a patch with highest possible occupied volume
+            occ_volume = occ_volume_max
+            while occ_volume >= 0.1:
+                try:
+                    pos = np.min(np.nonzero(
+                        tmp_label_conv >
+                        occ_volume * np.prod(self.patch_size)
+                    ))
+                    break
+                except ValueError: # No volume found --> reduce threshold
+                    occ_volume -= 0.1
 
-                idx[d] = slice(
-                    -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
-                )
-                img_patches.append(np.pad(img[tuple(idx)], pad_width))
-                label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
+            if occ_volume < 0.1:
+                raise RuntimeError("No patch could be found.")
+
+            idx[d] = slice(
+                -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
+            )
+            img_patches.append(np.pad(img[tuple(idx)], pad_width))
+            label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
 
         return img_patches, label_patches
 

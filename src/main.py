@@ -61,7 +61,7 @@ hyper_ps = {
                        ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss(0.039)],
+                       EdgeLoss(0.053)],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 10.0], # Wickramasinghe (adapted)
@@ -90,7 +90,7 @@ hyper_ps_hippocampus = {
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
-    'PATCH_SIZE': (64, 64, 64),
+    'PATCH_SIZE': [64, 64, 64],
     'BATCH_SIZE': 15,
     'N_M_CLASSES': 1,
     'N_REF_POINTS_PER_STRUCTURE': 1400,
@@ -152,7 +152,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
-        hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
+        hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
         hyper_ps_cortex['N_M_CLASSES'] = 1
