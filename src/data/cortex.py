@@ -312,7 +312,7 @@ class Cortex(DatasetHandler):
 
     @staticmethod
     def split(raw_data_dir, dataset_seed, dataset_split_proportions,
-              augment_train, save_dir, overfit=None, **kwargs):
+              augment_train, save_dir, overfit=False, **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -322,7 +322,8 @@ class Cortex(DatasetHandler):
         splits, e.g. (80, 10, 10)
         :param augment_train: Augment training data.
         :param save_dir: A directory where the split ids can be saved.
-        :param overfit: Create small datasets for overfitting.
+        :param overfit: Create small datasets for overfitting if this parameter
+        is > 0.
         :param kwargs: Dataset parameters.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
@@ -336,7 +337,7 @@ class Cortex(DatasetHandler):
 
         # Split
         if overfit:
-            # Only consider first element of available data
+            # Consider the same splits for train validation and test
             indices_train = slice(0, overfit)
             indices_val = slice(0, overfit)
             indices_test = slice(0, overfit)
