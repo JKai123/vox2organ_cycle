@@ -112,7 +112,7 @@ hyper_ps_cortex = {
     'N_EPOCHS': 15000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 20,
+    'BATCH_SIZE': 30,
     'MODEL_CONFIG': {
         'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'UNPOOL_INDICES': [0,0,0,0],
@@ -175,7 +175,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'BATCH_SIZE': 12,
+    'BATCH_SIZE': 6,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
 }
