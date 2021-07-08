@@ -173,3 +173,19 @@ def show_slices(slices, labels=None, save_path=None):
     else:
         plt.savefig(save_path)
         plt.close()
+
+def show_img_with_contour(img, vertices, edges, save_path=None):
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be in packed"
+                         " representation.")
+    plt.imshow(img, cmap="gray")
+    vertices_edges = vertices[edges]
+
+    plt.plot(vertices_edges[:,0,1], vertices_edges[:,0,0], color="red",
+             marker='x', markeredgecolor="gray", markersize=1, linewidth=1)
+
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+        plt.close()

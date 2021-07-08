@@ -7,8 +7,11 @@ from tqdm import tqdm
 import numpy as np
 
 from data.supported_datasets import dataset_split_handler
-from utils.visualization import show_slices
-from utils.utils import create_mesh_from_voxels
+from utils.visualization import show_slices, show_img_with_contour
+from utils.utils import (
+    create_mesh_from_voxels,
+    unnormalize_vertices_per_max_dim,
+)
 from utils.mesh import Mesh
 
 def run_preprocess_check(dataset):
@@ -53,61 +56,76 @@ def run_preprocess_check(dataset):
             _ = dataset_split_handler[dataset](augment_train=False,
                                                 save_dir="../misc",
                                                 **hps_lower)
-    breakpoint()
     if dataset == 'Cortex':
         mel = training_set.mean_edge_length()
         print(f"Mean edge length in dataset: {mel:.7f}")
 
-    training_set.check_data()
+    if training_set.ndims == 3:
+        training_set.check_data()
 
     # Augmentation
-    print("Loading data...")
-    training_set_augment,\
-            _,\
-            _ = dataset_split_handler[dataset](augment_train=True,
-                                                save_dir="../misc",
-                                                **hps_lower)
-    training_set_augment.check_data()
+    if training_set.ndims == 3:
+        print("Loading data...")
+        training_set_augment,\
+                _,\
+                _ = dataset_split_handler[dataset](augment_train=True,
+                                                    save_dir="../misc",
+                                                    **hps_lower)
+
+        training_set_augment.check_data()
+    else:
+        training_set_augment = None
 
     n_samples = np.min((6, len(training_set)))
-    for iter_in_epoch in tqdm(range(n_samples), desc="Testing...", position=0, leave=True):
+    for iter_in_epoch in tqdm(range(n_samples), desc="Creating visuals...", position=0, leave=True):
         # w/o augmentation
         img, label, mesh = training_set.get_item_and_mesh_from_index(iter_in_epoch)
         img, label = img.squeeze(), label.squeeze()
         shape = img.shape
         assert shape == label.shape, "Shapes should be identical."
-        img_slices = [img[shape[0]//2, :, :],
-                      img[:, shape[1]//2, :],
-                      img[:, :, shape[2]//2]]
-        label_slices = [label[shape[0]//2, :, :],
-                      label[:, shape[1]//2, :],
-                      label[:, :, shape[2]//2]]
-        mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
-        mc_mesh = create_mesh_from_voxels(label)
-        mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
-        show_slices(img_slices, label_slices, "../misc/img" +\
-                    str(iter_in_epoch) + ".png")
-        show_slices(img_slices, None, "../misc/img" +\
-                    str(iter_in_epoch) + "_nolabel.png")
+        if training_set.ndims == 3:
+            img_slices = [img[shape[0]//2, :, :],
+                          img[:, shape[1]//2, :],
+                          img[:, :, shape[2]//2]]
+            label_slices = [label[shape[0]//2, :, :],
+                          label[:, shape[1]//2, :],
+                          label[:, :, shape[2]//2]]
+            mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
+            mc_mesh = create_mesh_from_voxels(label)
+            mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
+            show_slices(img_slices, label_slices, "../misc/img" +\
+                        str(iter_in_epoch) + ".png")
+            show_slices(img_slices, None, "../misc/img" +\
+                        str(iter_in_epoch) + "_nolabel.png")
+        else: # 2D
+            mesh = mesh.to_pytorch3d_Meshes()
+            show_img_with_contour(
+                img,
+                unnormalize_vertices_per_max_dim(mesh.verts_packed(),
+                                                 img.shape),
+                mesh.faces_packed(),
+                "../misc/img_and_contour" + str(iter_in_epoch) + ".png"
+            )
 
         # /w augmentation
-        img, label, mesh = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
-        img, label = img.squeeze(), label.squeeze()
-        shape = img.shape
-        assert shape == label.shape, "Shapes should be identical."
-        img_slices = [img[shape[0]//2, :, :],
-                      img[:, shape[1]//2, :],
-                      img[:, :, shape[2]//2]]
-        label_slices = [label[shape[0]//2, :, :],
-                      label[:, shape[1]//2, :],
-                      label[:, :, shape[2]//2]]
-        mesh.store("../misc/mesh" + str(iter_in_epoch) + "_augment.ply")
-        mc_mesh = create_mesh_from_voxels(label)
-        mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc_augment.ply")
-        show_slices(img_slices, label_slices, "../misc/img" +\
-                    str(iter_in_epoch) + "_augment.png")
-        show_slices(img_slices, None, "../misc/img" +\
-                    str(iter_in_epoch) + "_augment_nolabel.png")
+        if training_set_augment is not None:
+            img, label, mesh = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
+            img, label = img.squeeze(), label.squeeze()
+            shape = img.shape
+            assert shape == label.shape, "Shapes should be identical."
+            img_slices = [img[shape[0]//2, :, :],
+                          img[:, shape[1]//2, :],
+                          img[:, :, shape[2]//2]]
+            label_slices = [label[shape[0]//2, :, :],
+                          label[:, shape[1]//2, :],
+                          label[:, :, shape[2]//2]]
+            mesh.store("../misc/mesh" + str(iter_in_epoch) + "_augment.ply")
+            mc_mesh = create_mesh_from_voxels(label)
+            mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc_augment.ply")
+            show_slices(img_slices, label_slices, "../misc/img" +\
+                        str(iter_in_epoch) + "_augment.png")
+            show_slices(img_slices, None, "../misc/img" +\
+                        str(iter_in_epoch) + "_augment_nolabel.png")
 
     print("Results written to ../misc/")
 

@@ -180,7 +180,6 @@ class Cortex(DatasetHandler):
         # Marching squares mesh labels
         self.mesh_labels = self._load_ms_dataMesh()
 
-
     def _prepare_data_3D(self):
         """ Load 3D data """
 
@@ -237,7 +236,10 @@ class Cortex(DatasetHandler):
         edge_lengths = []
         for m in self.mesh_labels:
             m_ = m.to_pytorch3d_Meshes()
-            edges_packed = m_.edges_packed()
+            if self.ndims == 3:
+                edges_packed = m_.edges_packed()
+            else: # 2D
+                edges_packed = m_.faces_packed()
             verts_packed = m_.verts_packed()
 
             verts_edges = verts_packed[edges_packed]
@@ -430,7 +432,7 @@ class Cortex(DatasetHandler):
                             *args, **kwargs):
         """
         One data item has the form
-        (3D input image, 3D voxel label, points, faces, normals)
+        (image, voxel label, points, faces, normals)
         with types all of type torch.Tensor
         """
         # Use mesh target type of object if not specified
@@ -445,12 +447,17 @@ class Cortex(DatasetHandler):
         )
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)
-        voxel_label = img_with_patch_size(voxel_label,
-                                          self.patch_size, True)
+        if self.ndims == 3:
+            img = img_with_patch_size(img, self.patch_size, False)
+            voxel_label = img_with_patch_size(voxel_label,
+                                              self.patch_size, True)
+        else:
+            # 2D images should already be of correct shape
+            assert img.shape == self.patch_size
+            assert voxel_label.shape == self.patch_size
 
         # Potentially augment
-        if self._augment:
+        if self._augment and self.ndims == 3:
             assert all(
                 (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
             ), "Padding must be symmetric for augmentation."
@@ -526,7 +533,7 @@ class Cortex(DatasetHandler):
         data_2D = []
         for img in data_3D:
             data_2D.append(img_with_patch_size(
-                np.expand_dims(img[img.shape[0]//2, :, :], 0),
+                np.expand_dims(img[img.shape[0]//13*4, :, :], 0),
                 [1] + list(self.patch_size),
                 is_label
             ).squeeze(0).numpy())
@@ -600,7 +607,8 @@ class Cortex(DatasetHandler):
 
     def _create_patches(self, img, label, pad_width):
         """ Create 3D patches from an image and the respective voxel label """
-        ndims = 3
+        ndims = self.ndims
+        assert ndims == 3
         # The relative volume that should be occupied in the patch by non-zero
         # labels. If this cannot be fulfilled, a smaller threshold is selected, see
         # below.

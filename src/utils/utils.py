@@ -20,6 +20,7 @@ from plyfile import PlyData
 
 from utils.modes import ExecModes
 from utils.mesh import Mesh
+from utils.visualization import show_img_with_contour
 
 class ExtendedEnum(Enum):
     """
@@ -183,12 +184,13 @@ def create_mesh_from_pixels(img):
     # Only consider main contour
     i_max = 0
     n_max = len(vertices_ms[0])
-    for i, v in  enumerate(vertices_ms):
+    for i, v in enumerate(vertices_ms):
         if len(v) > n_max:
             i_max = i
+            n_max = len(v)
     vertices_ms = vertices_ms[i_max]
     # Edges = faces in 2D
-    faces_ms = [[len(vertices_ms) - 1, 0]]
+    faces_ms = []
     faces_ms = torch.tensor(
         faces_ms + [[i,i+1] for i in range(len(vertices_ms) - 1)]
     )
