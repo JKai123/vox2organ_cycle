@@ -86,8 +86,9 @@ class Mesh():
         # Note: With current pytorch3d version, vertex normals cannot be
         # handed to Meshes object
         if self.vertices.ndim == 3:
-            return Meshes(self.vertices,
-                          self.faces)
+            # Avoid pytorch3d dimensionality check
+            return Meshes([v for v in self.vertices],
+                          [f for f in self.faces])
         if self.vertices.ndim == 2:
             return Meshes([self.vertices],
                           [self.faces])

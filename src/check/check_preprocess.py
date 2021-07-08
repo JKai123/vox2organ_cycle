@@ -20,7 +20,7 @@ def run_preprocess_check(dataset):
                'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
                # 'PATCH_SIZE': (192, 224, 192),
                # 'PATCH_SIZE': (64, 144, 128),
-               'PATCH_SIZE': (48, 48, 48),
+               'PATCH_SIZE': (192, 192),
                'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
                'MESH_TARGET_TYPE': 'mesh',
                'STRUCTURE_TYPE': 'white_matter',
@@ -28,9 +28,8 @@ def run_preprocess_check(dataset):
                # 'PATCH_ORIGIN': (30, 128, 60),
                # 'SELECT_PATCH_SIZE': (96, 208, 176),
                # 'SELECT_PATCH_SIZE': (64, 64, 64),
-               'PATCH_MODE': "multi-patch",
-               'OVERFIT': False,
-               'MC_STEP_SIZE': 1
+               'PATCH_MODE': "no",
+               'OVERFIT': True
               }
     elif dataset == 'Hippocampus':
         hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/Task04_Hippocampus',
@@ -54,6 +53,7 @@ def run_preprocess_check(dataset):
             _ = dataset_split_handler[dataset](augment_train=False,
                                                 save_dir="../misc",
                                                 **hps_lower)
+    breakpoint()
     if dataset == 'Cortex':
         mel = training_set.mean_edge_length()
         print(f"Mean edge length in dataset: {mel:.7f}")

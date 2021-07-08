@@ -87,8 +87,9 @@ def normalize_vertices(vertices: Union[torch.Tensor, np.array],
     treating each dimension separately and flip x- and z-axis.
     """
     assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
+    assert (len(shape) == 3 and vertices.shape[1] == 3
+            or len(shape) == 2 and vertices.shape[1] ==2),\
+            "Coordinates should be 2 or 3 dim."
 
     if isinstance(vertices, torch.Tensor):
         shape = torch.tensor(shape).float().to(vertices.device).flip(dims=[0])
@@ -103,8 +104,9 @@ def unnormalize_vertices(vertices: Union[torch.Tensor, np.array],
                          shape: Tuple[int, int, int]):
     """ Inverse of 'normalize vertices' """
     assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
+    assert (len(shape) == 3 and vertices.shape[1] == 3
+            or len(shape) == 2 and vertices.shape[1] ==2),\
+            "Coordinates should be 2 or 3 dim."
 
     if isinstance(vertices, torch.Tensor):
         shape = torch.tensor(shape).float().to(vertices.device)
@@ -120,8 +122,9 @@ def normalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
     """ Normalize vertex coordinates w.r.t. the maximum input dimension.
     """
     assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
+    assert (len(shape) == 3 and vertices.shape[1] == 3
+            or len(shape) == 2 and vertices.shape[1] ==2),\
+            "Coordinates should be 2 or 3 dim."
 
     return 2*(vertices/(np.max(shape)-1) - 0.5)
 
@@ -129,8 +132,9 @@ def unnormalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
                                      shape: Tuple[int, int, int]):
     """ Inverse of 'normalize vertices_per_max_dim' """
     assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
+    assert (len(shape) == 3 and vertices.shape[1] == 3
+            or len(shape) == 2 and vertices.shape[1] ==2),\
+            "Coordinates should be 2 or 3 dim."
 
     return (0.5 * vertices + 0.5) * (np.max(shape) - 1)
 
@@ -163,6 +167,37 @@ def create_mesh_from_voxels(volume, mc_step_size=1):
     normals = None
 
     return Mesh(vertices_mc, faces_mc, normals, values)
+
+def create_mesh_from_pixels(img):
+    """ Convert an image to a 2D mesh (= a graph) using marching squares.
+
+    :param img: The pixel input from which contours should be extracted.
+    :return: The generated mesh.
+    """
+    if isinstance(img, torch.Tensor):
+        img = img.cpu().data.numpy()
+
+    shape = img.shape
+
+    vertices_ms = measure.find_contours(img)
+    # Only consider main contour
+    i_max = 0
+    n_max = len(vertices_ms[0])
+    for i, v in  enumerate(vertices_ms):
+        if len(v) > n_max:
+            i_max = i
+    vertices_ms = vertices_ms[i_max]
+    # Edges = faces in 2D
+    faces_ms = [[len(vertices_ms) - 1, 0]]
+    faces_ms = torch.tensor(
+        faces_ms + [[i,i+1] for i in range(len(vertices_ms) - 1)]
+    )
+
+    vertices_ms = normalize_vertices_per_max_dim(
+        torch.from_numpy(vertices_ms).float(), shape
+    )
+
+    return Mesh(vertices_ms, faces_ms)
 
 def update_dict(d, u):
     """
@@ -374,4 +409,14 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
         voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
 
     return voxelized_mesh
+
+def edge_lengths_in_contours(vertices, edges):
+    """ Compute edge lengths for all edges in 'edges'."""
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be packed.")
+
+    vertices_edges = vertices[edges]
+    v1, v2 = vertices_edges[:,0], vertices_edges[:,1]
+
+    return torch.norm(v1 - v2, dim=1)
 
