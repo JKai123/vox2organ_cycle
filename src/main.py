@@ -98,9 +98,9 @@ hyper_ps_hippocampus = {
     'MODEL_CONFIG': {
         'GRAPH_CHANNELS': [128, 64, 32, 16],
         'UNPOOL_INDICES': [0,1,1],
-        'AGGREGATE_INDICES': [[5,6],
-                              [6,7],
-                              [7,8]], # 8 = last decoder skip
+        'AGGREGATE_INDICES': [[0,1],
+                              [1,2],
+                              [3,4]], # 8 = last decoder skip
     },
     'PROJ_NAME': "hippocampus",
     'MESH_TARGET_TYPE': "mesh"
