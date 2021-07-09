@@ -21,7 +21,6 @@ from plyfile import PlyData
 
 from utils.modes import ExecModes
 from utils.mesh import Mesh
-from utils.visualization import show_img_with_contour
 
 class ExtendedEnum(Enum):
     """
