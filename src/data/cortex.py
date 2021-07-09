@@ -577,7 +577,7 @@ class Cortex(DatasetHandler):
             # -->
             idx[d] = slice(0, label.shape[d])
             tmp_label = torch.from_numpy(
-                label_struct_all[tuple(idx)]
+                label_struct_all[tuple(idx)].copy()
             ).float()[None][None]
             tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
 
@@ -625,7 +625,7 @@ class Cortex(DatasetHandler):
                 raise RuntimeError("No patch could be found.")
 
             idx[d] = slice(
-                -pos-1-pad_width, -pos-1-self.patch_size[d]+pad_width, -1
+                shape[d]-pos-1+pad_width-self.patch_size[d], shape[d]-pos-1-pad_width
             )
             img_patches.append(np.pad(img[tuple(idx)], pad_width))
             label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
