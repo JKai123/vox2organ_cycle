@@ -156,6 +156,7 @@ class MeshesOfMeshes():
         self._verts_padded = verts
         self._faces_padded = faces
         self._edges_packed = None
+        self.ndims = verts.shape[-1]
 
         if features is not None:
             self.update_features(features)
@@ -180,14 +181,18 @@ class MeshesOfMeshes():
     def edges_packed(self):
         """ Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
-            # Calculate edges from faces
-            faces = self.faces_packed()
-            v0, v1, v2 = faces.chunk(3, dim=1)
-            e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
-            e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
-            e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
-            # All edges including duplicates.
-            self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+            if self.ndims == 3:
+                # Calculate edges from faces
+                faces = self.faces_packed()
+                v0, v1, v2 = faces.chunk(3, dim=1)
+                e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
+                e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
+                e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
+                # All edges including duplicates.
+                self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+            else:
+                # 2D equality of faces and edges
+                self._edges_packed = self.faces_packed()
 
         return self._edges_packed
 
@@ -199,11 +204,11 @@ class MeshesOfMeshes():
         add_index = torch.cat(
             [torch.ones(F) * i * V for i in range(N*M)]
         ).long().to(self._faces_padded.device)
-        return self._faces_padded.view(-1, 3) + add_index.view(-1, 1)
+        return self._faces_padded.view(-1, self.ndims) + add_index.view(-1, 1)
 
     def verts_packed(self):
         """ Packed representation of vertices """
-        return self._verts_padded.view(-1, 3)
+        return self._verts_padded.view(-1, self.ndims)
 
     def move_verts(self, offset):
         """ Move the vertex coordinates by offset """

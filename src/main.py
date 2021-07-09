@@ -40,7 +40,7 @@ hyper_ps = {
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'MIXED_PRECISION': True,
+    'MIXED_PRECISION': False,
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
         'lr': 1e-3, # voxel lr
@@ -109,6 +109,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
+    'NDIMS': 2,
     'N_EPOCHS': 15000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
@@ -125,46 +126,54 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': "multi-patch"
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
-    if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
-        ## Large
-        hyper_ps_cortex['PATCH_ORIGIN'] = [0, 5, 0]
-        hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
-        hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
-        ## Small
-        # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
-        # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
-        # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 64, 64]
-        # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
-        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
-        # hyper_ps_cortex['PATCH_ORIGIN'] = [40, 120, 60]
-        # hyper_ps_cortex['PATCH_SIZE'] = [64, 80, 48]
-        # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 96, 48]
-        # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
-        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
-        ## General
+    if hyper_ps_cortex['NDIMS'] == 3:
+        if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
+            ## Large
+            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 5, 0]
+            hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
+            ## Small
+            # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
+            # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
+            # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 64, 64]
+            # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+            # hyper_ps_cortex['PATCH_ORIGIN'] = [40, 120, 60]
+            # hyper_ps_cortex['PATCH_SIZE'] = [64, 80, 48]
+            # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 96, 48]
+            # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+            ## General
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
+            hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        else:
+            hyper_ps_cortex['N_M_CLASSES'] = 2
+            hyper_ps_cortex['PATCH_SIZE'] = [192, 224, 192]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    else: # 2D
         hyper_ps_cortex['N_M_CLASSES'] = 1
+        hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 360
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 360
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
-    elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
-        hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
-        hyper_ps_cortex['N_M_CLASSES'] = 1
-        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
-    else:
-        hyper_ps_cortex['N_M_CLASSES'] = 2
-        hyper_ps_cortex['PATCH_SIZE'] = (192, 224, 192)
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
-        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+            f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954

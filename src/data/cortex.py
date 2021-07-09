@@ -122,7 +122,7 @@ class Cortex(DatasetHandler):
         self._mc_step_size = kwargs.get('mc_step_size', 1)
         self.ndims = len(patch_size)
         self.patch_mode = patch_mode
-        self.patch_size = patch_size
+        self.patch_size = tuple(patch_size)
         self.select_patch_size = select_patch_size if (
             select_patch_size is not None) else patch_size
         self.n_m_classes = len(mesh_label_names)
@@ -462,6 +462,8 @@ class Cortex(DatasetHandler):
             # 2D images should already be of correct shape
             assert img.shape == self.patch_size
             assert voxel_label.shape == self.patch_size
+            img = torch.from_numpy(img).float()
+            voxel_label = torch.from_numpy(voxel_label).long()
 
         # Potentially augment
         if self._augment and self.ndims == 3:

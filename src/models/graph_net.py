@@ -47,7 +47,7 @@ class GraphDecoder(nn.Module):
                  propagate_coords: bool,
                  patch_size: Tuple[int, int, int],
                  aggregate_indices: Tuple[Tuple[int]],
-                 dim: int=3,
+                 ndims: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2):
@@ -73,13 +73,14 @@ class GraphDecoder(nn.Module):
         self.use_adoptive_unpool = use_adoptive_unpool
         self.GC = GC
         self.patch_size = patch_size
+        self.ndims = ndims
 
         # Aggregation of voxel features
         self.aggregate = aggregate
 
         # Initial creation of latent features from coordinates
         self.graph_conv_first = Features2FeaturesResidual(
-            dim, graph_channels[0], n_f2f_hidden_layer, norm=norm,
+            ndims, graph_channels[0], n_f2f_hidden_layer, norm=norm,
             GC=GC, weighted_edges=weighted_edges
         )
 
@@ -91,7 +92,7 @@ class GraphDecoder(nn.Module):
         # after each step
         self.propagate_coords = propagate_coords
         if propagate_coords:
-            add_n = 3
+            add_n = ndims
         else:
             add_n = 0
 
@@ -125,7 +126,7 @@ class GraphDecoder(nn.Module):
 
             # Feature to vertex layer, edge weighing never used
             f2v_layers.append(GC(
-                self.latent_features_count[i+1], dim, weighted_edges=False,
+                self.latent_features_count[i+1], ndims, weighted_edges=False,
                 init='zero'
             ))
 
@@ -141,9 +142,9 @@ class GraphDecoder(nn.Module):
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
 
         # Normalize template
-        if "icosahedron" in sphere_path:
+        if "icosahedron" in sphere_path or "icocircle" in sphere_path:
             self.sphere_vertices = normalize_vertices_per_max_dim(
-                unnormalize_vertices(sphere_vertices.view(-1,3), patch_size),
+                unnormalize_vertices(sphere_vertices.view(-1,self.ndims), patch_size),
                 patch_size
             ).view(sphere_vertices.shape)[None]
         else:
@@ -234,11 +235,11 @@ class GraphDecoder(nn.Module):
                 # Mesh coordinates for F.grid_sample
                 verts_img_co = normalize_vertices(
                     unnormalize_vertices_per_max_dim(
-                        vertices_padded.view(-1, 3),
+                        vertices_padded.view(-1, self.ndims),
                         self.patch_size
                     ),
                     self.patch_size
-                ).view(batch_size, -1, 3)
+                ).view(batch_size, -1, self.ndims)
 
                 # Latent features of vertices from voxels
                 # Avoid bug related to automatic mixed precision, see also
@@ -272,7 +273,8 @@ class GraphDecoder(nn.Module):
 
                 # Move vertices
                 deltaV_packed = f2v(latent_features_packed, edges_packed)
-                deltaV_padded = deltaV_packed.view(batch_size, M, V_new, 3)
+                deltaV_padded = deltaV_packed.view(batch_size, M, V_new,
+                                                   self.ndims)
                 new_meshes.move_verts(deltaV_padded)
 
                 # New latent features

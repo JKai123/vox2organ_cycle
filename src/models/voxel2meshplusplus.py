@@ -505,6 +505,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param patch_size: The used patch size of input images.
     :param aggregate_indices: Where to take the features from the UNet
     :param p_dropout: Dropout probability for UNet blocks
+    :param ndims: Dimensionality of images
     """
 
     def __init__(self,
@@ -527,6 +528,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  patch_size: Tuple[int, int, int],
                  aggregate_indices: Tuple[Tuple[int]],
                  p_dropout: float,
+                 ndims: int,
                  **kwargs
                  ):
         super().__init__()
@@ -539,8 +541,10 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       up_channels=decoder_channels,
                                       deep_supervision=deep_supervision,
                                       voxel_decoder=voxel_decoder,
-                                      p_dropout=p_dropout)
+                                      p_dropout=p_dropout,
+                                      ndims=ndims)
         # Graph network
+        aggregate = 'trilinear' if ndims == 3 else 'bilinear'
         self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
                                       unpool_indices=unpool_indices,
@@ -551,7 +555,9 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       propagate_coords=propagate_coords,
                                       patch_size=patch_size,
                                       aggregate_indices=aggregate_indices,
-                                      GC=gc)
+                                      aggregate=aggregate,
+                                      GC=gc,
+                                      ndims=ndims)
 
     @measure_time
     def forward(self, x):
