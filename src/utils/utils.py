@@ -14,6 +14,7 @@ import numpy as np
 import nibabel as nib
 import torch
 import torch.nn.functional as F
+import scipy.ndimage as ndimage
 from trimesh import Trimesh
 from skimage import measure
 from plyfile import PlyData
@@ -182,13 +183,7 @@ def create_mesh_from_pixels(img):
 
     vertices_ms = measure.find_contours(img)
     # Only consider main contour
-    i_max = 0
-    n_max = len(vertices_ms[0])
-    for i, v in enumerate(vertices_ms):
-        if len(v) > n_max:
-            i_max = i
-            n_max = len(v)
-    vertices_ms = vertices_ms[i_max]
+    vertices_ms = sorted(vertices_ms, key=lambda x: len(x))[-1]
     # Edges = faces in 2D
     faces_ms = []
     faces_ms = torch.tensor(
@@ -411,6 +406,36 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
         voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
 
     return voxelized_mesh
+
+def voxelize_contour(vertices, shape):
+    """ Voxelize the contour and return a segmentation map of shape 'shape'.
+    See also
+    https://stackoverflow.com/questions/39642680/create-mask-from-skimage-contour
+
+    :param vertices: The vertices of the contour.
+    :param edges: The connections between the vertices.
+    :param shape: The target shape of the voxel map.
+    """
+    assert vertices.ndim == 3, "Vertices should be padded."
+    assert vertices.shape[2] == 2 and len(shape) == 2,\
+            "Method is dedicated to 2D data."
+    if isinstance(vertices, torch.Tensor):
+        vertices = vertices.cpu().numpy()
+    voxelized_contour = np.zeros(shape, dtype=np.long)
+    for vs in vertices:
+        # Only consider points in valid range
+        in_box = np.logical_and(np.logical_and(
+            vs[:,0] >= 0, vs[:,0] < shape[0]
+        ), np.logical_and(
+            vs[:,1] >= 0, vs[:,1] < shape[1]
+        ))
+        vs_ = vs[in_box]
+        # Round to voxel coordinates
+        voxelized_contour[np.round(vs_[:,0]).astype('int'),
+                          np.round(vs_[:,1]).astype('int')] = 1
+        voxelized_contour = ndimage.binary_fill_holes(voxelized_contour)
+
+    return torch.from_numpy(voxelized_contour)
 
 def edge_lengths_in_contours(vertices, edges):
     """ Compute edge lengths for all edges in 'edges'."""

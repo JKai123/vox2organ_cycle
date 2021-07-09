@@ -159,6 +159,8 @@ def show_slices(slices, labels=None, save_path=None):
     """
 
     _, axs = plt.subplots(1, len(slices))
+    if len(slices) == 1:
+        axs = [axs]
 
     for i, s in enumerate(slices):
         axs[i].imshow(s, cmap="gray")

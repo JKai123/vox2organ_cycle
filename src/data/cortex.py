@@ -25,6 +25,7 @@ from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
     voxelize_mesh,
+    voxelize_contour,
     create_mesh_from_voxels,
     create_mesh_from_pixels,
     unnormalize_vertices_per_max_dim,
@@ -106,8 +107,8 @@ class Cortex(DatasetHandler):
                     seg_label_names = ("voxelized_mesh", "voxelized_mesh")
                     mesh_label_names = ("lh_white", "rh_white")
                 elif len(patch_size) == 2: # 2D
-                    seg_label_names = ("left_white_matter", "right_white_matter")
-                    mesh_label_names = ("lh_white", "rh_white")
+                    seg_label_names = ("right_white_matter",)
+                    mesh_label_names = ("rh_white",)
                 else:
                     raise ValueError("Wrong dimensionality.")
         else:
@@ -162,10 +163,12 @@ class Cortex(DatasetHandler):
         assert 'voxelized_mesh' not in self.seg_label_names,\
                 "Voxelization of mesh not possible for 2D data."
 
+        # Load images
         self.data = self._load_single_data2D(
             filename=self.img_filename, is_label=False
         )
 
+        # Load voxel labels
         self.voxel_labels = self._load_single_data2D(
             filename=self.label_filename, is_label=True
         )
@@ -179,6 +182,10 @@ class Cortex(DatasetHandler):
 
         # Marching squares mesh labels
         self.mesh_labels = self._load_ms_dataMesh()
+
+        # Update voxel labels as we chose only the main region for the mesh and
+        # ignore small 'artifact' regions
+        self.voxel_labels = self._create_voxel_labels_from_contours()
 
     def _prepare_data_3D(self):
         """ Load 3D data """
@@ -529,14 +536,17 @@ class Cortex(DatasetHandler):
         """Load the image data """
 
         data_3D = self._load_data3D_raw(filename)
+        mode = 'nearest' if is_label else 'bilinear'
+        align_corners = None if is_label else True
 
         data_2D = []
         for img in data_3D:
-            data_2D.append(img_with_patch_size(
-                np.expand_dims(img[img.shape[0]//13*4, :, :], 0),
-                [1] + list(self.patch_size),
-                is_label
-            ).squeeze(0).numpy())
+            data_2D.append(F.interpolate(
+                torch.from_numpy(img[img.shape[0]//13*4, :, :])[None][None],
+                size=self.patch_size,
+                mode=mode,
+                align_corners=align_corners
+            ).squeeze().numpy())
         return data_2D
 
     def _load_single_data3D(self, filename: str, is_label: bool,
@@ -708,7 +718,6 @@ class Cortex(DatasetHandler):
         """ Return the voxelized meshes as 3D voxel labels """
         data = []
         for m in self.mesh_labels:
-            voxel_label = torch.zeros(self.patch_size, dtype=torch.long)
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
@@ -716,6 +725,20 @@ class Cortex(DatasetHandler):
             )
 
             data.append(voxel_label.numpy())
+
+        return data
+
+    def _create_voxel_labels_from_contours(self):
+        """ Return the voxelized contour as 2D voxel labels """
+        data = []
+        for m in self.mesh_labels:
+            vertices = unnormalize_vertices_per_max_dim(
+                m.vertices.view(-1, 2), self.patch_size
+            ).view(self.n_m_classes, -1, 2)
+            voxel_label = voxelize_contour(
+                vertices, self.patch_size
+            ).numpy()
+            data.append(voxel_label)
 
         return data
 

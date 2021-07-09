@@ -23,7 +23,7 @@ def run_preprocess_check(dataset):
                'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
                # 'PATCH_SIZE': (192, 224, 192),
                # 'PATCH_SIZE': (64, 144, 128),
-               'PATCH_SIZE': (192, 192),
+               'PATCH_SIZE': (128, 128),
                'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
                'MESH_TARGET_TYPE': 'mesh',
                'STRUCTURE_TYPE': 'white_matter',
@@ -106,6 +106,8 @@ def run_preprocess_check(dataset):
                 mesh.faces_packed(),
                 "../misc/img_and_contour" + str(iter_in_epoch) + ".png"
             )
+            show_slices([img], [label], "../misc/img_and_gt_" +\
+                        str(iter_in_epoch) + ".png")
 
         # /w augmentation
         if training_set_augment is not None:
