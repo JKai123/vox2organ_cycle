@@ -537,7 +537,7 @@ class Cortex(DatasetHandler):
 
         data_3D = self._load_data3D_raw(filename)
         mode = 'nearest' if is_label else 'bilinear'
-        align_corners = None if is_label else True
+        align_corners = None if is_label else False
 
         data_2D = []
         for img in data_3D:
