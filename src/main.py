@@ -125,7 +125,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': "multi-patch"
+    'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
@@ -248,7 +248,7 @@ def main(hps):
                            type=int,
                            nargs='?',
                            const=1,
-                           default=None,
+                           default=False,
                            help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
