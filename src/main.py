@@ -110,7 +110,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 
 hyper_ps_cortex = {
     'NDIMS': 2,
-    'N_EPOCHS': 15000,
+    'N_EPOCHS': 1000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 30,
