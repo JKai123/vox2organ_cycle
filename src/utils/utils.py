@@ -446,3 +446,17 @@ def edge_lengths_in_contours(vertices, edges):
 
     return torch.norm(v1 - v2, dim=1)
 
+def choose_n_random_points(points: torch.Tensor, n: int):
+    """ Choose n points randomly from points. """
+    if points.ndim == 3:
+        res = []
+        for ps in points:
+            res.append(choose_n_random_points(ps, n))
+        return torch.stack(res)
+    if points.ndim == 2:
+        perm = torch.randperm(len(points))
+        perm = perm[:n]
+        return points[perm]
+
+    raise ValueError("Invalid number of dimensions.")
+

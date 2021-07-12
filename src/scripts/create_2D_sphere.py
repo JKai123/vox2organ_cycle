@@ -13,7 +13,7 @@ from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from skimage import draw
 
-def create_2D_sphere(side_length, save_path):
+def create_2D_sphere(side_length, save_path=None):
     """
     :param side_length: The side length of the square image into which the
     sphere is drawn. This defines the resolution of the sphere (coordinates are
@@ -31,21 +31,27 @@ def create_2D_sphere(side_length, save_path):
     plt.savefig("../misc/circle.png")
     plt.close()
 
-    # Sort vertices according to angle with 'r-axis'
+    # Sort unique vertices according to angle with 'r-axis'. In an
+    # r-c-coordinate system, this is equal to clockwise-sorting.
     vertices_ = list(np.stack([r,c], axis=1))
     vertices_.sort(key=lambda c:atan2(c[0]-center_r, c[1]-center_c))
-    vertices = torch.tensor(vertices_)
+    vertices_ = torch.tensor(vertices_)
+    vertices = vertices_.unique_consecutive(dim=0)
+    assert len(vertices) == len(vertices_.unique(dim=0)) # ensure correctness
     # Edges = faces in 2D
     faces = [[len(vertices) - 1, 0]] # Connect end to beginning
     faces = torch.tensor(
         faces + [[i,i+1] for i in range(len(vertices) - 1)]
     )
-    structure = Trimesh(vertices, faces, process=False)
-    template = Scene()
-    template.add_geometry(structure, geom_name="sphere")
-    template.export(save_path)
+    if save_path:
+        structure = Trimesh(vertices, faces, process=False)
+        template = Scene()
+        template.add_geometry(structure, geom_name="sphere")
+        template.export(save_path)
+
+    return vertices, faces
 
 if __name__ == '__main__':
     create_2D_sphere(
-        128, "../supplementary_material/circles/ico_circle_128.obj"
+        128, "../supplementary_material/circles/icocircle_128.obj"
     )

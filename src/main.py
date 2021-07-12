@@ -58,13 +58,13 @@ hyper_ps = {
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     'MESH_LOSS_FUNC': [
-                       ChamferAndNormalsLoss(),
+                       ChamferLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss(0.053)],
+                       EdgeLoss(0.0)],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 10.0], # Wickramasinghe (adapted)
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 0.1, 10.0], # Wasserstein, Chamfer, Cosine, Laplacian, NormalConsistency, Edge
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
@@ -170,8 +170,8 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     else: # 2D
         hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 360
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 360
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 352
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 352
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
