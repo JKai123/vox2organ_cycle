@@ -375,3 +375,11 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
 
     return voxelized_mesh
 
+def dict_to_lower_dict(d_in: dict):
+    """ Convert all keys in the dict to lower case. """
+    d_out = dict((k.lower(), v) for k, v in d_in.items())
+    for k, v in d_out.items():
+        if isinstance(v, dict):
+            d_out[k] = dict_to_lower_dict(v)
+
+    return d_out
