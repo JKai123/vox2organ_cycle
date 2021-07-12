@@ -335,6 +335,10 @@ def main(hps):
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
 
+    # Set project name automatically
+    if hps['PROJ_NAME'] == 'cortex' and hps['NDIMS'] == 2:
+        hps['PROJ_NAME'] = 'cortex_2D'
+
     # Run
     routine = mode_handler[mode]
     routine(hps, experiment_name=hps['EXPERIMENT_NAME'],
