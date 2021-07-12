@@ -29,10 +29,15 @@ class Mesh():
         self._faces = faces
         self._normals = normals
         self._features = features
+        self._ndims = vertices.shape[-1]
 
     @property
     def vertices(self):
         return self._vertices
+
+    @property
+    def ndims(self):
+        return self._ndims
 
     @property
     def faces(self):

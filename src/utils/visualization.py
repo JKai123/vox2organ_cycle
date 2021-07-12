@@ -6,11 +6,9 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 from typing import Union
 
-import open3d as o3d
+# import open3d as o3d # leads to double logging, uncomment if needed
 import nibabel as nib
 import matplotlib.pyplot as plt
-
-from pyntcloud import PyntCloud
 
 def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     """

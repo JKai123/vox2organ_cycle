@@ -28,10 +28,12 @@ from utils.utils import (
     voxelize_contour,
     create_mesh_from_voxels,
     create_mesh_from_pixels,
+    mirror_mesh_at_plane,
+    normalize_min_max,
+)
+from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
-    normalize_min_max,
-    mirror_mesh_at_plane
 )
 from utils.sample_points_from_contours import sample_points_from_contours
 from data.dataset import (

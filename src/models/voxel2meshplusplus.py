@@ -17,7 +17,8 @@ from torch.cuda.amp import autocast
 from utils.utils import (
     crop_and_merge,
     sample_outer_surface_in_voxel,
-    normalize_vertices_per_max_dim)
+)
+from utils.coordinate_transform import normalize_vertices_per_max_dim
 from utils.utils_voxel2meshplusplus.graph_conv import (
     Feature2VertexLayer,
     Features2Features)

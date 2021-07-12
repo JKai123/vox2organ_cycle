@@ -10,6 +10,8 @@ from data.supported_datasets import dataset_split_handler
 from utils.visualization import show_slices, show_img_with_contour
 from utils.utils import (
     create_mesh_from_voxels,
+)
+from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
 )
 from utils.mesh import Mesh

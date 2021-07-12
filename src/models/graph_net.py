@@ -25,7 +25,7 @@ from utils.file_handle import read_obj
 from utils.logging import measure_time
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.mesh import MeshesOfMeshes
-from utils.utils import (
+from utils.coordinate_transform import (
     normalize_vertices,
     unnormalize_vertices,
     unnormalize_vertices_per_max_dim,
