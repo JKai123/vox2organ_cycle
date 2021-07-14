@@ -180,6 +180,19 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
 
+    def mean_area(self):
+        """ Average surface area of meshes. """
+        areas = []
+        ndims = len(self.patch_size)
+        for m in self.mesh_labels:
+            m_unnorm = Mesh(unnormalize_vertices_per_max_dim(
+                m.vertices.view(-1, ndims), self.patch_size),
+                m.faces.view(-1, ndims)
+            )
+            areas.append(m_unnorm.to_trimesh().area)
+
+        return np.mean(areas)
+
     def mean_edge_length(self):
         """ Average edge length in dataset.
 
