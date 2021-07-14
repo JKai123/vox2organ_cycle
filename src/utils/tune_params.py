@@ -13,7 +13,7 @@ import json
 from utils.utils import string_dict, update_dict
 from utils.train import create_exp_directory, Solver
 from utils.modes import ExecModes
-from utils.logging import init_logging
+from utils.logging import init_logging, finish_wandb_run, init_wandb_logging
 from utils.evaluate import ModelEvaluator
 from models.model_handler import ModelHandler
 from data.supported_datasets import dataset_split_handler
@@ -102,6 +102,15 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         # Update params with current choice
         hps = update_dict(hps, choice)
 
+        # Init wandb for every run
+        init_wandb_logging(
+            exp_name=experiment_name, log_dir=log_dir,
+            wandb_proj_name=hps['PROJ_NAME'],
+            wandb_group_name=hps['GROUP_NAME'],
+            wandb_job_type=ExecModes.TUNE.name.lower(),
+            params=string_dict(hps)
+        )
+
         trainLogger.info("Choice: %s, %d/%d", str(choice), i+1,
                          len(param_possibilities))
 
@@ -130,6 +139,8 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
                      eval_every=hps['EVAL_EVERY'],
                      start_epoch=start_epoch,
                      save_models=False) # No model saving when tuning
+
+        finish_wandb_run()
 
         if final_val_score > best_score or i == 0:
             best_score = final_val_score

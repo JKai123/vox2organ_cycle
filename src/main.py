@@ -41,16 +41,16 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
-    'OPTIMIZER_CLASS': torch.optim.Adam,
+    'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
-        'lr': 1e-4, # voxel lr
-        'graph_lr': 1e-4,
+        'lr': 1e-3, # voxel lr
+        'graph_lr': 2.5e-5,
         # SGD
-        # 'momentum': 0.9,
+        'momentum': 0.9,
         # Adam
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0
+        # 'betas': [0.9, 0.999],
+        # 'eps': 1e-8,
+        # 'weight_decay': 0.0
     },
     'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
@@ -113,7 +113,7 @@ hyper_ps_cortex = {
     'N_EPOCHS': 15000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 15,
+    'BATCH_SIZE': 5,
     'MODEL_CONFIG': {
         'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'UNPOOL_INDICES': [0,0,0,0],
