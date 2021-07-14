@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 1000
+    hps['N_EPOCHS'] = 500
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\
@@ -96,8 +96,6 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     best_score = 0.0
     best_choice = None
-
-    breakpoint()
 
     for i, choice in enumerate(param_possibilities):
 
