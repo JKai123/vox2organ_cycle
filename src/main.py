@@ -170,8 +170,8 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     else: # 2D
         hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 352
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 352
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 712
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
