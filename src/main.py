@@ -40,7 +40,7 @@ hyper_ps = {
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
-    'MIXED_PRECISION': False,
+    'MIXED_PRECISION': True,
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
         'lr': 1e-3, # voxel lr
@@ -52,19 +52,19 @@ hyper_ps = {
         # 'eps': 1e-8,
         # 'weight_decay': 0.0
     },
-    'LR_DECAY_AFTER': 500,
+    'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     'MESH_LOSS_FUNC': [
-                       ChamferLoss(),
+                       ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
                        EdgeLoss(0.0)],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 1.0, 0.1, 0.1, 0.1, 10.0], # Wasserstein, Chamfer, Cosine, Laplacian, NormalConsistency, Edge
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.1, 0.01, 0.01, 0.01], # With separate cosine loss weight
@@ -109,8 +109,8 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    'NDIMS': 2,
-    'N_EPOCHS': 1000,
+    'NDIMS': 3,
+    'N_EPOCHS': 15000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 30,
@@ -126,7 +126,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': "no"
+    'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':

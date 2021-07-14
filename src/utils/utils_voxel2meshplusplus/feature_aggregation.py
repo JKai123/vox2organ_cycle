@@ -7,8 +7,8 @@ __email__ = "fabi.bongratz@gmail.com"
 import torch
 import torch.nn.functional as F
 
-def aggregate_trilinear(voxel_features, vertices, mode='trilinear'):
-    """ Trilinear aggregation of voxel features at vertex locations """
+def aggregate_trilinear(voxel_features, vertices, mode='bilinear'):
+    """ Trilinear/bilinear aggregation of voxel features at vertex locations """
     if vertices.shape[-1] == 3:
         vertices_ = vertices[:, :, None, None]
     elif vertices.shape[-1] == 2:
@@ -17,7 +17,7 @@ def aggregate_trilinear(voxel_features, vertices, mode='trilinear'):
         raise ValueError("Wrong dimensionality of vertices.")
     features = F.grid_sample(voxel_features, vertices_, mode=mode,
                              padding_mode='border', align_corners=True)
-    # Channel dimension <--> spatial (vertex) dimension
+    # Channel dimension <--> V dimension
     if vertices.shape[-1] == 3:
         features = features[:, :, :, 0, 0].transpose(2, 1)
     else: # 2D
@@ -26,11 +26,13 @@ def aggregate_trilinear(voxel_features, vertices, mode='trilinear'):
     return features
 
 def aggregate_from_indices(voxel_features, vertices, skip_indices,
-                           mode='trilinear'):
+                           mode='bilinear'):
     """ Aggregation of voxel features at different encoder/decoder indices """
     features = []
     for i in skip_indices:
-        if mode == 'trilinear' or mode == 'bilinear':
+        if mode == 'bilinear' or mode == 'trilinear':
+            # Trilinear = bilinear
+            mode = 'bilinear' if mode == 'trilinear' else 'bilinear'
             features.append(aggregate_trilinear(
                 voxel_features[i], vertices, mode
             ))
