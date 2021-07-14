@@ -43,7 +43,14 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     # Get a list of possible values for the parameter to tune
     params_to_tune = hps['PARAMS_TO_TUNE']
     for p in params_to_tune:
-        hps[p] = 'will be tuned'
+        if "." in p: # nested parameter
+            plist = p.split(".")
+            hps_sub = hps
+            for p_ in plist[:-1]:
+                hps_sub = hps_sub[p_]
+            hps_sub[plist[-1]] = 'will be tuned'
+        else: # not nested
+            hps[p] = 'will be tuned'
     param_possibilities = get_all_possibilities(params_to_tune)
 
     # Configure logging
@@ -89,6 +96,8 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     best_score = 0.0
     best_choice = None
+
+    breakpoint()
 
     for i, choice in enumerate(param_possibilities):
 
@@ -156,11 +165,34 @@ def get_all_possibilities(params_to_tune):
             raise RuntimeError(f"Parameter {p} unknown.")
         param_possibilities = possible_values[p]()
         param_possibilities.sort()
+
         possibilities_per_param[p] = param_possibilities
 
     all_perms = create_permutations_of_param_choices(possibilities_per_param)
 
-    return all_perms
+    # Convert nested parameters of the form x.y into a dict such that it can
+    # be accessed as x[y]
+    all_perms_new = []
+    for perm in all_perms:
+        perm_new = perm.copy()
+        for k, v in perm.items():
+            if "." in k: # nested parameter
+                klist = k.split(".")
+                perm_sub = perm_new
+                for k_ in klist[:-1]:
+                    if k_ not in perm_sub.keys():
+                        perm_sub[k_] = {}
+                    perm_sub = perm_sub[k_]
+                perm_sub[klist[-1]] = v
+            del perm_new[k]
+        all_perms_new.append(perm_new)
+
+    return all_perms_new
+
+def get_lrs():
+    possible_values_for_lr = [1e-3, 1e-4, 5e-5, 1e-5]
+
+    return possible_values_for_lr
 
 def get_mesh_loss_func_weights():
     n_losses = 4 # Should be equal to the number of losses used
@@ -219,5 +251,7 @@ def create_permutations(n_positions, possibilities_per_position):
 
 possible_values = {
     'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights,
-    'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights
+    'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights,
+    'OPTIM_PARAMS.lr': get_lrs,
+    'OPTIM_PARAMS.graph_lr': get_lrs
 }
