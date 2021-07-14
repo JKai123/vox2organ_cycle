@@ -136,7 +136,7 @@ class Cortex(DatasetHandler):
             # Image data
             self.data = self._load_single_data3D(
                 filename=self.img_filename, is_label=False,
-                extract_patch=patch_mode in ("single-patch", "no")
+                extract_patch=(patch_mode == "single-patch")
             )
 
             # Freesurfer mesh labels if not patch mode
@@ -150,7 +150,7 @@ class Cortex(DatasetHandler):
             else:
                 self.voxel_labels = self._load_single_data3D(
                     filename=self.label_filename, is_label=True,
-                    extract_patch=(patch_mode in ("single-patch", "no"))
+                    extract_patch=(patch_mode == "single-patch")
                 )
                 if seg_label_names == "all":
                     for vl in self.voxel_labels:
