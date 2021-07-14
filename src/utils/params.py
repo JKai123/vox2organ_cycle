@@ -128,8 +128,8 @@ hyper_ps_default={
     # Note: This one must also be part of 'EVAL_METRICS'!
     'MAIN_EVAL_METRIC': 'JaccardMesh',
 
-    # The number of image dimensions (is sometimes set to 3 in the code so may
-    # not have an effect for models that exist only for 3D)
+    # The number of image dimensions. This parameter is deprecated since
+    # dimensionality is now inferred from the patch size.
     'NDIMS': 3,
 
     # Voxel2Mesh original parameters

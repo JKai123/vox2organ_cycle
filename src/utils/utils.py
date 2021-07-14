@@ -14,12 +14,16 @@ import numpy as np
 import nibabel as nib
 import torch
 import torch.nn.functional as F
+import scipy.ndimage as ndimage
 from trimesh import Trimesh
 from skimage import measure
 from plyfile import PlyData
 
-from utils.modes import ExecModes
 from utils.mesh import Mesh
+from utils.coordinate_transform import (
+    normalize_vertices_per_max_dim,
+    unnormalize_vertices_per_max_dim
+)
 
 class ExtendedEnum(Enum):
     """
@@ -81,59 +85,6 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
 
     return mesh
 
-def normalize_vertices(vertices: Union[torch.Tensor, np.array],
-                       shape: Tuple[int, int, int]):
-    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1]
-    treating each dimension separately and flip x- and z-axis.
-    """
-    assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
-
-    if isinstance(vertices, torch.Tensor):
-        shape = torch.tensor(shape).float().to(vertices.device).flip(dims=[0])
-        vertices = vertices.flip(dims=[1])
-    if isinstance(vertices, np.ndarray):
-        shape = np.flip(np.array(shape, dtype=float), axis=0)
-        vertices = np.flip(vertices, axis=1)
-
-    return 2*(vertices/(shape-1) - 0.5)
-
-def unnormalize_vertices(vertices: Union[torch.Tensor, np.array],
-                         shape: Tuple[int, int, int]):
-    """ Inverse of 'normalize vertices' """
-    assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
-
-    if isinstance(vertices, torch.Tensor):
-        shape = torch.tensor(shape).float().to(vertices.device)
-        vertices = vertices.flip(dims=[1])
-    if isinstance(vertices, np.ndarray):
-        shape = np.array(shape, dtype=float)
-        vertices = np.flip(vertices, axis=1)
-
-    return (0.5 * vertices + 0.5) * (shape - 1)
-
-def normalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
-                                   shape: Tuple[int, int, int]):
-    """ Normalize vertex coordinates w.r.t. the maximum input dimension.
-    """
-    assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
-
-    return 2*(vertices/(np.max(shape)-1) - 0.5)
-
-def unnormalize_vertices_per_max_dim(vertices: Union[torch.Tensor, np.array],
-                                     shape: Tuple[int, int, int]):
-    """ Inverse of 'normalize vertices_per_max_dim' """
-    assert len(vertices.shape) == 2, "Vertices should be packed."
-    assert len(shape) == 3 and vertices.shape[1] == 3,\
-            "Coordinates should be 3 dim."
-
-    return (0.5 * vertices + 0.5) * (np.max(shape) - 1)
-
 def create_mesh_from_voxels(volume, mc_step_size=1):
     """ Convert a voxel volume to mesh using marching cubes
 
@@ -163,6 +114,32 @@ def create_mesh_from_voxels(volume, mc_step_size=1):
     normals = None
 
     return Mesh(vertices_mc, faces_mc, normals, values)
+
+def create_mesh_from_pixels(img):
+    """ Convert an image to a 2D mesh (= a graph) using marching squares.
+
+    :param img: The pixel input from which contours should be extracted.
+    :return: The generated mesh.
+    """
+    if isinstance(img, torch.Tensor):
+        img = img.cpu().data.numpy()
+
+    shape = img.shape
+
+    vertices_ms = measure.find_contours(img)
+    # Only consider main contour
+    vertices_ms = sorted(vertices_ms, key=lambda x: len(x))[-1]
+    # Edges = faces in 2D
+    faces_ms = []
+    faces_ms = torch.tensor(
+        faces_ms + [[i,i+1] for i in range(len(vertices_ms) - 1)]
+    )
+
+    vertices_ms = normalize_vertices_per_max_dim(
+        torch.from_numpy(vertices_ms).float(), shape
+    )
+
+    return Mesh(vertices_ms, faces_ms)
 
 def update_dict(d, u):
     """
@@ -383,3 +360,56 @@ def dict_to_lower_dict(d_in: dict):
             d_out[k] = dict_to_lower_dict(v)
 
     return d_out
+
+def voxelize_contour(vertices, shape):
+    """ Voxelize the contour and return a segmentation map of shape 'shape'.
+    See also
+    https://stackoverflow.com/questions/39642680/create-mask-from-skimage-contour
+
+    :param vertices: The vertices of the contour.
+    :param shape: The target shape of the voxel map.
+    """
+    assert vertices.ndim == 3, "Vertices should be padded."
+    assert vertices.shape[2] == 2 and len(shape) == 2,\
+            "Method is dedicated to 2D data."
+    if isinstance(vertices, torch.Tensor):
+        vertices = vertices.cpu().numpy()
+    voxelized_contour = np.zeros(shape, dtype=np.long)
+    for vs in vertices:
+        # Only consider points in valid range
+        in_box = np.logical_and(np.logical_and(
+            vs[:,0] >= 0, vs[:,0] < shape[0]
+        ), np.logical_and(
+            vs[:,1] >= 0, vs[:,1] < shape[1]
+        ))
+        vs_ = vs[in_box]
+        # Round to voxel coordinates
+        voxelized_contour[np.round(vs_[:,0]).astype('int'),
+                          np.round(vs_[:,1]).astype('int')] = 1
+        voxelized_contour = ndimage.binary_fill_holes(voxelized_contour)
+
+    return torch.from_numpy(voxelized_contour)
+
+def edge_lengths_in_contours(vertices, edges):
+    """ Compute edge lengths for all edges in 'edges'."""
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be packed.")
+
+    vertices_edges = vertices[edges]
+    v1, v2 = vertices_edges[:,0], vertices_edges[:,1]
+
+    return torch.norm(v1 - v2, dim=1)
+
+def choose_n_random_points(points: torch.Tensor, n: int):
+    """ Choose n points randomly from points. """
+    if points.ndim == 3:
+        res = []
+        for ps in points:
+            res.append(choose_n_random_points(ps, n))
+        return torch.stack(res)
+    if points.ndim == 2:
+        perm = torch.randperm(len(points))
+        perm = perm[:n]
+        return points[perm]
+
+    raise ValueError("Invalid number of dimensions.")

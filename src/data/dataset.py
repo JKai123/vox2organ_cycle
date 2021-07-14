@@ -27,6 +27,8 @@ from utils.utils import (
     voxelize_mesh,
     sample_outer_surface_in_voxel,
     sample_inner_volume_in_voxel,
+)
+from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim
 )

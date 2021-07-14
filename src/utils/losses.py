@@ -25,9 +25,11 @@ from pytorch3d.loss import (chamfer_distance,
                             mesh_edge_loss,
                             mesh_laplacian_smoothing,
                             mesh_normal_consistency)
-from pytorch3d.ops import sample_points_from_meshes
+from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 from geomloss import SamplesLoss
+
+from utils.utils import choose_n_random_points
 
 class MeshLoss(ABC):
     def __str__(self):
@@ -86,6 +88,7 @@ class WassersteinLoss(MeshLoss):
             # target = (verts, normals)
             target_ = target[0] # Only vertices relevant
         # Select an equal number of points
+        assert pred_.ndim == 3 and target._ndim == 3
         if pred_.shape[1] < target_.shape[1]:
             n_points = pred_.shape[1]
             perm = torch.randperm(target_.shape[1])
@@ -113,12 +116,23 @@ class ChamferLoss(MeshLoss):
             target_ = target
         if isinstance(target, pytorch3d.structures.Meshes):
             n_points = torch.min(target.num_verts_per_mesh())
-            target_ = sample_points_from_meshes(target, n_points)
+            if target.verts_padded().shape[1] == 3:
+                target_ = sample_points_from_meshes(target, n_points)
+            else: # 2D --> choose vertex points
+                target_ = choose_n_random_points(
+                    target.verts_padded(), n_points
+                )
         if isinstance(target, (tuple, list)):
             # target = (verts, normals)
             target_ = target[0] # Only vertices relevant
+            assert target_.ndim == 3 # padded
             n_points = target_.shape[1]
-        pred_points = sample_points_from_meshes(pred_meshes, n_points)
+        if pred_meshes.verts_packed().shape[-1] == 3:
+            pred_points = sample_points_from_meshes(pred_meshes, n_points)
+        else: # 2D
+            pred_points = choose_n_random_points(
+                pred_meshes.verts_padded(), n_points
+            )
         return chamfer_distance(pred_points, target_)[0]
 
 class ChamferAndNormalsLoss(MeshLoss):
@@ -133,6 +147,10 @@ class ChamferAndNormalsLoss(MeshLoss):
             raise TypeError("ChamferAndNormalsLoss requires vertices and"\
                             " normals.")
         target_points, target_normals = target
+        if (target_points.shape[-1] != 3 or
+            pred_meshes.verts_padded().shape[-1] != 3):
+            raise ValueError("Vertices should be in 3D.")
+        assert target_points.ndim == 3 and target_normals.ndim == 3
         n_points = target_points.shape[1]
         pred_points, pred_normals = sample_points_from_meshes(
             pred_meshes, n_points, return_normals=True
@@ -144,24 +162,57 @@ class ChamferAndNormalsLoss(MeshLoss):
         return torch.stack([d_chamfer, d_cosine])
 
 class LaplacianLoss(MeshLoss):
+    # Method does not support autocast
+    @autocast(enabled=False)
     def get_loss(self, pred_meshes, target=None):
-        # Method does not support autocast
-        with autocast(enabled=False):
+        # pytorch3d loss for 3D
+        if pred_meshes.verts_padded().shape[-1] == 3:
             loss = mesh_laplacian_smoothing(
                 Meshes(pred_meshes.verts_padded().float(),
                        pred_meshes.faces_padded().float()),
                 method='uniform'
             )
+        # 2D
+        else:
+            verts_packed = pred_meshes.verts_packed()
+            edges_packed = pred_meshes.faces_packed() # faces = edges
+            V = len(verts_packed)
+            # Uniform Laplacian
+            with torch.no_grad():
+                L = laplacian(verts_packed, edges_packed)
+            loss = L.mm(verts_packed).norm(dim=1).sum() / V
+
         return loss
 
 class NormalConsistencyLoss(MeshLoss):
     def get_loss(self, pred_meshes, target=None):
+        # 2D: assumes clock-wise ordering of vertex indices in each edge
+        if pred_meshes.verts_padded().shape[-1] == 2:
+            verts_packed = pred_meshes.verts_packed()
+            edges_packed = pred_meshes.faces_packed() # edges=faces
+            v0_idx, v1_idx = edges_packed[:, 0], edges_packed[:, 1]
+            normals = (verts_packed[v1_idx] - verts_packed[v0_idx]).flip(
+                dims=[1]) * torch.tensor([-1.0, 1.0]).cuda()
+            loss = 1 - torch.cosine_similarity(normals[v0_idx],
+                                               normals[v1_idx])
+            return loss.sum() / len(edges_packed)
+
+        # 3D: pytorch3d
         return mesh_normal_consistency(pred_meshes)
 
 class EdgeLoss(MeshLoss):
     def __init__(self, target_length):
         self.target_length = target_length
     def get_loss(self, pred_meshes, target=None):
+        # 2D
+        if pred_meshes.verts_padded().shape[2] == 2:
+            verts_packed = pred_meshes.verts_packed()
+            edges_packed = pred_meshes.faces_packed() # edges=faces
+            verts_edges = verts_packed[edges_packed]
+            v0, v1 = verts_edges.unbind(1)
+            loss = ((v0 - v1).norm(dim=1, p=2) - self.target_length) ** 2.0
+            return loss.sum() / len(edges_packed)
+        # 3D
         return mesh_edge_loss(pred_meshes, target_length=self.target_length)
 
 def linear_loss_combine(losses, weights):
@@ -175,10 +226,6 @@ def linear_loss_combine(losses, weights):
     loss_total = 0
     for loss, weight in zip(losses, weights):
         loss_total += weight * loss
-
-        # wandb.log({loss_func.__name__: loss})
-
-    # wandb.log({'loss_total': loss_total})
 
     return loss_total
 

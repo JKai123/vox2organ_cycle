@@ -6,11 +6,9 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 from typing import Union
 
-import open3d as o3d
+# import open3d as o3d # leads to double logging, uncomment if needed
 import nibabel as nib
 import matplotlib.pyplot as plt
-
-from pyntcloud import PyntCloud
 
 def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     """
@@ -159,6 +157,8 @@ def show_slices(slices, labels=None, save_path=None):
     """
 
     _, axs = plt.subplots(1, len(slices))
+    if len(slices) == 1:
+        axs = [axs]
 
     for i, s in enumerate(slices):
         axs[i].imshow(s, cmap="gray")
@@ -168,6 +168,22 @@ def show_slices(slices, labels=None, save_path=None):
             axs[i].imshow(l, cmap="OrRd", alpha=0.3)
 
     plt.suptitle("Image Slices")
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+        plt.close()
+
+def show_img_with_contour(img, vertices, edges, save_path=None):
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be in packed"
+                         " representation.")
+    plt.imshow(img, cmap="gray")
+    vertices_edges = vertices[edges]
+
+    plt.plot(vertices_edges[:,0,1], vertices_edges[:,0,0], color="red",
+             marker='x', markeredgecolor="gray", markersize=1, linewidth=1)
+
     if save_path is None:
         plt.show()
     else:

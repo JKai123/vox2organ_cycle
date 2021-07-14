@@ -25,12 +25,17 @@ from utils.logging import measure_time
 from utils.mesh import Mesh, generate_sphere_template
 from utils.utils import (
     voxelize_mesh,
+    voxelize_contour,
     create_mesh_from_voxels,
+    create_mesh_from_pixels,
+    mirror_mesh_at_plane,
+    normalize_min_max,
+)
+from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
-    normalize_min_max,
-    mirror_mesh_at_plane
 )
+from utils.sample_points_from_contours import sample_points_from_contours
 from data.dataset import (
     DatasetHandler,
     flip_img,
@@ -100,8 +105,14 @@ class Cortex(DatasetHandler):
                 seg_label_names = ("left_white_matter", "right_white_matter")
                 mesh_label_names = ("all",)
             else: # not patch mode
-                seg_label_names = ("voxelized_mesh", "voxelized_mesh")
-                mesh_label_names = ("lh_white", "rh_white")
+                if len(patch_size) == 3: # 3D
+                    seg_label_names = ("voxelized_mesh", "voxelized_mesh")
+                    mesh_label_names = ("lh_white", "rh_white")
+                elif len(patch_size) == 2: # 2D
+                    seg_label_names = ("right_white_matter",)
+                    mesh_label_names = ("rh_white",)
+                else:
+                    raise ValueError("Wrong dimensionality.")
         else:
             raise ValueError("Unknown structure type.")
 
@@ -111,8 +122,9 @@ class Cortex(DatasetHandler):
         self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
         self._mc_step_size = kwargs.get('mc_step_size', 1)
+        self.ndims = len(patch_size)
         self.patch_mode = patch_mode
-        self.patch_size = patch_size
+        self.patch_size = tuple(patch_size)
         self.select_patch_size = select_patch_size if (
             select_patch_size is not None) else patch_size
         self.n_m_classes = len(mesh_label_names)
@@ -126,48 +138,12 @@ class Cortex(DatasetHandler):
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
 
-        # Mesh labels if not patch mode
-        assert patch_mode == "no" or 'voxelized_mesh' not in seg_label_names,\
-            "Voxelized mesh not possible as voxel ground truth in patch mode."
-        assert patch_mode != "single-patch" or len(seg_label_names) == 1,\
-                "Can only use one segmentation class in single-patch mode."
-
-        if patch_mode != "multi-patch": # no patch mode or single-patch
-            # Image data
-            self.data = self._load_single_data3D(
-                filename=self.img_filename, is_label=False,
-                extract_patch=(patch_mode == "single-patch")
-            )
-
-            # Freesurfer mesh labels if not patch mode
-            if patch_mode == "no":
-                self.mesh_labels, (self.centers, self.radii) =\
-                        self._load_dataMesh(meshnames=mesh_label_names)
-
-            # Voxel labels
-            if 'voxelized_mesh' in seg_label_names:
-                self.voxel_labels = self._create_voxel_labels_from_meshes()
-            else:
-                self.voxel_labels = self._load_single_data3D(
-                    filename=self.label_filename, is_label=True,
-                    extract_patch=(patch_mode == "single-patch")
-                )
-                if seg_label_names == "all":
-                    for vl in self.voxel_labels:
-                        vl[vl > 1] = 1
-                else:
-                    self.voxel_labels = [
-                        combine_labels(l, seg_label_names) for l in self.voxel_labels
-                    ]
-
-        else: # multi-patch mode
-            self.data, self.voxel_labels, self._files = self._get_multi_patches(
-                img_filename=self.img_filename, label_filename=self.label_filename
-            )
-
-        # Marching cubes mesh labels if any patch mode
-        if patch_mode != "no":
-            self.mesh_labels = self._load_mc_dataMesh()
+        if self.ndims == 3:
+            self._prepare_data_3D()
+        elif self.ndims == 2:
+            self._prepare_data_2D()
+        else:
+            raise ValueError("Unknown number of dimensions ", ndims)
 
         # NORMALIZE images
         for i, d in enumerate(self.data):
@@ -179,6 +155,87 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.data)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
+
+    def _prepare_data_2D(self):
+        """ Load 2D data """
+
+        # Check constraints
+        assert self.patch_mode == "no",\
+                "Patch mode not supported for 2D data."
+        assert 'voxelized_mesh' not in self.seg_label_names,\
+                "Voxelization of mesh not possible for 2D data."
+
+        # Load images
+        self.data = self._load_single_data2D(
+            filename=self.img_filename, is_label=False
+        )
+
+        # Load voxel labels
+        self.voxel_labels = self._load_single_data2D(
+            filename=self.label_filename, is_label=True
+        )
+        if self.seg_label_names == "all":
+            for vl in self.voxel_labels:
+                vl[vl > 1] = 1
+        else:
+            self.voxel_labels = [
+                combine_labels(l, self.seg_label_names) for l in self.voxel_labels
+            ]
+
+        # Marching squares mesh labels
+        self.mesh_labels = self._load_ms_dataMesh()
+
+        # Update voxel labels as we chose only the main region for the mesh and
+        # ignore small 'artifact' regions
+        self.voxel_labels = self._create_voxel_labels_from_contours()
+
+    def _prepare_data_3D(self):
+        """ Load 3D data """
+
+        # Check constraints
+        assert (self.patch_mode == "no"
+                or 'voxelized_mesh' not in self.seg_label_names),\
+            "Voxelized mesh not possible as voxel ground truth in patch mode."
+        assert (self.patch_mode != "single-patch"
+                or len(self.seg_label_names) == 1),\
+                "Can only use one segmentation class in single-patch mode."
+
+        if self.patch_mode != "multi-patch": # no patch mode or single-patch
+            # Image data
+            self.data = self._load_single_data3D(
+                filename=self.img_filename, is_label=False,
+                extract_patch=(patch_mode == "single-patch")
+            )
+
+            # Freesurfer mesh labels if not patch mode
+            if self.patch_mode == "no":
+                self.mesh_labels, (self.centers, self.radii) =\
+                        self._load_dataMesh(meshnames=mesh_label_names)
+
+            # Voxel labels
+            if 'voxelized_mesh' in self.seg_label_names:
+                self.voxel_labels = self._create_voxel_labels_from_meshes()
+            else:
+                self.voxel_labels = self._load_single_data3D(
+                    filename=self.label_filename, is_label=True,
+                    extract_patch=(patch_mode == "single-patch")
+                )
+                if self.seg_label_names == "all":
+                    for vl in self.voxel_labels:
+                        vl[vl > 1] = 1
+                else:
+                    self.voxel_labels = [
+                        combine_labels(l, self.seg_label_names) for l in self.voxel_labels
+                    ]
+
+        else: # multi-patch mode
+            self.data, self.voxel_labels, self._files = self._get_multi_patches(
+                img_filename=self.img_filename, label_filename=self.label_filename
+            )
+
+        # Marching cubes mesh labels if any patch mode
+        if self.patch_mode != "no":
+            self.mesh_labels = self._load_mc_dataMesh()
 
     def mean_area(self):
         """ Average surface area of meshes. """
@@ -201,7 +258,10 @@ class Cortex(DatasetHandler):
         edge_lengths = []
         for m in self.mesh_labels:
             m_ = m.to_pytorch3d_Meshes()
-            edges_packed = m_.edges_packed()
+            if self.ndims == 3:
+                edges_packed = m_.edges_packed()
+            else: # 2D
+                edges_packed = m_.faces_packed()
             verts_packed = m_.verts_packed()
 
             verts_edges = verts_packed[edges_packed]
@@ -394,7 +454,7 @@ class Cortex(DatasetHandler):
                             *args, **kwargs):
         """
         One data item has the form
-        (3D input image, 3D voxel label, points, faces, normals)
+        (image, voxel label, points, faces, normals)
         with types all of type torch.Tensor
         """
         # Use mesh target type of object if not specified
@@ -409,12 +469,19 @@ class Cortex(DatasetHandler):
         )
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)
-        voxel_label = img_with_patch_size(voxel_label,
-                                          self.patch_size, True)
+        if self.ndims == 3:
+            img = img_with_patch_size(img, self.patch_size, False)
+            voxel_label = img_with_patch_size(voxel_label,
+                                              self.patch_size, True)
+        else:
+            # 2D images should already be of correct shape
+            assert img.shape == self.patch_size
+            assert voxel_label.shape == self.patch_size
+            img = torch.from_numpy(img).float()
+            voxel_label = torch.from_numpy(voxel_label).long()
 
         # Potentially augment
-        if self._augment:
+        if self._augment and self.ndims == 3:
             assert all(
                 (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
             ), "Padding must be symmetric for augmentation."
@@ -481,6 +548,23 @@ class Cortex(DatasetHandler):
             data.append(d)
 
         return data
+
+    def _load_single_data2D(self, filename: str, is_label: bool):
+        """Load the image data """
+
+        data_3D = self._load_data3D_raw(filename)
+        mode = 'nearest' if is_label else 'bilinear'
+        align_corners = None if is_label else False
+
+        data_2D = []
+        for img in data_3D:
+            data_2D.append(F.interpolate(
+                torch.from_numpy(img[img.shape[0]//13*4, :, :])[None][None],
+                size=self.patch_size,
+                mode=mode,
+                align_corners=align_corners
+            ).squeeze().numpy())
+        return data_2D
 
     def _load_single_data3D(self, filename: str, is_label: bool,
                             extract_patch: bool):
@@ -550,7 +634,8 @@ class Cortex(DatasetHandler):
 
     def _create_patches(self, img, label, pad_width):
         """ Create 3D patches from an image and the respective voxel label """
-        ndims = 3
+        ndims = self.ndims
+        assert ndims == 3
         # The relative volume that should be occupied in the patch by non-zero
         # labels. If this cannot be fulfilled, a smaller threshold is selected, see
         # below.
@@ -650,7 +735,6 @@ class Cortex(DatasetHandler):
         """ Return the voxelized meshes as 3D voxel labels """
         data = []
         for m in self.mesh_labels:
-            voxel_label = torch.zeros(self.patch_size, dtype=torch.long)
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
@@ -658,6 +742,20 @@ class Cortex(DatasetHandler):
             )
 
             data.append(voxel_label.numpy())
+
+        return data
+
+    def _create_voxel_labels_from_contours(self):
+        """ Return the voxelized contour as 2D voxel labels """
+        data = []
+        for m in self.mesh_labels:
+            vertices = unnormalize_vertices_per_max_dim(
+                m.vertices.view(-1, 2), self.patch_size
+            ).view(self.n_m_classes, -1, 2)
+            voxel_label = voxelize_contour(
+                vertices, self.patch_size
+            ).numpy()
+            data.append(voxel_label)
 
         return data
 
@@ -737,15 +835,36 @@ class Cortex(DatasetHandler):
 
         return data
 
+    def _load_ms_dataMesh(self):
+        """ Create ground truth meshes from pixel labels."""
+        data = []
+        for vl in self.voxel_labels:
+            assert tuple(vl.shape) == tuple(self.patch_size),\
+                    "Voxel label should be of correct size."
+            ms_mesh = create_mesh_from_pixels(vl).to_pytorch3d_Meshes()
+            data.append(Mesh(
+                ms_mesh.verts_padded(),
+                ms_mesh.faces_padded() # faces = edges in 2D
+            ))
+
+        return data
+
     def _load_ref_points(self):
         """ Sample surface points from meshes """
         points, normals = [], []
         for m in self.mesh_labels:
-            p, n = sample_points_from_meshes(
-                m.to_pytorch3d_Meshes(),
-                self.n_ref_points_per_structure,
-                return_normals=True
-            )
+            if self.ndims == 3:
+                p, n = sample_points_from_meshes(
+                    m.to_pytorch3d_Meshes(),
+                    self.n_ref_points_per_structure,
+                    return_normals=True
+                )
+            else:
+                p, n = sample_points_from_contours(
+                    m.to_pytorch3d_Meshes(),
+                    self.n_ref_points_per_structure,
+                    return_normals=True
+                )
             points.append(p)
             normals.append(n)
 
