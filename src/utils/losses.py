@@ -121,17 +121,14 @@ class WassersteinLoss(MeshLoss):
             # target = (verts, normals)
             target_ = target[0] # Only vertices relevant
         # Select an equal number of points
-        assert pred_.ndim == 3 and target._ndim == 3
+        assert pred_.ndim == 3 and target_.ndim == 3
         if pred_.shape[1] < target_.shape[1]:
             n_points = pred_.shape[1]
-            perm = torch.randperm(target_.shape[1])
-            perm = perm[:n_points]
-            target_ = target_[:, perm, :]
-        else:
+            target_ = choose_n_random_points(target_, n_points)
+        elif target_.shape[1] < pred_.shape[1]:
             n_points = target_.shape[1]
             perm = torch.randperm(pred_.shape[1])
-            perm = perm[:n_points]
-            pred_ = pred_[:, perm, :]
+            pred_ = choose_n_random_points(pred_, n_points)
 
         w_loss = torch.tensor(0.0, requires_grad=True).cuda()
         for p, t in zip(pred_, target_):
