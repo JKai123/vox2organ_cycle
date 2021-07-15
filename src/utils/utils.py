@@ -372,10 +372,14 @@ def voxelize_contour(vertices, shape):
     assert vertices.ndim == 3, "Vertices should be padded."
     assert vertices.shape[2] == 2 and len(shape) == 2,\
             "Method is dedicated to 2D data."
-    if isinstance(vertices, torch.Tensor):
-        vertices = vertices.cpu().numpy()
+    v_shape = vertices.shape
+    unnorm_verts = unnormalize_vertices_per_max_dim(
+        vertices.view(-1, 2), shape
+    ).view(v_shape)
+    if isinstance(unnorm_verts, torch.Tensor):
+        unnorm_verts = unnorm_verts.cpu().numpy()
     voxelized_contour = np.zeros(shape, dtype=np.long)
-    for vs in vertices:
+    for vs in unnorm_verts:
         # Only consider points in valid range
         in_box = np.logical_and(np.logical_and(
             vs[:,0] >= 0, vs[:,0] < shape[0]
