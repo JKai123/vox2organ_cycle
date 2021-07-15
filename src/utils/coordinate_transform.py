@@ -20,10 +20,12 @@ def normalize_vertices(vertices: Union[torch.Tensor, np.array],
             "Coordinates should be 2 or 3 dim."
 
     if isinstance(vertices, torch.Tensor):
-        shape = torch.tensor(shape).float().to(vertices.device).flip(dims=[0])
+        shape = torch.tensor(
+            shape
+        ).float().to(vertices.device).flip(dims=[0]).unsqueeze(0)
         vertices = vertices.flip(dims=[1])
     if isinstance(vertices, np.ndarray):
-        shape = np.flip(np.array(shape, dtype=float), axis=0)
+        shape = np.flip(np.array(shape, dtype=float), axis=0).unsqueeze(0)
         vertices = np.flip(vertices, axis=1)
 
     return 2*(vertices/(shape-1) - 0.5)
@@ -37,10 +39,10 @@ def unnormalize_vertices(vertices: Union[torch.Tensor, np.array],
             "Coordinates should be 2 or 3 dim."
 
     if isinstance(vertices, torch.Tensor):
-        shape = torch.tensor(shape).float().to(vertices.device)
+        shape = torch.tensor(shape).float().to(vertices.device).unsqueeze(0)
         vertices = vertices.flip(dims=[1])
     if isinstance(vertices, np.ndarray):
-        shape = np.array(shape, dtype=float)
+        shape = np.array(shape, dtype=float).unsqueeze(0)
         vertices = np.flip(vertices, axis=1)
 
     return (0.5 * vertices + 0.5) * (shape - 1)
