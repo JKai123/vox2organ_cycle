@@ -95,15 +95,16 @@ def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
     global wandb_run
     global use_wandb
     use_wandb = True if not debug else False
-    wandb_run = wandb.init(
-        name=exp_name,
-        dir=log_dir,
-        config=params,
-        project=wandb_proj_name,
-        group=wandb_group_name,
-        job_type=wandb_job_type,
-        reinit=True
-    )
+    if use_wandb:
+        wandb_run = wandb.init(
+            name=exp_name,
+            dir=log_dir,
+            config=params,
+            project=wandb_proj_name,
+            group=wandb_group_name,
+            job_type=wandb_job_type,
+            reinit=True
+        )
 
 def finish_wandb_run():
     global wandb_run
