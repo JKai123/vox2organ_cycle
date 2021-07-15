@@ -749,11 +749,8 @@ class Cortex(DatasetHandler):
         """ Return the voxelized contour as 2D voxel labels """
         data = []
         for m in self.mesh_labels:
-            vertices = unnormalize_vertices_per_max_dim(
-                m.vertices.view(-1, 2), self.patch_size
-            ).view(self.n_m_classes, -1, 2)
             voxel_label = voxelize_contour(
-                vertices, self.patch_size
+                m.vertices, self.patch_size
             ).numpy()
             data.append(voxel_label)
 
