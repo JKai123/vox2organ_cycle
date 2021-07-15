@@ -44,7 +44,7 @@ hyper_ps = {
     'OPTIMIZER_CLASS': torch.optim.SGD,
     'OPTIM_PARAMS': {
         'lr': 1e-3, # voxel lr
-        'graph_lr': 2.5e-5,
+        'graph_lr': 1e-4,
         # SGD
         'momentum': 0.9,
         # Adam
