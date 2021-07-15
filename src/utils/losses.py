@@ -198,10 +198,12 @@ class ChamferAndNormalsLoss(MeshLoss):
             # Normals are required to be 3 dim. for chamfer function
             N, V, _ = target_normals.shape
             target_normals = torch.cat(
-                [target_normals, torch.zeros((N,V,1))], dim=2
+                [target_normals,
+                 torch.zeros((N,V,1)).to(target_normals.device)], dim=2
             )
             pred_normals = torch.cat(
-                [pred_normals, torch.zeros((N,V,1))], dim=2
+                [pred_normals,
+                 torch.zeros((N,V,1)).to(pred_normals.device)], dim=2
             )
         d_chamfer, d_cosine = chamfer_distance(pred_points, target_points,
                                                x_normals=pred_normals,
