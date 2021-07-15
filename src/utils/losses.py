@@ -31,6 +31,39 @@ from geomloss import SamplesLoss
 
 from utils.utils import choose_n_random_points
 
+def meshes_to_edge_normals_2D_packed(meshes: Meshes):
+    """ Helper function to get normals of 2D meshes (contours) for every edge.
+    The normals have the same length as the respective edge they belong
+    to."""
+    verts_packed = meshes.verts_packed()
+    edges_packed = meshes.faces_packed() # edges=faces
+
+    v0_idx, v1_idx = edges_packed[:, 0], edges_packed[:, 1]
+
+    # Normal of edge [x,y] is [-y,x]
+    normals = (verts_packed[v1_idx] - verts_packed[v0_idx]).flip(
+        dims=[1]) * torch.tensor([-1.0, 1.0]).to(meshes.device)
+
+    # Length of normals is automatically equal to the edge length as the normals
+    # are just rotated edges.
+
+    return normals, v0_idx, v1_idx
+
+def meshes_to_vertex_normals_2D_packed(meshes: Meshes):
+    """ Helper function to get normals of 2D meshes (contours) for every vertex.
+    The normals are defined as the sum of the normals of the two adjacent edges
+    of the vertex. """
+    # Normals of edges
+    edge_normals, v0_idx, v1_idx = meshes_to_edge_normals_2D_packed(
+        meshes
+    )
+    # (Normals at vertices) = (sum of normals at adjacent edges of the
+    # respective edge length)
+    normals_next = edge_normals[torch.argsort(v0_idx)]
+    normals_prev = edge_normals[torch.argsort(v1_idx)]
+
+    return (normals_next + normals_prev)
+
 class MeshLoss(ABC):
     def __str__(self):
         return self.__class__.__name__ + "()"
@@ -147,14 +180,29 @@ class ChamferAndNormalsLoss(MeshLoss):
             raise TypeError("ChamferAndNormalsLoss requires vertices and"\
                             " normals.")
         target_points, target_normals = target
-        if (target_points.shape[-1] != 3 or
-            pred_meshes.verts_padded().shape[-1] != 3):
-            raise ValueError("Vertices should be in 3D.")
         assert target_points.ndim == 3 and target_normals.ndim == 3
         n_points = target_points.shape[1]
-        pred_points, pred_normals = sample_points_from_meshes(
-            pred_meshes, n_points, return_normals=True
-        )
+        if target_points.shape[-1] == 3: # 3D
+            pred_points, pred_normals = sample_points_from_meshes(
+                pred_meshes, n_points, return_normals=True
+            )
+        else: # 2D
+            pred_points, idx = choose_n_random_points(
+                pred_meshes.verts_padded(), n_points, return_idx=True
+            )
+            pred_normals = meshes_to_vertex_normals_2D_packed(pred_meshes)
+            # Select the normals of the corresponding points
+            pt_shape = pred_points.shape
+            pred_normals = pred_normals.view(
+                pt_shape)[idx.unbind(1)].view(pt_shape)
+            # Normals are required to be 3 dim. for chamfer function
+            N, V, _ = target_normals.shape
+            target_normals = torch.cat(
+                [target_normals, torch.zeros((N,V,1))], dim=2
+            )
+            pred_normals = torch.cat(
+                [pred_normals, torch.zeros((N,V,1))], dim=2
+            )
         d_chamfer, d_cosine = chamfer_distance(pred_points, target_points,
                                                x_normals=pred_normals,
                                                y_normals=target_normals)
@@ -188,14 +236,10 @@ class NormalConsistencyLoss(MeshLoss):
     def get_loss(self, pred_meshes, target=None):
         # 2D: assumes clock-wise ordering of vertex indices in each edge
         if pred_meshes.verts_padded().shape[-1] == 2:
-            verts_packed = pred_meshes.verts_packed()
-            edges_packed = pred_meshes.faces_packed() # edges=faces
-            v0_idx, v1_idx = edges_packed[:, 0], edges_packed[:, 1]
-            normals = (verts_packed[v1_idx] - verts_packed[v0_idx]).flip(
-                dims=[1]) * torch.tensor([-1.0, 1.0]).cuda()
+            normals, v0_idx, v1_idx = meshes_to_edge_normals_2D_packed(pred_meshes)
             loss = 1 - torch.cosine_similarity(normals[v0_idx],
                                                normals[v1_idx])
-            return loss.sum() / len(edges_packed)
+            return loss.sum() / len(v0_idx)
 
         # 3D: pytorch3d
         return mesh_normal_consistency(pred_meshes)
