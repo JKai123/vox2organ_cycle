@@ -14,9 +14,9 @@ import numpy as np
 import nibabel as nib
 import torch
 import torch.nn.functional as F
-import scipy.ndimage as ndimage
 from trimesh import Trimesh
 from skimage import measure
+from skimage.draw import polygon
 from plyfile import PlyData
 
 from utils.mesh import Mesh
@@ -380,17 +380,9 @@ def voxelize_contour(vertices, shape):
         unnorm_verts = unnorm_verts.cpu().numpy()
     voxelized_contour = np.zeros(shape, dtype=np.long)
     for vs in unnorm_verts:
-        vs_rounded = np.round(vs).astype('int')
-        # Only consider points in valid range
-        in_box = np.logical_and(np.logical_and(
-            vs_rounded[:,0] >= 0, vs_rounded[:,0] < shape[0]
-        ), np.logical_and(
-            vs_rounded[:,1] >= 0, vs_rounded[:,1] < shape[1]
-        ))
-        vs_ = vs_rounded[in_box]
         # Round to voxel coordinates
-        voxelized_contour[vs_[:,0], vs_[:,1]] = 1
-        voxelized_contour = ndimage.binary_fill_holes(voxelized_contour)
+        rr, cc = polygon(vs[:,0], vs[:,1], shape)
+        voxelized_contour[rr, cc] = 1
 
     return torch.from_numpy(voxelized_contour).long()
 
