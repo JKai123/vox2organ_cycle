@@ -380,19 +380,19 @@ def voxelize_contour(vertices, shape):
         unnorm_verts = unnorm_verts.cpu().numpy()
     voxelized_contour = np.zeros(shape, dtype=np.long)
     for vs in unnorm_verts:
+        vs_rounded = np.round(vs).astype('int')
         # Only consider points in valid range
         in_box = np.logical_and(np.logical_and(
-            vs[:,0] >= 0, vs[:,0] < shape[0]
+            vs_rounded[:,0] >= 0, vs_rounded[:,0] < shape[0]
         ), np.logical_and(
-            vs[:,1] >= 0, vs[:,1] < shape[1]
+            vs_rounded[:,1] >= 0, vs_rounded[:,1] < shape[1]
         ))
-        vs_ = vs[in_box]
+        vs_ = vs_rounded[in_box]
         # Round to voxel coordinates
-        voxelized_contour[np.round(vs_[:,0]).astype('int'),
-                          np.round(vs_[:,1]).astype('int')] = 1
+        voxelized_contour[vs_[:,0], vs_[:,1]] = 1
         voxelized_contour = ndimage.binary_fill_holes(voxelized_contour)
 
-    return torch.from_numpy(voxelized_contour)
+    return torch.from_numpy(voxelized_contour).long()
 
 def edge_lengths_in_contours(vertices, edges):
     """ Compute edge lengths for all edges in 'edges'."""
