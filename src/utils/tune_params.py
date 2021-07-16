@@ -99,7 +99,12 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     for i, choice in enumerate(param_possibilities):
 
+        run_name = "run_" + str(i)
+        run_dir = os.path.join(experiment_base_dir, experiment_name, run_name)
+        os.makedirs(run_dir, exist_ok=experiment_name=="debug")
+
         # Update params with current choice
+        hps["ID"] = os.path.join(experiment_name + "." + run_name)
         hps = update_dict(hps, choice)
 
         # Init wandb for every run
@@ -108,6 +113,8 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
             wandb_proj_name=hps['PROJ_NAME'],
             wandb_group_name=hps['GROUP_NAME'],
             wandb_job_type=ExecModes.TUNE.name.lower(),
+            notes=run_name,
+            id=hps["ID"],
             params=string_dict(hps)
         )
 
@@ -128,7 +135,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         # New training
         start_epoch = 1
 
-        solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
+        solver = Solver(evaluator=evaluator, save_path=run_dir, **hps_lower)
 
         # Final validation score is the value of interest
         final_val_score = solver.train(model=model,
@@ -138,7 +145,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
                      early_stop=hps['EARLY_STOP'],
                      eval_every=hps['EVAL_EVERY'],
                      start_epoch=start_epoch,
-                     save_models=False) # No model saving when tuning
+                     save_models=True)
 
         finish_wandb_run()
 
@@ -193,7 +200,7 @@ def get_all_possibilities(params_to_tune):
                         perm_sub[k_] = {}
                     perm_sub = perm_sub[k_]
                 perm_sub[klist[-1]] = v
-            del perm_new[k]
+                del perm_new[k]
         all_perms_new.append(perm_new)
 
     return all_perms_new
@@ -204,15 +211,16 @@ def get_lrs():
     return possible_values_for_lr
 
 def get_mesh_loss_func_weights():
-    n_losses = 4 # Should be equal to the number of losses used
-    possible_values_per_weight = [1.0, 0.5, 0.1, 0.01]
+    n_losses = 5 # Should be equal to the number of losses used
+    possible_values_per_weight = [1.0, 0.1, 0.01, 0.001]
 
     weights_list = create_permutations(n_losses, possible_values_per_weight)
 
-    # Reduce possibilities by assuming that Chamfer should get the highest
-    # weight in every case
+    # Reduce possibilities by assuming that Chamfer/Wasserstein as well as edge
+    # loss get weight 1. All other losses can only get lower weight.
     weights_list = [w for w in weights_list\
-                    if(w[0] > w[1] and w[0] > w[2] and w[0] > w[3])]
+                    if(w[0] == 1.0 and w[-1] == 1.0
+                       and all([w[0] > w_i for w_i in w[1:-1]]))]
 
     return weights_list
 

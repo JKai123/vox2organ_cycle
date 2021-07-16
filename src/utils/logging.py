@@ -89,7 +89,8 @@ def log_val_results(val_results, iteration):
         wandb.log(val_results, step=iteration)
 
 def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
-                       wandb_group_name, wandb_job_type, params):
+                       wandb_group_name, wandb_job_type, params, notes="",
+                       id=None):
     """ Initialization for logging with wandb
     """
     global wandb_run
@@ -103,12 +104,16 @@ def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
             project=wandb_proj_name,
             group=wandb_group_name,
             job_type=wandb_job_type,
+            notes=notes,
+            id=exp_name if id is None else id,
+            resume="allow",
             reinit=True
         )
 
 def finish_wandb_run():
     global wandb_run
-    wandb_run.finish()
+    if use_wandb:
+        wandb_run.finish()
 
 def init_std_logging(name, log_dir, loglevel, mode):
     """ The standard logger with levels 'INFO', 'DEBUG', etc.

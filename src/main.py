@@ -41,16 +41,16 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
-    'OPTIMIZER_CLASS': torch.optim.SGD,
+    'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
-        'lr': 1e-3, # voxel lr
+        'lr': 1e-4, # voxel lr
         'graph_lr': 1e-4,
         # SGD
-        'momentum': 0.9,
+        # 'momentum': 0.9,
         # Adam
-        # 'betas': [0.9, 0.999],
-        # 'eps': 1e-8,
-        # 'weight_decay': 0.0
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0
     },
     'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
@@ -58,10 +58,13 @@ hyper_ps = {
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
     'MESH_LOSS_FUNC': [
+                       # WassersteinLoss(),
+                       # ChamferLoss(),
                        ChamferAndNormalsLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss(0.0)],
+                       EdgeLoss(0.0)
+                      ],
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
@@ -111,7 +114,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 hyper_ps_cortex = {
     'NDIMS': 3,
     'N_EPOCHS': 15000,
-    'AUGMENT_TRAIN': True,
+    'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 5,
     'MODEL_CONFIG': {
