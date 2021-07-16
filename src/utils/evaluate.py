@@ -202,7 +202,7 @@ class ModelEvaluator():
                     mc_pred_mesh = create_mesh_from_voxels(
                         voxel_pred_class, self._mc_step_size
                     ).to_trimesh(process=True)
-                    mc_pred_mesh.export()
+                    mc_pred_mesh.export(pred_voxel_filename)
                 except ValueError as e:
                     logging.getLogger(ExecModes.TEST.name).warning(
                            "In voxel prediction for file: %s: %s."
