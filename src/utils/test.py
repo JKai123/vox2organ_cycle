@@ -45,7 +45,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         return
 
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
-    log_dir = get_log_dir(experiment_dir)
+    log_dir = get_log_dir(experiment_dir, create=True)
     hps_to_write = string_dict(hps)
 
     init_logging(logger_name=ExecModes.TEST.name,

@@ -25,9 +25,9 @@ debug = False
 log_time = False
 wandb_run = None
 
-def get_log_dir(experiment_dir: str):
+def get_log_dir(experiment_dir: str, create: bool=False):
     log_dir = os.path.join(experiment_dir, "logs")
-    if not os.path.isdir(log_dir):
+    if not os.path.isdir(log_dir) and create:
         os.makedirs(log_dir)
     return log_dir
 
