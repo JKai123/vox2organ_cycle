@@ -26,7 +26,10 @@ log_time = False
 wandb_run = None
 
 def get_log_dir(experiment_dir: str):
-    return os.path.join(experiment_dir, "logs")
+    log_dir = os.path.join(experiment_dir, "logs")
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
+    return log_dir
 
 def log_losses(losses, iteration):
     """ Logging with wandb and std logging """
