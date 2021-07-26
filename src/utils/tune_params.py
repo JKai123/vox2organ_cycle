@@ -106,6 +106,10 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         # Update params with current choice
         hps["ID"] = os.path.join(experiment_name + "." + run_name)
         hps = update_dict(hps, choice)
+        hps_to_write = string_dict(hps)
+        param_file = os.path.join(run_dir, "params.json")
+        with open(param_file, 'w') as f:
+            json.dump(hps_to_write, f)
 
         # Init wandb for every run
         init_wandb_logging(
