@@ -7,130 +7,131 @@ from tqdm import tqdm
 import numpy as np
 
 from data.supported_datasets import dataset_split_handler
-from utils.visualization import show_slices
-from utils.utils import create_mesh_from_voxels
+from utils.visualization import show_slices, show_img_with_contour
+from utils.utils import (
+    create_mesh_from_voxels,
+)
+from utils.coordinate_transform import (
+    unnormalize_vertices_per_max_dim,
+)
 from utils.mesh import Mesh
 
-def run_preprocess_check_hippocampus():
-    """ Check preprocessing for Hippocampus data"""
-
-    print("Loading data...")
-
-    hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/Task04_Hippocampus',
-           'PREPROCESSED_DATA_DIR': None,
-           'DATASET_SEED': 1234,
-           'DATASET_SPLIT_PROPORTIONS': (80, 10, 10),
-           'PATCH_SIZE': (64, 64, 64)
-          }
-
-    hps_lower = dict((k.lower(), v) for k, v in hps.items())
-
-    # No augmentation
-    training_set,\
-            _,\
-            _ = dataset_split_handler['Hippocampus'](augment_train=False,
-                                                     save_dir="../misc",
-                                                             **hps_lower)
-    training_set.check_data()
-
-    # Augmentation
-    training_set_augment,\
-            _,\
-            _ = dataset_split_handler['Hippocampus'](augment_train=True,
-                                                     save_dir="../misc",
-                                                             **hps_lower)
-    training_set_augment.check_data()
-
-    for iter_in_epoch in tqdm(range(5), desc="Testing...", position=0, leave=True):
-        data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
-        data_augment = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
-        img_slices = [data[0].squeeze()[32, :, :],
-                      data[0].squeeze()[:, 32, :],
-                      data[0].squeeze()[:, :, 32]]
-        label_slices = [data[1].squeeze()[32, :, :],
-                        data[1].squeeze()[:, 32, :],
-                        data[1].squeeze()[:, :, 32]]
-        mesh = data[2]
-        mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
-        img_slices_augment = [data_augment[0].squeeze()[32, :, :],
-                              data_augment[0].squeeze()[:, 32, :],
-                              data_augment[0].squeeze()[:, :, 32]]
-        label_slices_augment = [data_augment[1].squeeze()[32, :, :],
-                                data_augment[1].squeeze()[:, 32, :],
-                                data_augment[1].squeeze()[:, :, 32]]
-        mesh_augment = data_augment[2]
-        mesh_augment.store("../misc/mesh" + str(iter_in_epoch) + "_augment.ply")
-        show_slices(img_slices, label_slices, "../misc/img" +\
-                    str(iter_in_epoch) + ".png")
-        show_slices(img_slices, None, "../misc/img" +\
-                    str(iter_in_epoch) + "_nolabel.png")
-        show_slices(img_slices_augment, label_slices_augment, "../misc/img" +\
-                    str(iter_in_epoch) + "_augment.png")
-        show_slices(img_slices_augment, None, "../misc/img" +\
-                    str(iter_in_epoch) + "_augment_nolabel.png")
-
-def run_preprocess_check_cortex():
+def run_preprocess_check(dataset):
     """ Check preprocessing for cortex data """
 
-    print("Loading data...")
-
-    hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
-           'DATASET_SEED': 1532,
-           'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
-           # 'PATCH_SIZE': (192, 224, 192),
-           'PATCH_SIZE': (64, 144, 128),
-           'N_REF_POINTS_PER_STRUCTURE': 1400,
-           'MESH_TARGET_TYPE': 'mesh',
-           'STRUCTURE_TYPE': 'white_matter',
-           'PATCH_ORIGIN': (0, 10, 0),
-           'SELECT_PATCH_SIZE': (96, 192, 176),
-           'PATCH_MODE': True,
-           'OVERFIT': False,
-           'MC_STEP_SIZE': 1
-          }
+    if dataset == 'Cortex':
+        hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
+               'DATASET_SEED': 1532,
+               'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
+               # 'PATCH_SIZE': (192, 224, 192),
+               # 'PATCH_SIZE': (64, 144, 128),
+               'PATCH_SIZE': (128, 128),
+               'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
+               'MESH_TARGET_TYPE': 'mesh',
+               'STRUCTURE_TYPE': 'white_matter',
+               # 'PATCH_ORIGIN': (0, 5, 0),
+               # 'PATCH_ORIGIN': (30, 128, 60),
+               # 'SELECT_PATCH_SIZE': (96, 208, 176),
+               # 'SELECT_PATCH_SIZE': (64, 64, 64),
+               'PATCH_MODE': "no",
+               'OVERFIT': True
+              }
+    elif dataset == 'Hippocampus':
+        hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/Task04_Hippocampus',
+               'PREPROCESSED_DATA_DIR': None,
+               'DATASET_SEED': 1532,
+               'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
+               'PATCH_SIZE': (64, 64, 64),
+               'N_REF_POINTS_PER_STRUCTURE': 1400, # irrelevant for check
+               'OVERFIT': False,
+               'MC_STEP_SIZE': 1
+              }
+    else:
+        raise ValueError("Unknown dataset.")
 
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
 
     # No augmentation
+    print("Loading data...")
     training_set,\
             _,\
-            _ = dataset_split_handler['Cortex'](augment_train=False,
-                                                     save_dir="../misc",
-                                                             **hps_lower)
-    training_set.check_data()
-    # Augmentation (currently not implemented for cortex)
-    # training_set_augment,\
-            # _,\
-            # _ = dataset_split_handler['Cortex'](augment_train=True,
-                                                     # save_dir="../misc",
-                                                             # **hps_lower)
+            _ = dataset_split_handler[dataset](augment_train=False,
+                                                save_dir="../misc",
+                                                **hps_lower)
+    if dataset == 'Cortex':
+        mel = training_set.mean_edge_length()
+        print(f"Mean edge length in dataset: {mel:.7f}")
 
-    n_samples = np.min((5, len(training_set)))
-    for iter_in_epoch in tqdm(range(n_samples), desc="Testing...", position=0, leave=True):
-        data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
-        # data_augment = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
-        img_slices = [data[0].squeeze()[32, :, :],
-                      data[0].squeeze()[:, 32, :],
-                      data[0].squeeze()[:, :, 32]]
-        label_slices = [data[1].squeeze()[32, :, :],
-                        data[1].squeeze()[:, 32, :],
-                        data[1].squeeze()[:, :, 32]]
-        mesh = data[2]
-        mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
-        mc_mesh = create_mesh_from_voxels(data[1])
-        mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
-        # img_slices_augment = [data_augment[0][32, :, :], data_augment[0][:, 32, :], data_augment[0][:, :, 32]]
-        # label_slices_augment = [data_augment[1][32, :, :], data_augment[1][:, 32, :], data_augment[1][:, :, 32]]
-        # mesh_augment = data_augment[2]
-        # mesh_augment.store("../misc/mesh" + str(iter_in_epoch) + "_augment.ply")
-        show_slices(img_slices, label_slices, "../misc/img" +\
-                    str(iter_in_epoch) + ".png")
-        show_slices(img_slices, None, "../misc/img" +\
-                    str(iter_in_epoch) + "_nolabel.png")
-        # show_slices(img_slices_augment, label_slices_augment, "../misc/img" +\
-                    # str(iter_in_epoch) + "_augment.png")
-        # show_slices(img_slices_augment, None, "../misc/img" +\
-                    # str(iter_in_epoch) + "_augment_nolabel.png")
+    if training_set.ndims == 3:
+        training_set.check_data()
+
+    # Augmentation
+    if training_set.ndims == 3:
+        print("Loading data...")
+        training_set_augment,\
+                _,\
+                _ = dataset_split_handler[dataset](augment_train=True,
+                                                    save_dir="../misc",
+                                                    **hps_lower)
+
+        training_set_augment.check_data()
+    else:
+        training_set_augment = None
+
+    n_samples = np.min((6, len(training_set)))
+    for iter_in_epoch in tqdm(range(n_samples), desc="Creating visuals...", position=0, leave=True):
+        # w/o augmentation
+        img, label, mesh = training_set.get_item_and_mesh_from_index(iter_in_epoch)
+        img, label = img.squeeze(), label.squeeze()
+        shape = img.shape
+        assert shape == label.shape, "Shapes should be identical."
+        if training_set.ndims == 3:
+            img_slices = [img[shape[0]//2, :, :],
+                          img[:, shape[1]//2, :],
+                          img[:, :, shape[2]//2]]
+            label_slices = [label[shape[0]//2, :, :],
+                          label[:, shape[1]//2, :],
+                          label[:, :, shape[2]//2]]
+            mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
+            mc_mesh = create_mesh_from_voxels(label)
+            mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
+            show_slices(img_slices, label_slices, "../misc/img" +\
+                        str(iter_in_epoch) + ".png")
+            show_slices(img_slices, None, "../misc/img" +\
+                        str(iter_in_epoch) + "_nolabel.png")
+        else: # 2D
+            mesh = mesh.to_pytorch3d_Meshes()
+            show_img_with_contour(
+                img,
+                unnormalize_vertices_per_max_dim(mesh.verts_packed(),
+                                                 img.shape),
+                mesh.faces_packed(),
+                "../misc/img_and_contour" + str(iter_in_epoch) + ".png"
+            )
+            show_slices([img], [label], "../misc/img_and_gt_" +\
+                        str(iter_in_epoch) + ".png")
+
+        # /w augmentation
+        if training_set_augment is not None:
+            img, label, mesh = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
+            img, label = img.squeeze(), label.squeeze()
+            shape = img.shape
+            assert shape == label.shape, "Shapes should be identical."
+            img_slices = [img[shape[0]//2, :, :],
+                          img[:, shape[1]//2, :],
+                          img[:, :, shape[2]//2]]
+            label_slices = [label[shape[0]//2, :, :],
+                          label[:, shape[1]//2, :],
+                          label[:, :, shape[2]//2]]
+            mesh.store("../misc/mesh" + str(iter_in_epoch) + "_augment.ply")
+            mc_mesh = create_mesh_from_voxels(label)
+            mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc_augment.ply")
+            show_slices(img_slices, label_slices, "../misc/img" +\
+                        str(iter_in_epoch) + "_augment.png")
+            show_slices(img_slices, None, "../misc/img" +\
+                        str(iter_in_epoch) + "_augment_nolabel.png")
+
+    print("Results written to ../misc/")
 
 if __name__ == '__main__':
-    run_preprocess_check_cortex()
+    run_preprocess_check('Cortex')
