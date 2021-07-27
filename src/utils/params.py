@@ -56,8 +56,9 @@ hyper_ps_default={
     # The batch size used during training
     'BATCH_SIZE': 1,
 
-    # Activate/deactivate patch mode for the cortex dataset
-    'PATCH_MODE': False,
+    # Activate/deactivate patch mode for the cortex dataset. Possible values
+    # are "no", "single-patch", "multi-patch"
+    'PATCH_MODE': "no",
 
     # Accumulate n gradients before doing a backward pass
     'ACCUMULATE_N_GRADIENTS': 1,
@@ -88,7 +89,7 @@ hyper_ps_default={
     'MESH_LOSS_FUNC': [ChamferLoss(),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss()],
+                       EdgeLoss(0.0)],
 
     # The weights for the mesh loss functions, given are the values from
     # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
@@ -116,6 +117,7 @@ hyper_ps_default={
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
+        'Wasserstein',
         'SymmetricHausdorff',
         'JaccardVoxel',
         'JaccardMesh',
@@ -126,8 +128,8 @@ hyper_ps_default={
     # Note: This one must also be part of 'EVAL_METRICS'!
     'MAIN_EVAL_METRIC': 'JaccardMesh',
 
-    # The number of image dimensions (is sometimes set to 3 in the code so may
-    # not have an effect for models that exist only for 3D)
+    # The number of image dimensions. This parameter is deprecated since
+    # dimensionality is now inferred from the patch size.
     'NDIMS': 3,
 
     # Voxel2Mesh original parameters
@@ -157,7 +159,13 @@ hyper_ps_default={
         'GC': GraphConvNorm,
         # Whether to propagate coordinates in the graph decoder in addition to
         # voxel features
-        'PROPAGATE_COORDS': False
+        'PROPAGATE_COORDS': False,
+        # Dropout probability of UNet blocks
+        'P_DROPOUT': None,
+        # The used patch size, should be equal to global patch size
+        'PATCH_SIZE': [64, 64, 64],
+        # Where to take the features from the UNet
+        'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]]
     },
 
     # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
@@ -169,7 +177,7 @@ hyper_ps_default={
     'PATCH_SIZE': [64, 64, 64],
 
     # For selecting a patch from cortex dataset.
-    'SELECT_PATCH_SIZE': (192, 224, 192),
+    'SELECT_PATCH_SIZE': [192, 224, 192],
 
     # Seed for dataset splitting
     'DATASET_SEED': 1234,

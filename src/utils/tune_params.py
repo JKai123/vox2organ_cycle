@@ -13,7 +13,7 @@ import json
 from utils.utils import string_dict, update_dict
 from utils.train import create_exp_directory, Solver
 from utils.modes import ExecModes
-from utils.logging import init_logging
+from utils.logging import init_logging, finish_wandb_run, init_wandb_logging
 from utils.evaluate import ModelEvaluator
 from models.model_handler import ModelHandler
 from data.supported_datasets import dataset_split_handler
@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 1000
+    hps['N_EPOCHS'] = 500
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\
@@ -43,7 +43,14 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     # Get a list of possible values for the parameter to tune
     params_to_tune = hps['PARAMS_TO_TUNE']
     for p in params_to_tune:
-        hps[p] = 'will be tuned'
+        if "." in p: # nested parameter
+            plist = p.split(".")
+            hps_sub = hps
+            for p_ in plist[:-1]:
+                hps_sub = hps_sub[p_]
+            hps_sub[plist[-1]] = 'will be tuned'
+        else: # not nested
+            hps[p] = 'will be tuned'
     param_possibilities = get_all_possibilities(params_to_tune)
 
     # Configure logging
@@ -92,8 +99,28 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     for i, choice in enumerate(param_possibilities):
 
+        run_name = "run_" + str(i)
+        run_dir = os.path.join(experiment_base_dir, experiment_name, run_name)
+        os.makedirs(run_dir, exist_ok=experiment_name=="debug")
+
         # Update params with current choice
+        hps["ID"] = os.path.join(experiment_name + "." + run_name)
         hps = update_dict(hps, choice)
+        hps_to_write = string_dict(hps)
+        param_file = os.path.join(run_dir, "params.json")
+        with open(param_file, 'w') as f:
+            json.dump(hps_to_write, f)
+
+        # Init wandb for every run
+        init_wandb_logging(
+            exp_name=experiment_name, log_dir=log_dir,
+            wandb_proj_name=hps['PROJ_NAME'],
+            wandb_group_name=hps['GROUP_NAME'],
+            wandb_job_type=ExecModes.TUNE.name.lower(),
+            notes=run_name,
+            id=hps["ID"],
+            params=string_dict(hps)
+        )
 
         trainLogger.info("Choice: %s, %d/%d", str(choice), i+1,
                          len(param_possibilities))
@@ -112,7 +139,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
         # New training
         start_epoch = 1
 
-        solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
+        solver = Solver(evaluator=evaluator, save_path=run_dir, **hps_lower)
 
         # Final validation score is the value of interest
         final_val_score = solver.train(model=model,
@@ -122,7 +149,9 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
                      early_stop=hps['EARLY_STOP'],
                      eval_every=hps['EVAL_EVERY'],
                      start_epoch=start_epoch,
-                     save_models=False) # No model saving when tuning
+                     save_models=True)
+
+        finish_wandb_run()
 
         if final_val_score > best_score or i == 0:
             best_score = final_val_score
@@ -156,22 +185,46 @@ def get_all_possibilities(params_to_tune):
             raise RuntimeError(f"Parameter {p} unknown.")
         param_possibilities = possible_values[p]()
         param_possibilities.sort()
+
         possibilities_per_param[p] = param_possibilities
 
     all_perms = create_permutations_of_param_choices(possibilities_per_param)
 
-    return all_perms
+    # Convert nested parameters of the form x.y into a dict such that it can
+    # be accessed as x[y]
+    all_perms_new = []
+    for perm in all_perms:
+        perm_new = perm.copy()
+        for k, v in perm.items():
+            if "." in k: # nested parameter
+                klist = k.split(".")
+                perm_sub = perm_new
+                for k_ in klist[:-1]:
+                    if k_ not in perm_sub.keys():
+                        perm_sub[k_] = {}
+                    perm_sub = perm_sub[k_]
+                perm_sub[klist[-1]] = v
+                del perm_new[k]
+        all_perms_new.append(perm_new)
+
+    return all_perms_new
+
+def get_lrs():
+    possible_values_for_lr = [1e-3, 1e-4, 5e-5, 1e-5]
+
+    return possible_values_for_lr
 
 def get_mesh_loss_func_weights():
-    n_losses = 4 # Should be equal to the number of losses used
-    possible_values_per_weight = [1.0, 0.5, 0.1, 0.01]
+    n_losses = 5 # Should be equal to the number of losses used
+    possible_values_per_weight = [1.0, 0.1, 0.01, 0.001]
 
     weights_list = create_permutations(n_losses, possible_values_per_weight)
 
-    # Reduce possibilities by assuming that Chamfer should get the highest
-    # weight in every case
+    # Reduce possibilities by assuming that Chamfer/Wasserstein as well as edge
+    # loss get weight 1. All other losses can only get lower weight.
     weights_list = [w for w in weights_list\
-                    if(w[0] > w[1] and w[0] > w[2] and w[0] > w[3])]
+                    if(w[0] == 1.0 and w[-1] == 1.0
+                       and all([w[0] > w_i for w_i in w[1:-1]]))]
 
     return weights_list
 
@@ -219,5 +272,7 @@ def create_permutations(n_positions, possibilities_per_position):
 
 possible_values = {
     'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights,
-    'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights
+    'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights,
+    'OPTIM_PARAMS.lr': get_lrs,
+    'OPTIM_PARAMS.graph_lr': get_lrs
 }
