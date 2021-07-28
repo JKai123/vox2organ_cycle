@@ -73,7 +73,6 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0], # Wasserstein loss
     # Model
     'MODEL_CONFIG': {
         'NORM': 'batch', # Only for graph convs
@@ -112,8 +111,8 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 
 hyper_ps_cortex = {
     'NDIMS': 3,
-    'N_EPOCHS': 15000,
-    'AUGMENT_TRAIN': True,
+    'N_EPOCHS': 3000,
+    'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 5,
     'MODEL_CONFIG': {
@@ -135,7 +134,9 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             ## Large
-            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 5, 0]
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
             hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
@@ -162,11 +163,11 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['N_M_CLASSES'] = 1
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
-        else:
+        else: # no patch mode
             hyper_ps_cortex['N_M_CLASSES'] = 2
-            hyper_ps_cortex['PATCH_SIZE'] = [192, 224, 192]
-            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
+            hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else: # 2D

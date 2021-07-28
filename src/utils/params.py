@@ -45,6 +45,9 @@ hyper_ps_default={
     # require a mesh (pointcloud + faces)
     'MESH_TARGET_TYPE': "pointcloud",
 
+    # The type of meshes used, either 'freesurfer' or 'marching cubes'
+    'MESH_TYPE': 'marching cubes',
+
     # The mode for reduction of mesh regularization losses, either 'linear' or
     # 'none'
     'REDUCE_REG_LOSS_MODE': 'none',
@@ -65,6 +68,10 @@ hyper_ps_default={
 
     # The number of training epochs
     'N_EPOCHS': 5,
+
+    # Freesurfer ground truth meshes with reduced resolution. 1.0 = original
+    # resolution (in terms of number of vertices)
+    'REDUCED_FREESURFER': 1.0,
 
     # The optimizer used for training
     'OPTIMIZER_CLASS': torch.optim.Adam,

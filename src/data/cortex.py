@@ -20,9 +20,12 @@ from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
 
+from utils.visualization import show_difference
+from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
-from utils.mesh import Mesh, generate_sphere_template
+from utils.mesh import Mesh
+from utils.ico_template import generate_sphere_template
 from utils.utils import (
     voxelize_mesh,
     voxelize_contour,
@@ -40,7 +43,6 @@ from data.dataset import (
     DatasetHandler,
     flip_img,
     img_with_patch_size,
-    offset_due_to_padding
 )
 
 class CortexLabels(IntEnum):
@@ -53,8 +55,12 @@ def combine_labels(labels, names):
     """ Only consider labels in 'names' and set all those labels equally to 1
     """
     ids = [CortexLabels[n].value for n in names]
+    combined_labels = np.isin(labels, ids).astype(int)
 
-    return np.isin(labels, ids).astype(int)
+    if isinstance(labels, torch.Tensor):
+        combined_labels = torch.from_numpy(combined_labels)
+
+    return combined_labels
 
 class Cortex(DatasetHandler):
     """ Cortex dataset
@@ -72,13 +78,16 @@ class Cortex(DatasetHandler):
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param structure_type: Either 'white_matter' or 'cerebral_cortex'
-    :param patch_mode: Whether to extract patches from the data.
+    :param patch_mode: "single-patch", "multi-patch", or "no"
     :param patch_origin: The anker of an extracted patch, only has an effect if
     patch_mode is True.
     :param select_patch_size: The size of the cut out patches. Can be different
     to patch_size, e.g., if extracted patches should be resized after
     extraction.
     :param mc_step_size: The marching cubes step size.
+    :param reduced_freesurfer: Use a freesurfer mesh with reduced number of
+    vertices as mesh ground truth, e.g., 0.3. This has only an effect if patch_mode='no'.
+    :param mesh_type: 'freesurfer' or 'marching cubes'
     """
 
     img_filename = "mri.nii.gz"
@@ -88,11 +97,14 @@ class Cortex(DatasetHandler):
                  augment: bool, patch_size, mesh_target_type: str,
                  n_ref_points_per_structure: int, structure_type: str,
                  patch_mode: str="no", patch_origin=(0,0,0), select_patch_size=None,
+                 reduced_freesurfer: int=None, mesh_type='marching cubes',
                  **kwargs):
         super().__init__(ids, mode)
 
         assert patch_mode in ("multi-patch", "single-patch", "no"),\
                 "Unknown patch mode."
+        assert mesh_type in ("marching cubes", "freesurfer"),\
+                "Unknown mesh type"
 
         if structure_type == "cerebral_cortex":
             seg_label_names = 'all' # all present labels are combined
@@ -103,10 +115,10 @@ class Cortex(DatasetHandler):
                 mesh_label_names = ("rh_white",)
             elif patch_mode == "multi-patch":
                 seg_label_names = ("left_white_matter", "right_white_matter")
-                mesh_label_names = ("all",)
+                mesh_label_names = ("lh_white", "rh_white")
             else: # not patch mode
                 if len(patch_size) == 3: # 3D
-                    seg_label_names = ("voxelized_mesh", "voxelized_mesh")
+                    seg_label_names = ("left_white_matter", "right_white_matter")
                     mesh_label_names = ("lh_white", "rh_white")
                 elif len(patch_size) == 2: # 2D
                     seg_label_names = ("right_white_matter",)
@@ -135,24 +147,34 @@ class Cortex(DatasetHandler):
         self.mesh_label_names = mesh_label_names
         self.seg_label_names = seg_label_names
         self.n_structures = len(mesh_label_names)
+        self.mesh_type = mesh_type
+        self.centers, self.radii = None, None
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
+
+        # Freesurfer meshes of desired resolution
+        if reduced_freesurfer is not None:
+            if reduced_freesurfer != 1.0:
+                self.mesh_label_names = [
+                    mn + "_reduced_" + str(reduced_freesurfer)
+                    for mn in self.mesh_label_names
+                ]
 
         if self.ndims == 3:
             self._prepare_data_3D()
         elif self.ndims == 2:
             self._prepare_data_2D()
         else:
-            raise ValueError("Unknown number of dimensions ", ndims)
+            raise ValueError("Unknown number of dimensions ", self.ndims)
 
         # NORMALIZE images
-        for i, d in enumerate(self.data):
-            self.data[i] = normalize_min_max(d)
+        for i, img in enumerate(self.images):
+            self.images[i] = normalize_min_max(img)
 
         # Point and normal labels
         self.point_labels, self.normal_labels = self._load_ref_points()
 
-        assert self.__len__() == len(self.data)
+        assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
 
@@ -166,7 +188,7 @@ class Cortex(DatasetHandler):
                 "Voxelization of mesh not possible for 2D data."
 
         # Load images
-        self.data = self._load_single_data2D(
+        self.images = self._load_single_data2D(
             filename=self.img_filename, is_label=False
         )
 
@@ -193,49 +215,114 @@ class Cortex(DatasetHandler):
         """ Load 3D data """
 
         # Check constraints
-        assert (self.patch_mode == "no"
-                or 'voxelized_mesh' not in self.seg_label_names),\
-            "Voxelized mesh not possible as voxel ground truth in patch mode."
         assert (self.patch_mode != "single-patch"
                 or len(self.seg_label_names) == 1),\
                 "Can only use one segmentation class in single-patch mode."
+        assert (self.mesh_type == 'freesurfer'
+                or 'voxelized_mesh' not in self.seg_label_names),\
+                "Voxelized mesh as voxel ground truth requires Freesurfer meshes."
 
-        if self.patch_mode != "multi-patch": # no patch mode or single-patch
-            # Image data
-            self.data = self._load_single_data3D(
-                filename=self.img_filename, is_label=False,
-                extract_patch=(self.patch_mode == "single-patch")
-            )
+        # Raw data
+        raw_imgs = self._load_data3D_raw(self.img_filename)
+        raw_voxel_labels = self._load_data3D_raw(self.label_filename)
+        raw_mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
 
-            # Freesurfer mesh labels if not patch mode
-            if self.patch_mode == "no":
-                self.mesh_labels, (self.centers, self.radii) =\
-                        self._load_dataMesh(meshnames=mesh_label_names)
+        # Select desired voxel labels
+        if self.seg_label_names == "all":
+            for vl in raw_voxel_labels:
+                vl[vl > 1] = 1
+        else:
+            raw_voxel_labels = [
+                combine_labels(l, self.seg_label_names) for l in raw_voxel_labels
+            ]
 
-            # Voxel labels
-            if 'voxelized_mesh' in self.seg_label_names:
-                self.voxel_labels = self._create_voxel_labels_from_meshes()
-            else:
-                self.voxel_labels = self._load_single_data3D(
-                    filename=self.label_filename, is_label=True,
-                    extract_patch=(self.patch_mode == "single-patch")
+        # Preprocess routine
+        self.images,\
+                self.voxel_labels,\
+                self.mesh_labels = self.preprocess_data_3D(
+                    raw_imgs, raw_voxel_labels, raw_mesh_labels
                 )
-                if self.seg_label_names == "all":
-                    for vl in self.voxel_labels:
-                        vl[vl > 1] = 1
-                else:
-                    self.voxel_labels = [
-                        combine_labels(l, self.seg_label_names) for l in self.voxel_labels
-                    ]
 
-        else: # multi-patch mode
-            self.data, self.voxel_labels, self._files = self._get_multi_patches(
-                img_filename=self.img_filename, label_filename=self.label_filename
+        self.centers, self.radii = self._get_centers_and_radii(
+            self.mesh_labels
+        )
+
+    def preprocess_data_3D(self, raw_imgs: list, raw_voxel_labels: list,
+                           raw_mesh_labels: list):
+        """ Preprocess routine according to dataset parameters. """
+
+        ### Multi-patch mode
+
+        if self.patch_mode == "multi-patch":
+            # Image data; attention: file names change in multi-patch mode
+            # (each image leads to multiple patches)
+            processed_imgs,\
+                    processed_voxel_labels,\
+                    self._files = self._get_multi_patches(
+                        raw_imgs, raw_voxel_labels
+                    )
+            # Mesh data: marching cubes meshes (it's not straightforward to
+            # extract patches from freesurfer meshes)
+            assert self.mesh_type == 'marching cubes',\
+                    "Multi-patch dataset requires marching cubes meshes."
+            processed_mesh_labels = self._load_mc_dataMesh(processed_voxel_labels)
+
+            # In multi-patch mode, different mesh structures cannot be
+            # distinguished anymore after creation of patches
+            self.n_m_classes = 1
+
+            return (processed_imgs,
+                    processed_voxel_labels,
+                    processed_mesh_labels)
+
+        ### Single-patch or no patch mode
+
+        # Image data
+        processed_imgs,\
+                processed_voxel_labels,\
+                trans_affine = self._get_single_patches(
+                    raw_imgs, raw_voxel_labels
+                )
+
+        # Mesh data
+        if self.mesh_type == "freesurfer":
+            # Transform meshes according to image transformations
+            # (crops, resize) and normalize
+            processed_mesh_labels = deepcopy(raw_mesh_labels)
+            for m, t in zip(processed_mesh_labels, trans_affine):
+                m.transform_vertices(t)
+                m.vertices = normalize_vertices_per_max_dim(
+                    m.vertices.view(-1, self.ndims), self.patch_size
+                ).view(self.n_m_classes, -1, self.ndims)
+
+            # Voxelize meshes
+            voxelized_meshes = self._create_voxel_labels_from_meshes(
+                processed_mesh_labels
             )
+            # Assert conformity of voxel labels and voxelized meshes
+            for i, (vl, vm) in enumerate(zip(processed_voxel_labels,
+                                             voxelized_meshes)):
+                iou = Jaccard(vl.cuda(), vm.cuda(), 2)
+                if iou < 0.85:
+                    show_difference(
+                        vl,  vm,
+                        f"../to_check/diff_mesh_voxel_label_{self._files[i]}.png"
+                    )
+                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
+                          " voxelized mesh label, check files at ../to_check/")
 
-        # Marching cubes mesh labels if any patch mode
-        if self.patch_mode != "no":
-            self.mesh_labels = self._load_mc_dataMesh()
+            return (processed_imgs,
+                    voxelized_meshes,
+                    processed_mesh_labels)
+
+        # Marching cubes mesh labels
+        processed_mesh_labels = self._load_mc_dataMesh(
+            processed_voxel_labels
+        )
+
+        return (processed_imgs,
+                processed_voxel_labels,
+                processed_mesh_labels)
 
     def mean_area(self):
         """ Average surface area of meshes. """
@@ -272,27 +359,6 @@ class Cortex(DatasetHandler):
 
         return torch.tensor(edge_lengths).mean()
 
-    def mean_edge_length(self):
-        """ Average edge length in dataset.
-
-        Code partly from pytorch3d.loss.mesh_edge_loss.
-        """
-        edge_lengths = []
-        for m in self.mesh_labels:
-            m_ = m.to_pytorch3d_Meshes()
-            edges_packed = m_.edges_packed()
-            verts_packed = m_.verts_packed()
-            edge_to_mesh_idx = m_.edges_packed_to_mesh_idx()
-            num_edges_per_mesh = m_.num_edges_per_mesh()
-
-            verts_edges = verts_packed[edges_packed]
-            v0, v1 = verts_edges.unbind(1)
-            edge_lengths.append(
-                (v0 - v1).norm(dim=1, p=2).mean().item()
-            )
-
-        return torch.tensor(edge_lengths).mean()
-
     def store_sphere_template(self, path):
         """ Template for dataset. This can be stored and later used during
         training.
@@ -305,6 +371,7 @@ class Cortex(DatasetHandler):
         else:
             raise RuntimeError("Centers and/or radii are unknown, template"
                                " cannnot be created. ")
+        return path
 
     def store_index0_template(self, path, n_max_points=41000):
         """ This template is the structure of dataset element at index 0,
@@ -483,23 +550,11 @@ class Cortex(DatasetHandler):
             mesh_target_type = self._mesh_target_type
 
         # Raw data
-        img = self.data[index]
+        img = self.images[index]
         voxel_label = self.voxel_labels[index]
         target_points, target_faces, target_normals = self._get_mesh_target(
             index, mesh_target_type
         )
-
-        # Fit patch size
-        if self.ndims == 3:
-            img = img_with_patch_size(img, self.patch_size, False)
-            voxel_label = img_with_patch_size(voxel_label,
-                                              self.patch_size, True)
-        else:
-            # 2D images should already be of correct shape
-            assert img.shape == self.patch_size
-            assert voxel_label.shape == self.patch_size
-            img = torch.from_numpy(img).float()
-            voxel_label = torch.from_numpy(voxel_label).long()
 
         # Potentially augment
         if self._augment and self.ndims == 3:
@@ -579,72 +634,64 @@ class Cortex(DatasetHandler):
 
         data_2D = []
         for img in data_3D:
-            data_2D.append(F.interpolate(
+            img_2D = F.interpolate(
                 torch.from_numpy(img[img.shape[0]//13*4, :, :])[None][None],
                 size=self.patch_size,
                 mode=mode,
                 align_corners=align_corners
-            ).squeeze().numpy())
+            ).squeeze()
+            if is_label:
+                data_2D.append(img_2D.long())
+            else:
+                data_2D.append(img_2D.float())
+
         return data_2D
 
-    def _load_single_data3D(self, filename: str, is_label: bool,
-                            extract_patch: bool):
-        """Load the image data or load a single patch of each image centered
-        at 'patch_origin' and of shape 'patch_shape' with each side padded
-        with 'pad' zeros. """
-
-        data = self._load_data3D_raw(filename)
-
-        if not extract_patch:
-            return data
-
-        data_patch = []
-        for img in data:
-            data_patch.append(self._get_single_patch(img, is_label))
-        return data_patch
-
-    def _get_single_patch(self, img, is_label, pad_width=2):
+    def _get_single_patches(self, raw_imgs, raw_labels):
         """ Extract a single patch from an image. """
 
+        img_patches, label_patches, transformations = [], [], []
+
         # Limits for patch selection
-        lower_limit = np.array(self._patch_origin) + pad_width
-        upper_limit = np.array(self._patch_origin) + np.array(self.select_patch_size) - pad_width
+        lower_limit = np.array(self._patch_origin, dtype=int)
+        upper_limit = np.array(self._patch_origin, dtype=int) +\
+                np.array(self.select_patch_size, dtype=int)
 
-        assert all(upper_limit <= img.shape), "Upper patch limit too high"
-        # Select patch from whole image
-        img_patch = img
-        img_patch = img_patch[lower_limit[0]:upper_limit[0],
-                              lower_limit[1]:upper_limit[1],
-                              lower_limit[2]:upper_limit[2]]
-        img_patch = np.pad(img_patch, pad_width)
-        # Zoom to certain size
-        if self.patch_size != self.select_patch_size:
-            if is_label:
-                img_patch = F.interpolate(
-                    torch.from_numpy(img_patch)[None][None],
-                    size=self.patch_size,
-                    mode='nearest',
-                ).squeeze().numpy()
+        # Iterate over images and labels
+        for img, label in zip(raw_imgs, raw_labels):
+            # Select patch from whole image
+            img_patch, trans_affine_1 = img_with_patch_size(
+                img, self.select_patch_size, is_label=False, mode='crop',
+                crop_at=(lower_limit + upper_limit) // 2
+            )
+            label_patch, _ = img_with_patch_size(
+                label, self.select_patch_size, is_label=True, mode='crop',
+                crop_at=(lower_limit + upper_limit) // 2
+            )
+            # Zoom to certain size
+            if self.patch_size != self.select_patch_size:
+                img_patch, trans_affine_2 = img_with_patch_size(
+                    img_patch, self.patch_size, is_label=False, mode='interpolate'
+                )
+                label_patch, _ = img_with_patch_size(
+                    label_patch, self.patch_size, is_label=True, mode='interpolate'
+                )
             else:
-                img_patch = F.interpolate(
-                    torch.from_numpy(img_patch)[None][None],
-                    size=self.patch_size,
-                    mode='trilinear',
-                    align_corners=False
-                ).squeeze().numpy()
+                trans_affine_2 = np.eye(self.ndims + 1) # Identity
 
-        return img_patch
+            img_patches.append(img_patch)
+            label_patches.append(label_patch)
+            transformations.append(trans_affine_2 @ trans_affine_1)
 
-    def _get_multi_patches(self, img_filename: str, label_filename: str, pad_width=2):
-        """ Load 4 patches per hemisphere """
+        return img_patches, label_patches, transformations
+
+    def _get_multi_patches(self, raw_imgs: list, raw_labels: list):
+        """ Load multiple patches from each raw image and corresponding voxel
+        label. """
         data, labels, ids = [], [], []
-        raw_data= self._load_single_data3D(img_filename, is_label=True,
-                                           extract_patch=False)
-        raw_labels = self._load_single_data3D(label_filename, is_label=True,
-                                              extract_patch=False)
-        for img, lab, fn in zip(raw_data, raw_labels, self._files):
+        for img, lab, fn in zip(raw_imgs, raw_labels, self._files):
             img_patches, label_patches = self._create_patches(
-                img, lab, pad_width
+                torch.from_numpy(img).float(), torch.from_numpy(lab).long()
             )
             for i in range(len(img_patches)):
                 ids.append(fn + "_patch_" + str(i))
@@ -653,7 +700,7 @@ class Cortex(DatasetHandler):
 
         return data, labels, ids
 
-    def _create_patches(self, img, label, pad_width):
+    def _create_patches(self, img, label, pad_width=2):
         """ Create 3D patches from an image and the respective voxel label """
         ndims = self.ndims
         assert ndims == 3
@@ -662,8 +709,10 @@ class Cortex(DatasetHandler):
         # below.
         occ_volume_max = 0.5
 
-        shape = np.asarray(label.shape)
-        patch_size = np.asarray(self.patch_size)
+        pad_width_all = (pad_width,) * 2 * self.ndims
+
+        shape = torch.tensor(label.shape)
+        patch_size = torch.tensor(self.patch_size)
         idxs = [
             [-1,
              slice(int(shape[1] / 2 - patch_size[1] / 2 + pad_width),
@@ -687,7 +736,6 @@ class Cortex(DatasetHandler):
         w = torch.ones(tuple(patch_size - 2*pad_width)).float()[None][None]
         img_patches = []
         label_patches = []
-        label_struct_all = combine_labels(label, self.seg_label_names)
 
         # Iterate over dimensions
         for idx_i in idxs:
@@ -695,21 +743,19 @@ class Cortex(DatasetHandler):
             d = idx_i.index(-1) # -1 indicates the dimension to conv over
             # -->
             idx[d] = slice(0, label.shape[d])
-            tmp_label = torch.from_numpy(
-                label_struct_all[tuple(idx)].copy()
-            ).float()[None][None]
-            tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
+            tmp_label = label[tuple(idx)].clone().float()[None][None]
+            tmp_label_conv = F.conv3d(tmp_label, w).squeeze()
 
             # Try to extract a patch with highest possible occupied volume
             occ_volume = occ_volume_max
             while occ_volume >= 0.1:
                 try:
-                    pos = np.min(np.nonzero(
+                    pos = torch.min(torch.nonzero(
                         tmp_label_conv >
                         occ_volume * np.prod(self.patch_size)
                     ))
                     break
-                except ValueError: # No volume found --> reduce threshold
+                except RuntimeError: # No volume found --> reduce threshold
                     occ_volume -= 0.1
 
             if occ_volume < 0.1:
@@ -718,26 +764,24 @@ class Cortex(DatasetHandler):
             idx[d] = slice(
                 pos + pad_width, pos + self.patch_size[d] - pad_width
             )
-            img_patches.append(np.pad(img[tuple(idx)], pad_width))
-            label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
+            img_patches.append(F.pad(img[tuple(idx)], pad_width_all))
+            label_patches.append(F.pad(label[tuple(idx)], pad_width_all))
 
             # <--
-            idx[d] = slice(-1, -label.shape[d]-1, -1)
-            tmp_label = torch.from_numpy(
-                label_struct_all[tuple(idx)].copy()
-            ).float()[None][None]
-            tmp_label_conv = F.conv3d(tmp_label, w).squeeze().numpy()
+            idx[d] = slice(0, label.shape[d])
+            tmp_label = label[tuple(idx)].clone().float().flip(dims=[d])[None][None]
+            tmp_label_conv = F.conv3d(tmp_label, w).squeeze()
 
             # Try to extract a patch with highest possible occupied volume
             occ_volume = occ_volume_max
             while occ_volume >= 0.1:
                 try:
-                    pos = np.min(np.nonzero(
+                    pos = torch.min(torch.nonzero(
                         tmp_label_conv >
                         occ_volume * np.prod(self.patch_size)
                     ))
                     break
-                except ValueError: # No volume found --> reduce threshold
+                except RuntimeError: # No volume found --> reduce threshold
                     occ_volume -= 0.1
 
             if occ_volume < 0.1:
@@ -746,23 +790,23 @@ class Cortex(DatasetHandler):
             idx[d] = slice(
                 shape[d]-pos-1+pad_width-self.patch_size[d], shape[d]-pos-1-pad_width
             )
-            img_patches.append(np.pad(img[tuple(idx)], pad_width))
-            label_patches.append(np.pad(label_struct_all[tuple(idx)], pad_width))
+            img_patches.append(F.pad(img[tuple(idx)], pad_width_all))
+            label_patches.append(F.pad(label[tuple(idx)], pad_width_all))
 
         return img_patches, label_patches
 
 
-    def _create_voxel_labels_from_meshes(self):
+    def _create_voxel_labels_from_meshes(self, mesh_labels):
         """ Return the voxelized meshes as 3D voxel labels """
         data = []
-        for m in self.mesh_labels:
+        for m in mesh_labels:
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
                 vertices, faces, self.patch_size, self.n_m_classes
             )
 
-            data.append(voxel_label.numpy())
+            data.append(voxel_label)
 
         return data
 
@@ -772,17 +816,39 @@ class Cortex(DatasetHandler):
         for m in self.mesh_labels:
             voxel_label = voxelize_contour(
                 m.vertices, self.patch_size
-            ).numpy()
+            )
             data.append(voxel_label)
 
         return data
 
-    def _load_dataMesh(self, meshnames):
+    def _get_centers_and_radii(self, meshes: list):
+        """ Return average centers and radii of all meshes provided. """
+
+        centers_per_structure = {mn: [] for mn in self.mesh_label_names}
+        radii_per_structure = {mn: [] for mn in self.mesh_label_names}
+
+        for m in meshes:
+            for verts, mn in zip(m.vertices, self.mesh_label_names):
+                center = verts.mean(dim=0)
+                radius = torch.sqrt(torch.sum((verts - center)**2, dim=1)).mean(dim=0)
+                centers_per_structure[mn].append(center)
+                radii_per_structure[mn].append(radius)
+
+        # Average radius per structure
+        if self.__len__() > 0 and self.patch_mode != "multi-patch":
+            centroids = {k: torch.mean(torch.stack(v), dim=0)
+                         for k, v in centers_per_structure.items()}
+            radii = {k: torch.mean(torch.stack(v), dim=0)
+                     for k, v in radii_per_structure.items()}
+        else:
+            centroids, radii = None, None
+
+        return centroids, radii
+
+    def _load_dataMesh_raw(self, meshnames):
         """ Load mesh such that it's registered to the respective 3D image
         """
         data = []
-        centers_per_structure = {mn: [] for mn in meshnames}
-        radii_per_structure = {mn: [] for mn in meshnames}
         for fn in self._files:
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
@@ -795,25 +861,15 @@ class Cortex(DatasetHandler):
                 mesh = trimesh.load_mesh(os.path.join(
                     self._raw_data_dir, fn, mn + ".stl"
                 ))
-                vertices = mesh.vertices
-                # World coords
-                coords = np.concatenate((vertices.T,
-                                          np.ones((1, vertices.shape[0]))),
-                                         axis=0)
                 # World --> voxel coordinates
-                new_verts = (world2vox_affine @ coords).T[:,:-1]
-                # Padding offset in voxel coords
-                new_verts = new_verts + offset_due_to_padding(orig.shape,
-                                                              self.patch_size)
-                new_verts = normalize_vertices_per_max_dim(new_verts,
-                                                           self.patch_size)
-                new_verts = torch.from_numpy(new_verts)
-                file_vertices.append(new_verts)
+                coords = np.concatenate(
+                    (mesh.vertices.T, np.ones((1, mesh.vertices.shape[0]))),
+                    axis=0
+                )
+                voxel_verts = (world2vox_affine @ coords).T[:,:-1]
+                # Add to structures of file
+                file_vertices.append(torch.from_numpy(voxel_verts))
                 file_faces.append(torch.from_numpy(mesh.faces))
-                center = new_verts.mean(dim=0)
-                radii = torch.sqrt(torch.sum((new_verts - center)**2, dim=1)).mean(dim=0)
-                centers_per_structure[mn].append(center)
-                radii_per_structure[mn].append(radii)
 
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
@@ -825,21 +881,12 @@ class Cortex(DatasetHandler):
             )
             data.append(mesh_single)
 
-        # Compute centroids and average radius per structure
-        if self.__len__() > 0:
-            centroids = {k: torch.mean(torch.stack(v), dim=0)
-                         for k, v in centers_per_structure.items()}
-            radii = {k: torch.mean(torch.stack(v), dim=0)
-                     for k, v in radii_per_structure.items()}
-        else:
-            centroids, radii = None, None
+        return data
 
-        return data, (centroids, radii)
-
-    def _load_mc_dataMesh(self):
+    def _load_mc_dataMesh(self, voxel_labels):
         """ Create ground truth meshes from voxel labels."""
         data = []
-        for vl in self.voxel_labels:
+        for vl in voxel_labels:
             assert tuple(vl.shape) == tuple(self.patch_size),\
                     "Voxel label should be of correct size."
             mc_mesh = create_mesh_from_voxels(

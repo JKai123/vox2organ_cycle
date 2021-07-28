@@ -3,4 +3,5 @@ __pycache__/
 experiments/
 meshes/
 misc/
+to_check/
 *.pdf

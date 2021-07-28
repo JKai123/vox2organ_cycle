@@ -14,7 +14,6 @@ from utils.utils import (
 from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
 )
-from utils.mesh import Mesh
 
 def run_preprocess_check(dataset):
     """ Check preprocessing for cortex data """
@@ -24,16 +23,20 @@ def run_preprocess_check(dataset):
                'DATASET_SEED': 1532,
                'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
                # 'PATCH_SIZE': (192, 224, 192),
-               # 'PATCH_SIZE': (64, 144, 128),
-               'PATCH_SIZE': (128, 128),
+               'SELECT_PATCH_SIZE': (96, 224, 192),
+               'PATCH_SIZE': (64, 144, 128),
+               # 'PATCH_SIZE': (64, 64, 64),
+               # 'PATCH_SIZE': (128, 128),
                'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
                'MESH_TARGET_TYPE': 'mesh',
+               'MESH_TYPE': 'freesurfer',
+               'REDUCED_FREESURFER': 0.3,
                'STRUCTURE_TYPE': 'white_matter',
                # 'PATCH_ORIGIN': (0, 5, 0),
                # 'PATCH_ORIGIN': (30, 128, 60),
                # 'SELECT_PATCH_SIZE': (96, 208, 176),
                # 'SELECT_PATCH_SIZE': (64, 64, 64),
-               'PATCH_MODE': "no",
+               'PATCH_MODE': "single-patch",
                'OVERFIT': True
               }
     elif dataset == 'Hippocampus':
