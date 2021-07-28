@@ -197,9 +197,9 @@ class Hippocampus(DatasetHandler):
             img, voxel_label = self.augment_data(img, voxel_label)
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)[None]
+        img = img_with_patch_size(img, self.patch_size, False)[0][None]
         voxel_label = img_with_patch_size(voxel_label, self.patch_size,
-                                          True)
+                                          True)[0]
 
         # Mesh label
         target_points,\
@@ -271,7 +271,7 @@ class Hippocampus(DatasetHandler):
     def _calc_mesh_labels_all(self):
         meshes = []
         for v in self.voxel_labels:
-            vp = img_with_patch_size(v, self.patch_size, True)
+            vp = img_with_patch_size(v, self.patch_size, True)[0]
             meshes.append(create_mesh_from_voxels(vp))
 
         return meshes
