@@ -1,12 +1,28 @@
 # Cortex Parcellation using Meshes
 
-Master's thesis at ai-med. The project deals with an approach for cortex parcellation based on pixel2mesh/voxel2mesh.
+Master's thesis at ai-med. The project deals with 3D segmentation/parcellation of cortex structures based on mesh template deformation similar to [Pixel2Mesh](https://arxiv.org/abs/1804.01654) and [Voxel2Mesh](https://arxiv.org/abs/1912.03681).
 
 The long-living branches are structured as follows:
 
 - master: most tested, very stable  
-- run: usually ready to run but maybe not tested extensively
-- dev: development in progress, probably not runnable  
+- run: ready to run but maybe not tested extensively
+- dev: development in progress, potentially not runnable 
+
+## Usage
+A training with subsequent model testing can be started with
+```
+    cd src/
+    python3 main.py --train --test
+```
+For further information about command-line options see
+```
+    python3 main.py --help
+```
+All model parameters (and also for optimization, testing, tuning, etc.) are set in `src/main.py`. For an extensive documentation of parameters see `src/utils/params.py`.
+
+Further scripts facilitating the general workflow can be found in `src/scripts/`, e.g., for visualization of images and meshes. 
+
+The folder `src/check/` contains some scripts for checking preprocessing steps (e.g., run `python3 -m check.check_preprocess` to check preprocessing operations) or implementations (e.g., `python3 -m check.check_coordsystems` to check the implementation of coordinate transformations).
 
 ## Coordinate convention
 The coordinate convention is the following:

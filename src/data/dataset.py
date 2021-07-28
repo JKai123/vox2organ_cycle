@@ -27,6 +27,8 @@ from utils.utils import (
     voxelize_mesh,
     sample_outer_surface_in_voxel,
     sample_inner_volume_in_voxel,
+)
+from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim
 )
@@ -160,7 +162,7 @@ def deform_img(img, label):
 def sample_surface_points(y_label, n_classes, point_count=3000):
     """ Sample outer surface points from a volume label """
     surface_points_normalized_all = []
-    shape = torch.tensor(y_label.shape)
+    shape = y_label.shape
     for c in range(1, n_classes):
         y_label_outer = sample_outer_surface_in_voxel((y_label==c).long())
         surface_points = torch.nonzero(y_label_outer)

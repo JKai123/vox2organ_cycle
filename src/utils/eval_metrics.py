@@ -15,7 +15,9 @@ from geomloss import SamplesLoss
 from utils.mesh import Mesh
 from utils.utils import (
     sample_inner_volume_in_voxel,
-    voxelize_mesh)
+    voxelize_mesh,
+    voxelize_contour,
+)
 from utils.logging import (
     write_img_if_debug,
     measure_time)
@@ -44,11 +46,12 @@ def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
     """
     # Ground truth
     mesh_gt = data[2]
-    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, 3).cuda()
+    ndims = mesh_gt.ndims
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims).cuda()
 
     # Prediction: Only consider mesh of last step
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, 3)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
 
     # Loss criterion: Sinkhorn divergence with L2 ground distance
     dist = SamplesLoss(loss="sinkhorn", p=2, diameter=2, blur=0.05)
@@ -80,11 +83,12 @@ def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
     """
     # Ground truth
     mesh_gt = data[2]
-    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, 3)
+    ndims = mesh_gt.ndims
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims)
 
     # Prediction: Only consider mesh of last step
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, 3).cpu().numpy()
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims).cpu().numpy()
 
     hds = []
     for pred, gt in zip(pred_vertices, gt_vertices):
@@ -103,28 +107,39 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     assert compare_with in ("voxel_gt", "mesh_gt")
     input_img = data[0].cuda()
     voxel_gt = data[1].cuda()
+    mesh_gt = data[2]
+    ndims = mesh_gt.ndims
     shape = voxel_gt.shape
     if compare_with == 'mesh_gt':
-        mesh_gt = data[2]
         vertices, faces = mesh_gt.vertices, mesh_gt.faces
-        voxel_target = voxelize_mesh(
-            vertices, faces, shape, n_m_classes
-        ).cuda()
+        if ndims == 3:
+            voxel_target = voxelize_mesh(
+                vertices, faces, shape, n_m_classes
+            ).cuda()
+        else: # 2D
+            voxel_target = voxelize_contour(
+                vertices, shape
+            ).cuda()
     else: # voxel gt
         voxel_target = voxel_gt
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     # Only mesh of last step considered and batch dimension squeezed out
-    vertices = vertices[-1].view(n_m_classes, -1, 3)
-    faces = faces[-1].view(n_m_classes, -1, 3)
-    voxel_pred = voxelize_mesh(
-        vertices, faces, shape, n_m_classes
-    ).cuda()
-    write_img_if_debug(input_img.squeeze().cpu().numpy(),
-                       "../misc/voxel_input_img_eval.nii.gz")
-    write_img_if_debug(voxel_pred.squeeze().cpu().numpy(),
-                       "../misc/mesh_pred_img_eval.nii.gz")
-    write_img_if_debug(voxel_target.squeeze().cpu().numpy(),
-                       "../misc/voxel_target_img_eval.nii.gz")
+    vertices = vertices[-1].view(n_m_classes, -1, ndims)
+    faces = faces[-1].view(n_m_classes, -1, ndims)
+    if ndims == 3:
+        voxel_pred = voxelize_mesh(
+            vertices, faces, shape, n_m_classes
+        ).cuda()
+        write_img_if_debug(input_img.squeeze().cpu().numpy(),
+                           "../misc/voxel_input_img_eval.nii.gz")
+        write_img_if_debug(voxel_pred.squeeze().cpu().numpy(),
+                           "../misc/mesh_pred_img_eval.nii.gz")
+        write_img_if_debug(voxel_target.squeeze().cpu().numpy(),
+                           "../misc/voxel_target_img_eval.nii.gz")
+    else: # 2D
+        voxel_pred = voxelize_contour(
+            vertices, shape
+        ).cuda()
 
     j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), 2)
 
@@ -171,7 +186,7 @@ def Jaccard_from_Coords(pred, target, n_v_classes):
 
 @measure_time
 def Jaccard(pred, target, n_classes):
-    """ Jaccard/Intersection over Union from 3D voxel volumes """
+    """ Jaccard/Intersection over Union """
     ious = []
     # Ignoring background class 0
     for c in range(1, n_classes):

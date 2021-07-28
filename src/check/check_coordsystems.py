@@ -7,7 +7,7 @@ __email__ = "fabi.bongratz@gmail.com"
 import torch
 import torch.nn.functional as F
 
-from utils.utils import (
+from utils.coordinate_transform import (
     normalize_vertices,
     unnormalize_vertices,
     normalize_vertices_per_max_dim,

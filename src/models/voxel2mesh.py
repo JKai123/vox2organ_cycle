@@ -19,7 +19,8 @@ import time
 from utils.utils import (
     crop_and_merge,
     sample_outer_surface_in_voxel,
-    normalize_vertices)
+)
+from utils.coordinate_transform import normalize_vertices
 from utils.utils_voxel2mesh.graph_conv import adjacency_matrix, Features2Features, Feature2VertexLayer 
 from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling 
 from utils.utils_voxel2mesh.file_handle import read_obj 
