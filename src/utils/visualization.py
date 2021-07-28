@@ -189,3 +189,39 @@ def show_img_with_contour(img, vertices, edges, save_path=None):
     else:
         plt.savefig(save_path)
         plt.close()
+
+def show_difference(img_1, img_2, save_path=None):
+    """
+    Visualize the difference of two 3D images in the center axes.
+
+    :param array-like img_1: The first image
+    :param array-like img_2: The image that should be compared to the first one
+    :param save_path: Where the image is exported to
+    """
+    shape_1 = img_1.shape
+    img_1_slices = [img_1[shape_1[0]//2, :, :],
+                    img_1[:, shape_1[1]//2, :],
+                    img_1[:, :, shape_1[2]//2]]
+    shape_2 = img_2.shape
+    assert shape_1 == shape_2, "Compared images should be of same shape."
+    img_2_slices = [img_2[shape_2[0]//2, :, :],
+                    img_2[:, shape_2[1]//2, :],
+                    img_2[:, :, shape_2[2]//2]]
+    diff = [(i1 != i2).long() for i1, i2 in zip(img_1_slices, img_2_slices)]
+
+    _, axs = plt.subplots(1, len(img_1_slices))
+    if len(img_1_slices) == 1:
+        axs = [axs]
+
+    for i, s in enumerate(img_1_slices):
+        axs[i].imshow(s, cmap="gray")
+
+    for i, l in enumerate(diff):
+        axs[i].imshow(l, cmap="OrRd", alpha=0.6)
+
+    plt.suptitle("Difference")
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+        plt.close()

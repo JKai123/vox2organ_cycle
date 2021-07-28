@@ -4,13 +4,12 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+from typing import Union
+
 import numpy as np
 import torch
-import torch.nn.functional as F
 from trimesh import Trimesh
-from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
-from pytorch3d.utils import ico_sphere
 
 class Mesh():
     """ Custom meshes
@@ -34,6 +33,11 @@ class Mesh():
     @property
     def vertices(self):
         return self._vertices
+
+    @vertices.setter
+    def vertices(self, new_vertices):
+        assert new_vertices.shape == self.vertices.shape
+        self._vertices = new_vertices
 
     @property
     def ndims(self):
@@ -130,6 +134,33 @@ class Mesh():
             vox_occupied = None
 
         return vox_occupied
+
+    def transform_vertices(self, transformation_matrix: Union[np.ndarray,
+                                                              torch.Tensor]):
+        """ Transform the vertices of the mesh using a given transformation
+        matrix. """
+        if (tuple(transformation_matrix.shape) !=
+            (self._ndims + 1, self._ndims + 1)):
+            raise ValueError("Wrong shape of transformation matrix.")
+        if isinstance(self.vertices, np.ndarray):
+            vertices = torch.from_numpy(self.vertices)
+        else:
+            vertices = self.vertices
+        if isinstance(transformation_matrix, np.ndarray):
+            transformation_matrix =\
+                torch.from_numpy(transformation_matrix).float()
+        vertices = vertices.view(-1, self._ndims)
+        coords = torch.cat(
+            (vertices.T, torch.ones(1, vertices.shape[0])), dim=0
+        )
+        # Transform
+        new_coords = (transformation_matrix @ coords)
+        new_coords = new_coords.T[:,:-1].view(self.vertices.shape)
+
+        # Correct data type
+        if isinstance(self.vertices, np.ndarray):
+            new_coords = new_coords.numpy()
+        self.vertices = new_coords
 
 class MeshesOfMeshes():
     """ Extending pytorch3d.structures.Meshes so that each mesh in a batch of
@@ -249,34 +280,3 @@ def verts_faces_to_Meshes(verts, faces, ndim):
             meshes.append(Meshes(verts=list(v), faces=list(f)))
 
     return meshes
-
-def generate_sphere_template(centers: dict, radii: dict, level=6):
-    """ Generate a template with spheres centered at centers and corresponding
-    radii
-    - level 6: 40962 vertices
-    - level 7: 163842 vertices
-
-    :param centers: A dict containing {structure name: structure center}
-    :param radii: A dict containing {structure name: structure radius}
-    :param level: The ico level to use
-
-    :returns: A trimesh.scene.scene.Scene
-    """
-    if len(centers) != len(radii):
-        raise ValueError("Number of centroids and radii must be equal.")
-
-    scene = Scene()
-    for (k, c), (_, r) in zip(centers.items(), radii.items()):
-        # Get unit sphere
-        sphere = ico_sphere(level)
-        # Scale adequately
-        v = sphere.verts_packed() * r + c
-
-        v = v.cpu().numpy()
-        f = sphere.faces_packed().cpu().numpy()
-
-        mesh = Trimesh(v, f)
-
-        scene.add_geometry(mesh, geom_name=k)
-
-    return scene
