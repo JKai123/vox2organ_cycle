@@ -133,7 +133,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             model.load_state_dict(torch.load(model_path))
             model.eval()
 
-            results = evaluator.evaluate(model, epoch, save_meshes=len(test_set))
+            results = evaluator.evaluate(
+                model, epoch, save_meshes=len(test_set),
+                remove_previous_meshes=False
+            )
 
             write_test_results(results, mn, test_dir)
 

@@ -48,7 +48,7 @@ class ModelEvaluator():
         if not os.path.isdir(self._mesh_dir):
             os.mkdir(self._mesh_dir)
 
-    def evaluate(self, model, epoch, save_meshes=5):
+    def evaluate(self, model, epoch, save_meshes=5, remove_previous_meshes=True):
         results_all = {}
         model_class = model.__class__
         for m in self._eval_metrics:
@@ -74,8 +74,10 @@ class ModelEvaluator():
             if i < save_meshes: # Store meshes for visual inspection
                 filename =\
                         self._dataset.get_file_name_from_index(i).split(".")[0]
-                self.store_meshes(pred, data, filename, epoch,
-                                  model_class)
+                self.store_meshes(
+                    pred, data, filename, epoch, model_class,
+                    remove_previous=remove_previous_meshes
+                )
 
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
