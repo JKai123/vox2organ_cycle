@@ -68,7 +68,7 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.01, 0.1, 0.001, 1.0], # Tuned on hemisphere (exp_443)
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.01, 0.1, 0.001, 5.0], # Tuned on hemisphere (exp_443/exp_451)
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
