@@ -151,13 +151,13 @@ def rotate90(img, label):
 
     return img, label
 
-def flip_img(img, label, coordinates=None):
+def flip_img(img, label, coordinates=None, normals=None):
     """ Flip an img and the corresponding voxel label. Optionally, a
     corresponding mesh can also be flipped.
 
     Note: The coordinates need to be given in the image coordinate system.
     """
-    if coordinates is None: # No mesh vertices
+    if coordinates and normals is None: # No mesh vertices
         if np.random.rand(1) > 0.5:
             img, label = np.flip(img, 0), np.flip(label, 0)
         if np.random.rand(1) > 0.5:
@@ -168,24 +168,31 @@ def flip_img(img, label, coordinates=None):
         return img, label
 
     # Flipping image in a certain axis is equivalent to multiplication
-    # of centered coordinates with (-1).
+    # of centered coordinates with (-1). Normals just need to be multiplied
+    # with -1 in the respective axis.
     img_shape = img.squeeze().shape
     co_shape = coordinates.shape
+    assert normals.shape == coordinates.shape
     coordinates = coordinates.view(-1, 3)
+    normals = normals.view(-1, 3)
     if np.random.rand(1) > 0.5:
         img, label = np.flip(img, 0).copy(), np.flip(label, 0).copy()
         coordinates[:,0] = coordinates[:,0] * (-1) + img_shape[0] - 1
+        normals[:,0] = normals[:,0] * (-1)
     if np.random.rand(1) > 0.5:
         img, label = np.flip(img, 1).copy(), np.flip(label, 1).copy()
         coordinates[:,1] = coordinates[:,1] * (-1) + img_shape[1] - 1
+        normals[:,1] = normals[:,1] * (-1)
     if np.random.rand(1) > 0.5:
         img, label = np.flip(img, 2).copy(), np.flip(label, 2).copy()
         coordinates[:,2] = coordinates[:,2] * (-1) + img_shape[2] - 1
+        normals[:,2] = normals[:,2] * (-1)
 
     # Back to original shape
     coordinates = coordinates.view(co_shape)
+    normals = normals.view(co_shape)
 
-    return img, label, coordinates
+    return img, label, coordinates, normals
 
 def deform_img(img, label):
     """ Deform an image and the corresponding voxel label. """

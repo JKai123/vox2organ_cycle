@@ -567,9 +567,9 @@ class Cortex(DatasetHandler):
                 target_points.view(-1, 3), self.patch_size
             )
             # Augment
-            img, voxel_label, target_points = self.augment_data(img.numpy(),
-                                                                voxel_label.numpy(),
-                                                                target_points)
+            img, voxel_label, target_points = self.augment_data(
+                img.numpy(), voxel_label.numpy(), target_points, target_normals
+            )
             # Image coordinates --> mesh coordinates
             target_points = normalize_vertices_per_max_dim(
                 target_points, self.patch_size
@@ -935,6 +935,6 @@ class Cortex(DatasetHandler):
 
         return points, normals
 
-    def augment_data(self, img, label, coordinates):
+    def augment_data(self, img, label, coordinates, normals):
         assert self._augment, "No augmentation in this dataset."
-        return flip_img(img, label, coordinates)
+        return flip_img(img, label, coordinates, normals)
