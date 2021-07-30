@@ -30,6 +30,15 @@ from torch.cuda.amp import autocast
 from geomloss import SamplesLoss
 
 from utils.utils import choose_n_random_points
+from utils.mesh import curv_from_cotcurv_laplacian
+
+def point_weigths_from_curvature(curvatures: torch.Tensor,
+                                 max_weight: Union[float, int, torch.Tensor]):
+    """ Calculate Chamfer weights from curvatures such that they are in
+    [1, max_weight]. """
+    if not isinstance(max_weight, torch.Tensor):
+        max_weight = torch.tensor(max_weight).float()
+    return torch.minimum(1 + curvatures, max_weight.cuda())
 
 def meshes_to_edge_normals_2D_packed(meshes: Meshes):
     """ Helper function to get normals of 2D meshes (contours) for every edge.
@@ -62,7 +71,7 @@ def meshes_to_vertex_normals_2D_packed(meshes: Meshes):
     normals_next = edge_normals[torch.argsort(v0_idx)]
     normals_prev = edge_normals[torch.argsort(v1_idx)]
 
-    return (normals_next + normals_prev)
+    return normals_next + normals_prev
 
 class MeshLoss(ABC):
     def __str__(self):
@@ -78,6 +87,8 @@ class MeshLoss(ABC):
         """
         if isinstance(self, ChamferAndNormalsLoss):
             mesh_loss = torch.tensor([0,0]).float().cuda()
+        elif isinstance(self, ChamferAndNormalsAndCurvatureLoss):
+            mesh_loss = torch.tensor([0,0,0]).float().cuda()
         else:
             mesh_loss = torch.tensor(0).float().cuda()
 
@@ -127,7 +138,6 @@ class WassersteinLoss(MeshLoss):
             target_ = choose_n_random_points(target_, n_points)
         elif target_.shape[1] < pred_.shape[1]:
             n_points = target_.shape[1]
-            perm = torch.randperm(pred_.shape[1])
             pred_ = choose_n_random_points(pred_, n_points)
 
         w_loss = torch.tensor(0.0, requires_grad=True).cuda()
@@ -140,10 +150,21 @@ class WassersteinLoss(MeshLoss):
 class ChamferLoss(MeshLoss):
     """ Chamfer distance between the predicted mesh and randomly sampled
     surface points or a reference mesh. """
+
+    def __init__(self, curv_weight_max=None):
+        self.curv_weight_max = curv_weight_max
+
+    def __str__(self):
+        return f"ChamferLoss(curv_weight_max={self.curv_weight_max})"
+
     def get_loss(self, pred_meshes, target):
         if isinstance(target, pytorch3d.structures.Pointclouds):
             n_points = torch.min(target.num_points_per_cloud())
             target_ = target
+            if self.curv_weight_max is not None:
+                raise RuntimeError("Can only apply curvature weights if they"
+                                   " are provided in the target."
+
         if isinstance(target, pytorch3d.structures.Meshes):
             n_points = torch.min(target.num_verts_per_mesh())
             if target.verts_padded().shape[1] == 3:
@@ -152,37 +173,115 @@ class ChamferLoss(MeshLoss):
                 target_ = choose_n_random_points(
                     target.verts_padded(), n_points
                 )
+            if self.curv_weight_max is not None:
+                raise RuntimeError("Cannot apply curvature weights for"
+                                   " targets of type 'Meshes'.")
+
         if isinstance(target, (tuple, list)):
-            # target = (verts, normals)
+            # target = (verts, normals, curvatures)
             target_ = target[0] # Only vertices relevant
             assert target_.ndim == 3 # padded
             n_points = target_.shape[1]
+            point_weights = point_weigths_from_curvature(
+                target[2], self.curv_weight_max
+            ) if self.curv_weight_max else None
+
         if pred_meshes.verts_packed().shape[-1] == 3:
             pred_points = sample_points_from_meshes(pred_meshes, n_points)
         else: # 2D
             pred_points = choose_n_random_points(
                 pred_meshes.verts_padded(), n_points
             )
-        return chamfer_distance(pred_points, target_)[0]
+
+        return chamfer_distance(
+            pred_points, target_, point_weights=point_weights
+        )[0]
+
+class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
+    """ Chamfer distance, cosine distance & difference in curvature
+    """
+
+    def __init__(self, curv_weight_max=None):
+        self.curv_weight_max = curv_weight_max
+
+    def __str__(self):
+        return "ChamferAndNormalsAndCurvatureLoss"\
+               f"(curv_weight_max={self.curv_weight_max})"
+
+    # Method does not support autocast (due to sparse operations in cotangent
+    # laplacian)
+    @autocast(enabled=False)
+    def get_loss(self, pred_meshes, target):
+        if len(target) < 3:
+            raise ValueError("ChamferAndNormalsAndCurvatureLoss requires"
+                             " vertices, normals, and curvatures.")
+        target_points= target[0]
+        target_normals = target[1]
+        target_curvs = target[2]
+        assert (target_points.ndim == 3 and target_normals.ndim == 3 and
+                target_curvs.ndim == 3)
+        n_points = target_points.shape[1]
+        if target_points.shape[-1] == 3: # 3D
+            orig_shape = pred_meshes.verts_padded().shape
+            pred_points, idx = choose_n_random_points(
+                pred_meshes.verts_padded(), n_points, return_idx=True
+            ) # (N,L,3)
+            pred_normals = pred_meshes.verts_normals_padded()[idx.unbind(1)]
+            pred_normals = pred_normals.view_as(pred_points) # (N,L,3)
+            pred_curvs = curv_from_cotcurv_laplacian(
+                pred_meshes.verts_packed(), pred_meshes.faces_packed()
+            ).view(
+                orig_shape[0], orig_shape[1], 1
+            )[idx.unbind(1)].view(
+                pred_points.shape[0], pred_points.shape[1], 1
+            ) # (N,L,1)
+            point_weights = point_weigths_from_curvature(
+                target_curvs, self.curv_weight_max
+            ) if self.curv_weight_max else None
+        else: # 2D
+            raise NotImplementedError()
+
+        losses = chamfer_distance(
+            pred_points,
+            target_points,
+            x_normals=pred_normals,
+            y_normals=target_normals,
+            x_curvatures=pred_curvs,
+            y_curvatures=target_curvs,
+            point_weights=point_weights
+        )
+
+        d_chamfer = losses[0]
+        d_cosine = losses[1]
+        d_curv = losses[2]
+
+        return torch.stack([d_chamfer, d_cosine, d_curv])
 
 class ChamferAndNormalsLoss(MeshLoss):
-    """ Chamfer distance + cosine distance between the vertices and normals of
+    """ Chamfer distance & cosine distance between the vertices and normals of
     the predicted mesh and a reference mesh.
-
-    Attention: When using this loss function, it should be assured that the
-    prediction and the target follow the same normal convention.
     """
+
+    def __init__(self, curv_weight_max=None):
+        self.curv_weight_max = curv_weight_max
+
+    def __str__(self):
+        return f"ChamferAndNormalsLoss(curv_weight_max={self.curv_weight_max})"
+
     def get_loss(self, pred_meshes, target):
-        if len(target) != 2:
+        if len(target) < 2:
             raise TypeError("ChamferAndNormalsLoss requires vertices and"\
                             " normals.")
-        target_points, target_normals = target
+        target_points, target_normals = target[0], target[1]
         assert target_points.ndim == 3 and target_normals.ndim == 3
         n_points = target_points.shape[1]
         if target_points.shape[-1] == 3: # 3D
             pred_points, pred_normals = sample_points_from_meshes(
                 pred_meshes, n_points, return_normals=True
             )
+            point_weights = point_weigths_from_curvature(
+                target[2], self.curv_weight_max
+            ) if self.curv_weight_max else None
         else: # 2D
             pred_points, idx = choose_n_random_points(
                 pred_meshes.verts_padded(), n_points, return_idx=True
@@ -202,9 +301,18 @@ class ChamferAndNormalsLoss(MeshLoss):
                 [pred_normals,
                  torch.zeros((N,V,1)).to(pred_normals.device)], dim=2
             )
-        d_chamfer, d_cosine = chamfer_distance(pred_points, target_points,
-                                               x_normals=pred_normals,
-                                               y_normals=target_normals)
+            if self.curv_weight_max is not None:
+                raise RuntimeError("Cannot apply curvature weights in 2D.")
+
+        losses = chamfer_distance(
+            pred_points,
+            target_points,
+            x_normals=pred_normals,
+            y_normals=target_normals,
+            point_weights=point_weights
+        )
+        d_chamfer = losses[0]
+        d_cosine = losses[1]
 
         return torch.stack([d_chamfer, d_cosine])
 
@@ -246,6 +354,10 @@ class NormalConsistencyLoss(MeshLoss):
 class EdgeLoss(MeshLoss):
     def __init__(self, target_length):
         self.target_length = target_length
+
+    def __str__(self):
+        return f"EdgeLoss({self.target_length})"
+
     def get_loss(self, pred_meshes, target=None):
         # 2D
         if pred_meshes.verts_padded().shape[2] == 2:
@@ -309,6 +421,11 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
             assert len(ml) == 2
             losses['ChamferLoss()'] = ml[0]
             losses['CosineLoss()'] = ml[1]
+        elif isinstance(lf, ChamferAndNormalsAndCurvatureLoss):
+            assert len(ml) == 3
+            losses['ChamferLoss()'] = ml[0]
+            losses['CosineLoss()'] = ml[1]
+            losses['CurvatureLoss()'] = ml[2]
         else:
             losses[str(lf)] = ml
 
@@ -354,6 +471,10 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
         if isinstance(lf, ChamferAndNormalsLoss):
             mesh_losses['ChamferLoss()'] = []
             mesh_losses['CosineLoss()'] = []
+        elif isinstance(lf, ChamferAndNormalsAndCurvatureLoss):
+            mesh_losses['ChamferLoss()'] = []
+            mesh_losses['CosineLoss()'] = []
+            mesh_losses['CurvatureLoss()'] = []
         else:
             mesh_losses[str(lf)] = []
 
@@ -372,6 +493,17 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
                     mesh_losses_sc['CosineLoss()'] = ml[1]
                     mesh_losses['CosineLoss()'].append(
                         ml[1].detach().cpu()) # log
+                elif isinstance(lf, ChamferAndNormalsAndCurvatureLoss):
+                    assert len(ml) == 3
+                    mesh_losses_sc['ChamferLoss()'] = ml[0]
+                    mesh_losses['ChamferLoss()'].append(
+                        ml[0].detach().cpu()) # log
+                    mesh_losses_sc['CosineLoss()'] = ml[1]
+                    mesh_losses['CosineLoss()'].append(
+                        ml[1].detach().cpu()) # log
+                    mesh_losses_sc['CurvatureLoss()'] = ml[2]
+                    mesh_losses['CurvatureLoss()'].append(
+                        ml[2].detach().cpu()) # log
                 else:
                     mesh_losses_sc[str(lf)] = ml
                     mesh_losses[str(lf)].append(ml.detach().cpu()) # log

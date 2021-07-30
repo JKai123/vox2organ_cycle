@@ -16,6 +16,7 @@ from utils.train_test import train_test_routine
 from utils.losses import (
     ChamferLoss,
     ChamferAndNormalsLoss,
+    ChamferAndNormalsAndCurvatureLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss,
@@ -60,7 +61,7 @@ hyper_ps = {
     'MESH_LOSS_FUNC': [
                        # WassersteinLoss(),
                        # ChamferLoss(),
-                       ChamferAndNormalsLoss(),
+                       ChamferAndNormalsLoss(curv_weight_max=5.0),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
                        EdgeLoss(0.0)
@@ -127,6 +128,7 @@ hyper_ps_cortex = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
+    'PROVIDE_CURVATURES': True,
     'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
@@ -140,7 +142,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
             hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
             ## Small
             # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
             # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]

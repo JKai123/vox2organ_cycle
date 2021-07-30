@@ -24,9 +24,10 @@ from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
-from utils.mesh import Mesh
+from utils.mesh import Mesh, curv_from_cotcurv_laplacian
 from utils.ico_template import generate_sphere_template
 from utils.utils import (
+    choose_n_random_points,
     voxelize_mesh,
     voxelize_contour,
     create_mesh_from_voxels,
@@ -88,6 +89,9 @@ class Cortex(DatasetHandler):
     :param reduced_freesurfer: Use a freesurfer mesh with reduced number of
     vertices as mesh ground truth, e.g., 0.3. This has only an effect if patch_mode='no'.
     :param mesh_type: 'freesurfer' or 'marching cubes'
+    :param: provide_curvatures: Whether curvatures should be part of the items.
+    As a consequence, the ground truth can only consist of vertices and not of
+    sampled surface points.
     """
 
     img_filename = "mri.nii.gz"
@@ -98,6 +102,7 @@ class Cortex(DatasetHandler):
                  n_ref_points_per_structure: int, structure_type: str,
                  patch_mode: str="no", patch_origin=(0,0,0), select_patch_size=None,
                  reduced_freesurfer: int=None, mesh_type='marching cubes',
+                 provide_curvatures=False,
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -140,6 +145,7 @@ class Cortex(DatasetHandler):
         self.select_patch_size = select_patch_size if (
             select_patch_size is not None) else patch_size
         self.n_m_classes = len(mesh_label_names)
+        self.provide_curvatures = provide_curvatures
         assert self.n_m_classes == kwargs.get("n_m_classes",
                                               len(mesh_label_names)),\
                 "Number of mesh classes incorrect."
@@ -171,12 +177,18 @@ class Cortex(DatasetHandler):
         for i, img in enumerate(self.images):
             self.images[i] = normalize_min_max(img)
 
-        # Point and normal labels
-        self.point_labels, self.normal_labels = self._load_ref_points()
+        # Point, normal, and potentially curvature labels
+        self.point_labels,\
+                self.normal_labels,\
+                self.curvatures = self._load_ref_points()
 
         assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
+        assert self.__len__() == len(self.point_labels)
+        assert self.__len__() == len(self.normal_labels)
+        if self.provide_curvatures:
+            assert self.__len__() == len(self.curvatures)
 
     def _prepare_data_2D(self):
         """ Load 2D data """
@@ -552,9 +564,10 @@ class Cortex(DatasetHandler):
         # Raw data
         img = self.images[index]
         voxel_label = self.voxel_labels[index]
-        target_points, target_faces, target_normals = self._get_mesh_target(
-            index, mesh_target_type
-        )
+        target_points,\
+                target_faces,\
+                target_normals,\
+                target_curvs = self._get_mesh_target(index, mesh_target_type)
 
         # Potentially augment
         if self._augment and self.ndims == 3:
@@ -585,7 +598,12 @@ class Cortex(DatasetHandler):
         logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
                                                       self._files[index])
 
-        return img, voxel_label, target_points, target_faces, target_normals
+        return (img,
+                voxel_label,
+                target_points,
+                target_faces,
+                target_normals,
+                target_curvs)
 
     def _get_mesh_target(self, index, target_type):
         """ Ground truth points and optionally normals """
@@ -593,22 +611,33 @@ class Cortex(DatasetHandler):
             points = self.point_labels[index]
             normals = np.array([]) # Empty, not used
             faces = np.array([]) # Empty, not used
+            curvs = np.array([]) # Empty, not used
         elif target_type == 'mesh':
             points = self.point_labels[index]
             normals = self.normal_labels[index]
             faces = np.array([]) # Empty, not used
+            curvs = self.curvatures[index]\
+                    if self.provide_curvatures else np.array([])
         elif target_type == 'full_mesh':
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
             faces = self.mesh_labels[index].faces
+            curvs = curv_from_cotcurv_laplacian(
+                points.view(-1, 3),
+                faces.view(-1, 3)
+            ).view(self.n_m_classes, -1, 1)
         else:
             raise ValueError("Invalid mesh target type.")
 
-        return points, faces, normals
+        return points, faces, normals, curvs
 
     def get_item_and_mesh_from_index(self, index):
         """ Get image, segmentation ground truth and reference mesh"""
-        img, voxel_label, vertices, faces, normals = self.get_item_from_index(
+        (img,
+         voxel_label,
+         vertices,
+         faces,
+         normals, _) = self.get_item_from_index(
             index, mesh_target_type='full_mesh'
         )
         mesh_label = Mesh(vertices, faces, normals)
@@ -917,13 +946,36 @@ class Cortex(DatasetHandler):
     def _load_ref_points(self):
         """ Sample surface points from meshes """
         points, normals = [], []
+        curvs = [] if self.provide_curvatures else None
         for m in self.mesh_labels:
             if self.ndims == 3:
-                p, n = sample_points_from_meshes(
-                    m.to_pytorch3d_Meshes(),
-                    self.n_ref_points_per_structure,
-                    return_normals=True
-                )
+                if self.provide_curvatures:
+                    # Choose a certain number of vertices
+                    m_ = m.to_pytorch3d_Meshes()
+                    p, idx = choose_n_random_points(
+                        m_.verts_padded(),
+                        self.n_ref_points_per_structure,
+                        return_idx=True
+                    )
+                    # Choose normals with the same indices as vertices
+                    n = m_.verts_normals_padded()[idx.unbind(1)].view(
+                        self.n_m_classes, -1, 3
+                    )
+                    # Choose curvatures with the same indices as vertices
+                    c = curv_from_cotcurv_laplacian(
+                        m_.verts_packed(), m_.faces_packed()
+                    ).view(
+                        self.n_m_classes, -1, 1
+                    )[idx.unbind(1)].view(
+                        self.n_m_classes, -1, 1
+                    )
+                else: # No curvatures
+                    # Sample from mesh surface
+                    p, n = sample_points_from_meshes(
+                        m.to_pytorch3d_Meshes(),
+                        self.n_ref_points_per_structure,
+                        return_normals=True
+                    )
             else:
                 p, n = sample_points_from_contours(
                     m.to_pytorch3d_Meshes(),
@@ -932,8 +984,10 @@ class Cortex(DatasetHandler):
                 )
             points.append(p)
             normals.append(n)
+            if self.provide_curvatures:
+                curvs.append(c)
 
-        return points, normals
+        return points, normals, curvs
 
     def augment_data(self, img, label, coordinates, normals):
         assert self._augment, "No augmentation in this dataset."

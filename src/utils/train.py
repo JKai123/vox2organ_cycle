@@ -17,7 +17,11 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
-from utils.losses import ChamferAndNormalsLoss, ChamferLoss
+from utils.losses import (
+    ChamferAndNormalsLoss,
+    ChamferLoss,
+    ChamferAndNormalsAndCurvatureLoss,
+)
 from utils.logging import (
     init_logging,
     finish_wandb_run,
@@ -118,6 +122,10 @@ class Solver():
                  for lf in self.mesh_loss_func]):
             assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
                     "Number of weights must be equal to number of mesh losses."
+        elif any([isinstance(lf, ChamferAndNormalsAndCurvatureLoss)
+                 for lf in self.mesh_loss_func]):
+            assert len(mesh_loss_func) + 2 == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
         else:
             assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                     "Number of weights must be equal to number of mesh losses."
@@ -182,14 +190,20 @@ class Solver():
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
-        x, y, points, faces, normals = data
+        x, y, points, faces, normals, curvs = data
         if normals.nelement() == 0:
             # Only point reference
             mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
         else:
-            # Points and normals as reference
-            mesh_target = [(p.cuda(), n.cuda()) for p, n in
-                           zip(points.permute(1,0,2,3), normals.permute(1,0,2,3))]
+            # Points and normals and curvatures as reference. Loss calculation
+            # iterates over number of mesh classes (structures) --> change
+            # channel and batch dimension.
+            mesh_target = [
+                (p.cuda(), n.cuda(), c.cuda()) for p, n, c in
+                zip(points.permute(1,0,2,3),
+                normals.permute(1,0,2,3),
+                curvs.permute(1,0,2,3))
+            ]
 
         # Predict
         with autocast(self.mixed_precision):
