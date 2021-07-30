@@ -21,9 +21,11 @@ from utils.utils import (
 )
 from data.dataset import (
     DatasetHandler,
-    augment_data,
     img_with_patch_size,
-    sample_surface_points
+    sample_surface_points,
+    rotate90,
+    flip_img,
+    deform_img
 )
 
 class Hippocampus(DatasetHandler):
@@ -114,7 +116,7 @@ class Hippocampus(DatasetHandler):
         :return: (Train dataset, Validation dataset, Test dataset)
         """
 
-        overfit = kwargs.get("overfit", False)
+        overfit = kwargs.get("overfit", 1)
         mesh_target_type = kwargs.get("mesh_target_type", "pointcloud")
         n_ref_points_per_structure = kwargs.get("n_ref_points_per_structure",
                                                 1400)
@@ -130,9 +132,9 @@ class Hippocampus(DatasetHandler):
         # Split
         if overfit:
             # Only consider first element of available data
-            indices_train = slice(0, 5)
-            indices_val = slice(0, 5)
-            indices_test = slice(0, 5)
+            indices_train = slice(0, overfit)
+            indices_val = slice(0, overfit)
+            indices_test = slice(0, overfit)
         else:
             # No overfit
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
@@ -192,12 +194,12 @@ class Hippocampus(DatasetHandler):
 
         # Potentially augment
         if self._augment:
-            img, voxel_label = augment_data(img, voxel_label)
+            img, voxel_label = self.augment_data(img, voxel_label)
 
         # Fit patch size
-        img = img_with_patch_size(img, self.patch_size, False)[None]
+        img = img_with_patch_size(img, self.patch_size, False)[0][None]
         voxel_label = img_with_patch_size(voxel_label, self.patch_size,
-                                          True)
+                                          True)[0]
 
         # Mesh label
         target_points,\
@@ -269,7 +271,7 @@ class Hippocampus(DatasetHandler):
     def _calc_mesh_labels_all(self):
         meshes = []
         for v in self.voxel_labels:
-            vp = img_with_patch_size(v, self.patch_size, True)
+            vp = img_with_patch_size(v, self.patch_size, True)[0]
             meshes.append(create_mesh_from_voxels(vp))
 
         return meshes
@@ -297,3 +299,13 @@ class Hippocampus(DatasetHandler):
             data.append(d)
 
         return data
+
+    def augment_data(self, img, label):
+        """ Rotate, flip, elastic deformation """
+        img_aug, label_aug = img, label
+        img_aug, label_aug = rotate90(img_aug, label_aug)
+        img_aug, label_aug = flip_img(img_aug, label_aug)
+        img_aug, label_aug = deform_img(img_aug, label_aug)
+
+        return img_aug, label_aug
+

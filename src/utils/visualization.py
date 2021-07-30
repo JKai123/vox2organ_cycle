@@ -6,11 +6,9 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 from typing import Union
 
-import open3d as o3d
+# import open3d as o3d # leads to double logging, uncomment if needed
 import nibabel as nib
 import matplotlib.pyplot as plt
-
-from pyntcloud import PyntCloud
 
 def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     """
@@ -159,6 +157,8 @@ def show_slices(slices, labels=None, save_path=None):
     """
 
     _, axs = plt.subplots(1, len(slices))
+    if len(slices) == 1:
+        axs = [axs]
 
     for i, s in enumerate(slices):
         axs[i].imshow(s, cmap="gray")
@@ -172,3 +172,56 @@ def show_slices(slices, labels=None, save_path=None):
         plt.show()
     else:
         plt.savefig(save_path)
+        plt.close()
+
+def show_img_with_contour(img, vertices, edges, save_path=None):
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be in packed"
+                         " representation.")
+    plt.imshow(img, cmap="gray")
+    vertices_edges = vertices[edges]
+
+    plt.plot(vertices_edges[:,0,1], vertices_edges[:,0,0], color="red",
+             marker='x', markeredgecolor="gray", markersize=1, linewidth=1)
+
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+        plt.close()
+
+def show_difference(img_1, img_2, save_path=None):
+    """
+    Visualize the difference of two 3D images in the center axes.
+
+    :param array-like img_1: The first image
+    :param array-like img_2: The image that should be compared to the first one
+    :param save_path: Where the image is exported to
+    """
+    shape_1 = img_1.shape
+    img_1_slices = [img_1[shape_1[0]//2, :, :],
+                    img_1[:, shape_1[1]//2, :],
+                    img_1[:, :, shape_1[2]//2]]
+    shape_2 = img_2.shape
+    assert shape_1 == shape_2, "Compared images should be of same shape."
+    img_2_slices = [img_2[shape_2[0]//2, :, :],
+                    img_2[:, shape_2[1]//2, :],
+                    img_2[:, :, shape_2[2]//2]]
+    diff = [(i1 != i2).long() for i1, i2 in zip(img_1_slices, img_2_slices)]
+
+    _, axs = plt.subplots(1, len(img_1_slices))
+    if len(img_1_slices) == 1:
+        axs = [axs]
+
+    for i, s in enumerate(img_1_slices):
+        axs[i].imshow(s, cmap="gray")
+
+    for i, l in enumerate(diff):
+        axs[i].imshow(l, cmap="OrRd", alpha=0.6)
+
+    plt.suptitle("Difference")
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+        plt.close()

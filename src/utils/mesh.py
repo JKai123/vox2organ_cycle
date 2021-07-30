@@ -4,13 +4,13 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+from typing import Union
+
 import numpy as np
 import torch
-import torch.nn.functional as F
 from trimesh import Trimesh
-from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
-from pytorch3d.utils import ico_sphere
+from pytorch3d.ops import cot_laplacian
 
 class Mesh():
     """ Custom meshes
@@ -29,10 +29,24 @@ class Mesh():
         self._faces = faces
         self._normals = normals
         self._features = features
+        self._ndims = vertices.shape[-1]
 
     @property
     def vertices(self):
         return self._vertices
+
+    @vertices.setter
+    def vertices(self, new_vertices):
+        assert new_vertices.shape == self.vertices.shape
+        self._vertices = new_vertices
+
+    @property
+    def ndims(self):
+        return self._ndims
+
+    @property
+    def ndims(self):
+        return self._ndims
 
     @property
     def faces(self):
@@ -86,8 +100,9 @@ class Mesh():
         # Note: With current pytorch3d version, vertex normals cannot be
         # handed to Meshes object
         if self.vertices.ndim == 3:
-            return Meshes(self.vertices,
-                          self.faces)
+            # Avoid pytorch3d dimensionality check
+            return Meshes([v for v in self.vertices],
+                          [f for f in self.faces])
         if self.vertices.ndim == 2:
             return Meshes([self.vertices],
                           [self.faces])
@@ -100,7 +115,8 @@ class Mesh():
     def get_occupied_voxels(self, shape):
         """Get the occupied voxels of the mesh lying within 'shape'.
 
-        Attention: 'shape' should be defined in the mesh coordinate system!
+        Attention: 'shape' should be defined in the same coordinte system as
+        the mesh.
         """
         assert len(shape) == 3, "Shape should represent 3 dimensions."
 
@@ -123,6 +139,33 @@ class Mesh():
             vox_occupied = None
 
         return vox_occupied
+
+    def transform_vertices(self, transformation_matrix: Union[np.ndarray,
+                                                              torch.Tensor]):
+        """ Transform the vertices of the mesh using a given transformation
+        matrix. """
+        if (tuple(transformation_matrix.shape) !=
+            (self._ndims + 1, self._ndims + 1)):
+            raise ValueError("Wrong shape of transformation matrix.")
+        if isinstance(self.vertices, np.ndarray):
+            vertices = torch.from_numpy(self.vertices)
+        else:
+            vertices = self.vertices
+        if isinstance(transformation_matrix, np.ndarray):
+            transformation_matrix =\
+                torch.from_numpy(transformation_matrix).float()
+        vertices = vertices.view(-1, self._ndims)
+        coords = torch.cat(
+            (vertices.T, torch.ones(1, vertices.shape[0])), dim=0
+        )
+        # Transform
+        new_coords = (transformation_matrix @ coords)
+        new_coords = new_coords.T[:,:-1].view(self.vertices.shape)
+
+        # Correct data type
+        if isinstance(self.vertices, np.ndarray):
+            new_coords = new_coords.numpy()
+        self.vertices = new_coords
 
 class MeshesOfMeshes():
     """ Extending pytorch3d.structures.Meshes so that each mesh in a batch of
@@ -154,6 +197,7 @@ class MeshesOfMeshes():
         self._verts_padded = verts
         self._faces_padded = faces
         self._edges_packed = None
+        self.ndims = verts.shape[-1]
 
         if features is not None:
             self.update_features(features)
@@ -178,14 +222,18 @@ class MeshesOfMeshes():
     def edges_packed(self):
         """ Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
-            # Calculate edges from faces
-            faces = self.faces_packed()
-            v0, v1, v2 = faces.chunk(3, dim=1)
-            e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
-            e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
-            e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
-            # All edges including duplicates.
-            self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+            if self.ndims == 3:
+                # Calculate edges from faces
+                faces = self.faces_packed()
+                v0, v1, v2 = faces.chunk(3, dim=1)
+                e01 = torch.cat([v0, v1], dim=1)  # (N*M*F), 2)
+                e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
+                e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
+                # All edges including duplicates.
+                self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+            else:
+                # 2D equality of faces and edges
+                self._edges_packed = self.faces_packed()
 
         return self._edges_packed
 
@@ -197,11 +245,11 @@ class MeshesOfMeshes():
         add_index = torch.cat(
             [torch.ones(F) * i * V for i in range(N*M)]
         ).long().to(self._faces_padded.device)
-        return self._faces_padded.view(-1, 3) + add_index.view(-1, 1)
+        return self._faces_padded.view(-1, self.ndims) + add_index.view(-1, 1)
 
     def verts_packed(self):
         """ Packed representation of vertices """
-        return self._verts_padded.view(-1, 3)
+        return self._verts_padded.view(-1, self.ndims)
 
     def move_verts(self, offset):
         """ Move the vertex coordinates by offset """
@@ -238,33 +286,20 @@ def verts_faces_to_Meshes(verts, faces, ndim):
 
     return meshes
 
-def generate_sphere_template(centers: dict, radii: dict, level=6):
-    """ Generate a template with spheres centered at centers and corresponding
-    radii
-    - level 6: 40962 vertices
-    - level 7: 163842 vertices
-
-    :param centers: A dict containing {structure name: structure center}
-    :param radii: A dict containing {structure name: structure radius}
-    :param level: The ico level to use
-
-    :returns: A trimesh.scene.scene.Scene
+def curv_from_cotcurv_laplacian(verts_packed, faces_packed):
+    """ Construct the cotangent curvature Laplacian as done in
+    pytorch3d.loss.mesh_laplacian_smoothing and use it for approximation of the
+    mean curvature at each vertex. See also
+    - Nealen et al. "Laplacian Mesh Optimization", 2006
     """
-    if len(centers) != len(radii):
-        raise ValueError("Number of centroids and radii must be equal.")
+    # No backprop through the computation of the Laplacian (taken as a
+    # constant), similar to pytorch3d.loss.mesh_laplacian_smoothing
+    with torch.no_grad():
+        L, inv_areas = cot_laplacian(verts_packed, faces_packed)
+        L_sum = torch.sparse.sum(L, dim=1).to_dense().view(-1,1)
+        norm_w = 0.25 * inv_areas
 
-    scene = Scene()
-    for (k, c), (_, r) in zip(centers.items(), radii.items()):
-        # Get unit sphere
-        sphere = ico_sphere(level)
-        # Scale adequately
-        v = sphere.verts_packed() * r + c
-
-        v = v.cpu().numpy()
-        f = sphere.faces_packed().cpu().numpy()
-
-        mesh = Trimesh(v, f)
-
-        scene.add_geometry(mesh, geom_name=k)
-
-    return scene
+    return torch.norm(
+        (L.mm(verts_packed) - L_sum * verts_packed) * norm_w,
+        dim=1
+    )

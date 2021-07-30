@@ -17,9 +17,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
-from utils.losses import ChamferAndNormalsLoss, ChamferLoss
+from utils.losses import (
+    ChamferAndNormalsLoss,
+    ChamferLoss,
+    ChamferAndNormalsAndCurvatureLoss,
+)
 from utils.logging import (
     init_logging,
+    finish_wandb_run,
     log_losses,
     log_epoch,
     log_lr,
@@ -113,8 +118,17 @@ class Solver():
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
-        assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
-                "Number of weights must be equal to number of mesh losses."
+        if any([isinstance(lf, ChamferAndNormalsLoss)
+                 for lf in self.mesh_loss_func]):
+            assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
+        elif any([isinstance(lf, ChamferAndNormalsAndCurvatureLoss)
+                 for lf in self.mesh_loss_func]):
+            assert len(mesh_loss_func) + 2 == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
+        else:
+            assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
+                    "Number of weights must be equal to number of mesh losses."
 
         self.loss_averaging = loss_averaging
         self.save_path = save_path
@@ -176,14 +190,20 @@ class Solver():
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
-        x, y, points, faces, normals = data
+        x, y, points, faces, normals, curvs = data
         if normals.nelement() == 0:
             # Only point reference
             mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
         else:
-            # Points and normals as reference
-            mesh_target = [(p.cuda(), n.cuda()) for p, n in
-                           zip(points.permute(1,0,2,3), normals.permute(1,0,2,3))]
+            # Points and normals and curvatures as reference. Loss calculation
+            # iterates over number of mesh classes (structures) --> change
+            # channel and batch dimension.
+            mesh_target = [
+                (p.cuda(), n.cuda(), c.cuda()) for p, n, c in
+                zip(points.permute(1,0,2,3),
+                normals.permute(1,0,2,3),
+                curvs.permute(1,0,2,3))
+            ]
 
         # Predict
         with autocast(self.mixed_precision):
@@ -278,11 +298,12 @@ class Solver():
         if self.optim_params.get('graph_lr', None) is not None:
             # Separate learning rates for voxel and graph network
             graph_lr = self.optim_params['graph_lr']
-            del self.optim_params['graph_lr']
+            optim_params_new = self.optim_params.copy()
+            del optim_params_new['graph_lr']
             self.optim = self.optim_class([
                 {'params': model.voxel_net.parameters()},
                 {'params': model.graph_net.parameters(), 'lr': graph_lr},
-            ], **self.optim_params)
+            ], **optim_params_new)
         else:
             if 'graph_lr' in self.optim_params:
                 del self.optim_params['graph_lr']
@@ -328,7 +349,9 @@ class Solver():
                 iteration += 1
 
             # Evaluate
-            if epoch % eval_every == 0 or epoch == n_epochs or epoch == 1:
+            if (epoch % eval_every == 0 or
+                epoch == n_epochs or
+                epoch == start_epoch):
                 model.eval()
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=5)
@@ -525,6 +548,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
                  eval_every=hps['EVAL_EVERY'],
                  start_epoch=start_epoch)
 
+    finish_wandb_run()
     trainLogger.info("Training finished.")
 
     return experiment_name
