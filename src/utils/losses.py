@@ -163,7 +163,7 @@ class ChamferLoss(MeshLoss):
             target_ = target
             if self.curv_weight_max is not None:
                 raise RuntimeError("Can only apply curvature weights if they"
-                                   " are provided in the target."
+                                   " are provided in the target.")
 
         if isinstance(target, pytorch3d.structures.Meshes):
             n_points = torch.min(target.num_verts_per_mesh())
