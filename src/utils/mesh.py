@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from trimesh import Trimesh
 from pytorch3d.structures import Meshes
+from pytorch3d.ops import cot_laplacian
 
 class Mesh():
     """ Custom meshes
@@ -284,3 +285,21 @@ def verts_faces_to_Meshes(verts, faces, ndim):
             meshes.append(Meshes(verts=list(v), faces=list(f)))
 
     return meshes
+
+def curv_from_cotcurv_laplacian(verts_packed, faces_packed):
+    """ Construct the cotangent curvature Laplacian as done in
+    pytorch3d.loss.mesh_laplacian_smoothing and use it for approximation of the
+    mean curvature at each vertex. See also
+    - Nealen et al. "Laplacian Mesh Optimization", 2006
+    """
+    # No backprop through the computation of the Laplacian (taken as a
+    # constant), similar to pytorch3d.loss.mesh_laplacian_smoothing
+    with torch.no_grad():
+        L, inv_areas = cot_laplacian(verts_packed, faces_packed)
+        L_sum = torch.sparse.sum(L, dim=1).to_dense().view(-1,1)
+        norm_w = 0.25 * inv_areas
+
+    return torch.norm(
+        (L.mm(verts_packed) - L_sum * verts_packed) * norm_w,
+        dim=1
+    )
