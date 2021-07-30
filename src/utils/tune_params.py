@@ -41,17 +41,24 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     hps['EXPERIMENT_NAME'] = experiment_name
 
     # Get a list of possible values for the parameter to tune
-    params_to_tune = hps['PARAMS_TO_TUNE']
+    fine_tune = hps['PARAMS_TO_FINE_TUNE'] is not None
+    if fine_tune:
+        params_to_tune = hps['PARAMS_TO_FINE_TUNE']
+    else:
+        params_to_tune = hps['PARAMS_TO_TUNE']
     for p in params_to_tune:
         if "." in p: # nested parameter
             plist = p.split(".")
             hps_sub = hps
             for p_ in plist[:-1]:
                 hps_sub = hps_sub[p_]
-            hps_sub[plist[-1]] = 'will be tuned'
+            if not fine_tune:
+                hps_sub[plist[-1]] = 'will be tuned'
         else: # not nested
-            hps[p] = 'will be tuned'
-    param_possibilities = get_all_possibilities(params_to_tune)
+            if not fine_tune:
+                hps[p] = 'will be tuned'
+
+    param_possibilities = get_all_possibilities(params_to_tune, hps, fine_tune)
 
     # Configure logging
     hps_to_write = string_dict(hps)
@@ -176,14 +183,19 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
 
     return experiment_name
 
-def get_all_possibilities(params_to_tune):
+def get_all_possibilities(params_to_tune, hps, fine_tune):
     """ Get a dict for each possible configuration containing the parameter
     names as keys and the values of the parameters as values."""
     possibilities_per_param = {}
     for p in params_to_tune:
-        if p not in possible_values:
-            raise RuntimeError(f"Parameter {p} unknown.")
-        param_possibilities = possible_values[p]()
+        if fine_tune:
+            if p not in possible_fine_tune_values:
+                raise RuntimeError(f"Parameter {p} unknown.")
+            param_possibilities = possible_fine_tune_values[p](hps[p])
+        else:
+            if p not in possible_values:
+                raise RuntimeError(f"Parameter {p} unknown.")
+            param_possibilities = possible_values[p]()
         param_possibilities.sort()
 
         possibilities_per_param[p] = param_possibilities
@@ -228,6 +240,29 @@ def get_mesh_loss_func_weights():
 
     return weights_list
 
+def get_mesh_loss_func_weights_fine(anchor_weights):
+    """ Generate mesh loss weights for a fine-tuning procedure, i.e., starting
+    from given anchor weights.
+    """
+    n_losses = len(anchor_weights)
+    possible_values_per_weight = {}
+    for i, w in enumerate(anchor_weights):
+        w_ = float(w)
+        # Keep chamfer and edge weight, tune all others
+        if i == 0 or i == len(anchor_weights) - 1:
+            possible_values_per_weight[f"w_{i}"] = [w]
+        else:
+            possible_values_per_weight[f"w_{i}"] = [
+                w_ + 0.5 * w_, w_, w_ - 0.5 * w_
+            ]
+
+    weights_dict = create_permutations_of_param_choices(
+        possible_values_per_weight
+    )
+    weights_list = [list(item.values()) for item in weights_dict]
+
+    return weights_list
+
 def get_voxel_loss_func_weights():
     n_losses = 1 # Should be equal to the number of losses used
     possible_values_per_weight = [1.0, 0.5, 0.1]
@@ -240,7 +275,7 @@ def create_permutations_of_param_choices(params_and_possibilities: dict):
     """ Create a dict for each permutation of parameters such that every
     possibility to combine params_and_possibilities is covered.
     """
-    k = list(params_and_possibilities)[0]
+    k = list(params_and_possibilities)[-1]
     if len(params_and_possibilities) == 1:
         v = params_and_possibilities[k]
         perm = [{k: v_i} for v_i in v]
@@ -275,4 +310,7 @@ possible_values = {
     'VOXEL_LOSS_FUNC_WEIGHTS': get_voxel_loss_func_weights,
     'OPTIM_PARAMS.lr': get_lrs,
     'OPTIM_PARAMS.graph_lr': get_lrs
+}
+possible_fine_tune_values = {
+    'MESH_LOSS_FUNC_WEIGHTS': get_mesh_loss_func_weights_fine,
 }

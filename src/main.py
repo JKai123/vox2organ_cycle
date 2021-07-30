@@ -232,6 +232,12 @@ def main(hps):
                            dest='params_to_tune',
                            nargs='+',
                            help="Specify the name of a parameter to tune.")
+    argparser.add_argument('--fine-tune',
+                           default=None,
+                           type=str,
+                           dest='params_to_fine_tune',
+                           nargs='+',
+                           help="Specify the name of a parameter to tune.")
     argparser.add_argument('--resume',
                            action='store_true',
                            help="Resume an existing, potentially unfinished"\
@@ -289,6 +295,12 @@ def main(hps):
     hps['OVERFIT'] = args.overfit
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
+    hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
+
+    if args.params_to_tune and args.params_to_fine_tune:
+        raise RuntimeError(
+            "Cannot tune and fine-tune parameters at the same time."
+        )
 
     if args.exp_name == "debug" and not args.overfit:
         # Overfit when debugging
@@ -309,7 +321,7 @@ def main(hps):
     if hps['OVERFIT']:
         hps = update_dict(hps, hyper_ps_overfit)
 
-    if args.params_to_tune is not None:
+    if args.params_to_tune or args.params_to_fine_tune:
         mode = ExecModes.TUNE
     else:
         if args.train and not args.test:
