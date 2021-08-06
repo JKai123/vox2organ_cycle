@@ -564,10 +564,10 @@ class Cortex(DatasetHandler):
         # Raw data
         img = self.images[index]
         voxel_label = self.voxel_labels[index]
-        target_points,\
-                target_faces,\
-                target_normals,\
-                target_curvs = self._get_mesh_target(index, mesh_target_type)
+        (target_points,
+         target_faces,
+         target_normals,
+         target_curvs) = self._get_mesh_target(index, mesh_target_type)
 
         # Potentially augment
         if self._augment and self.ndims == 3:
@@ -578,14 +578,20 @@ class Cortex(DatasetHandler):
             # Mesh coordinates --> image coordinates
             target_points = unnormalize_vertices_per_max_dim(
                 target_points.view(-1, 3), self.patch_size
-            )
+            ).view(self.n_m_classes, -1, 3)
             # Augment
-            img, voxel_label, target_points = self.augment_data(
-                img.numpy(), voxel_label.numpy(), target_points, target_normals
-            )
+            (img,
+             voxel_label,
+             target_points,
+             target_normals) = self.augment_data(
+                 img.numpy(),
+                 voxel_label.numpy(),
+                 target_points,
+                 target_normals
+             )
             # Image coordinates --> mesh coordinates
             target_points = normalize_vertices_per_max_dim(
-                target_points, self.patch_size
+                target_points.view(-1, 3), self.patch_size
             ).view(self.n_m_classes, -1, 3)
 
             img = torch.from_numpy(img)

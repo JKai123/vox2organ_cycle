@@ -157,7 +157,7 @@ def flip_img(img, label, coordinates=None, normals=None):
 
     Note: The coordinates need to be given in the image coordinate system.
     """
-    if coordinates and normals is None: # No mesh vertices
+    if coordinates is None and normals is None: # No mesh vertices
         if np.random.rand(1) > 0.5:
             img, label = np.flip(img, 0), np.flip(label, 0)
         if np.random.rand(1) > 0.5:
