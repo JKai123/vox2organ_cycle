@@ -112,8 +112,13 @@ class Cortex(DatasetHandler):
                 "Unknown mesh type"
 
         if structure_type == "cerebral_cortex":
-            seg_label_names = 'all' # all present labels are combined
-            mesh_label_names = ("rh_pial", "lh_pial")
+            if patch_mode=="single-patch":
+                seg_label_names = ("right_cerebral_cortex",)
+                mesh_label_names = ("rh_pial",)
+            elif patch_mode == "multi-patch":
+                raise NotImplementedError()
+            else: # not patch mode
+                raise NotImplementedError()
         elif structure_type == "white_matter":
             if patch_mode=="single-patch":
                 seg_label_names = ("right_white_matter",)
