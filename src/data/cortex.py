@@ -1018,10 +1018,9 @@ class Cortex(DatasetHandler):
         )
         py3d_mesh_aug = Meshes(coo_f, py3d_mesh.faces_padded())
         # Assert up to sign of direction
-        if not (
+        assert (
             torch.allclose(normals_f, py3d_mesh_aug.verts_normals_padded(),
                            atol=2e-03)
             or torch.allclose(-normals_f, py3d_mesh_aug.verts_normals_padded(),
                              atol=2e-03)
-        ):
-            breakpoint()
+        )
