@@ -141,15 +141,14 @@ class GraphDecoder(nn.Module):
         sphere_vertices, sphere_faces, _ = read_obj(sphere_path)
         sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
 
-        # Normalize template
-        if "icosahedron" in sphere_path or "icocircle" in sphere_path:
+        # Re-normalize single-sphere template, keep others unmodified
+        if "/spheres/" in sphere_path or "icocircle" in sphere_path:
             self.sphere_vertices = normalize_vertices_per_max_dim(
                 unnormalize_vertices(sphere_vertices.view(-1,self.ndims), patch_size),
                 patch_size
             ).view(sphere_vertices.shape)[None]
         else:
-            raise NotImplementedError("Normalization not implemented for"
-                                      " non-sphere templates.")
+            self.sphere_vertices = sphere_vertices[None]
 
         self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
 
