@@ -126,10 +126,10 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'cerebral_cortex',
+    'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "single-patch"
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
 
@@ -170,10 +170,12 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         else: # no patch mode
             hyper_ps_cortex['N_M_CLASSES'] = 2
             hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-                f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+                f"../supplementary_material/white_matter/cortex_white_matter_icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else: # 2D
         hyper_ps_cortex['N_M_CLASSES'] = 1
         hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
