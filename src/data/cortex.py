@@ -638,9 +638,10 @@ class Cortex(DatasetHandler):
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
             faces = self.mesh_labels[index].faces
+            mesh = self.mesh_labels[index].to_pytorch3d_Meshes()
             curvs = curv_from_cotcurv_laplacian(
-                points.view(-1, 3),
-                faces.view(-1, 3)
+                mesh.verts_packed(),
+                mesh.faces_packed()
             ).view(self.n_m_classes, -1, 1)
         else:
             raise ValueError("Invalid mesh target type.")

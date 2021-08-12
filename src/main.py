@@ -172,6 +172,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
             hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
             hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
