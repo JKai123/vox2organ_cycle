@@ -21,6 +21,7 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              structure_type=structure_type,
                              mesh_target_type='mesh',
                              n_ref_points_per_structure=10000, # irrelevant
+                             mesh_type='freesurfer',
                              patch_mode="no")
 print("Dataset created.")
 print("Creating template...")
