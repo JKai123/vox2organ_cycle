@@ -195,6 +195,9 @@ class Cortex(DatasetHandler):
         if self.provide_curvatures:
             assert self.__len__() == len(self.curvatures)
 
+        if self._augment:
+            self.check_augmentation_normals()
+
     def _prepare_data_2D(self):
         """ Load 2D data """
 
@@ -1003,3 +1006,22 @@ class Cortex(DatasetHandler):
     def augment_data(self, img, label, coordinates, normals):
         assert self._augment, "No augmentation in this dataset."
         return flip_img(img, label, coordinates, normals)
+
+    def check_augmentation_normals(self):
+        """ Assert correctness of the transformation of normals during
+        augmentation.
+        """
+        py3d_mesh = self.mesh_labels[0].to_pytorch3d_Meshes()
+        img_f, label_f, coo_f, normals_f = self.augment_data(
+            self.images[0].numpy(), self.voxel_labels[0].numpy(),
+            py3d_mesh.verts_padded(), py3d_mesh.verts_normals_padded()
+        )
+        py3d_mesh_aug = Meshes(coo_f, py3d_mesh.faces_padded())
+        # Assert up to sign of direction
+        if not (
+            torch.allclose(normals_f, py3d_mesh_aug.verts_normals_padded(),
+                           atol=2e-03)
+            or torch.allclose(-normals_f, py3d_mesh_aug.verts_normals_padded(),
+                             atol=2e-03)
+        ):
+            breakpoint()
