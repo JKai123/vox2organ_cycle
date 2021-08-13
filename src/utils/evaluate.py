@@ -86,8 +86,7 @@ class ModelEvaluator():
 
     def store_meshes(self, pred, data, filename, epoch, model_class,
                      show_all_steps=False, remove_previous=True):
-        """ Save predicted meshes and ground truth created with marching
-        cubes
+        """ Save predicted meshes and ground truth
         """
         # Remove previously stored files to avoid dumping storage
         if remove_previous:

@@ -129,7 +129,7 @@ hyper_ps_cortex = {
     'STRUCTURE_TYPE': 'white_matter',
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "no"
+    'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
 
@@ -225,7 +225,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'BATCH_SIZE': 6,
+    'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
 }

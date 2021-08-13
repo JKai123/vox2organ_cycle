@@ -248,7 +248,8 @@ class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
             y_normals=target_normals,
             x_curvatures=pred_curvs,
             y_curvatures=target_curvs,
-            point_weights=point_weights
+            point_weights=point_weights,
+            oriented_cosine_similarity=True
         )
 
         d_chamfer = losses[0]
@@ -309,7 +310,8 @@ class ChamferAndNormalsLoss(MeshLoss):
             target_points,
             x_normals=pred_normals,
             y_normals=target_normals,
-            point_weights=point_weights
+            point_weights=point_weights,
+            oriented_cosine_similarity=True
         )
         d_chamfer = losses[0]
         d_cosine = losses[1]

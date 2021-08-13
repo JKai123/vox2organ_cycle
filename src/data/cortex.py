@@ -915,7 +915,14 @@ class Cortex(DatasetHandler):
                 voxel_verts = (world2vox_affine @ coords).T[:,:-1]
                 # Add to structures of file
                 file_vertices.append(torch.from_numpy(voxel_verts))
-                file_faces.append(torch.from_numpy(mesh.faces))
+                # Keep normal convention if coordinates are mirrored an uneven
+                # number of times
+                if np.sum(np.sign(np.diag(world2vox_affine)) == -1) % 2 == 1:
+                    file_faces.append(
+                        torch.from_numpy(mesh.faces).flip(dims=[1])
+                    )
+                else: # no flips required
+                    file_faces.append(torch.from_numpy(mesh.faces))
 
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
