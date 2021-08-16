@@ -138,19 +138,32 @@ class GraphDecoder(nn.Module):
 
         # Template (batch size 1)
         sphere_path = mesh_template
-        sphere_vertices, sphere_faces, _ = read_obj(sphere_path)
-        sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
+        raw_sphere_vertices, raw_sphere_faces, _ = read_obj(sphere_path)
+        raw_sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
+        raw_sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
 
         # Re-normalize single-sphere template, keep others unmodified
         if "/spheres/" in sphere_path or "icocircle" in sphere_path:
+            # Image coords
+            self.sphere_vertices, self.sphere_faces = unnormalize_vertices(
+                raw_sphere_vertices.view(-1, self.ndims),
+                patch_size,
+                raw_sphere_faces.view(-1, self.ndims)
+            )
+            # Mesh coords
             self.sphere_vertices = normalize_vertices_per_max_dim(
-                unnormalize_vertices(sphere_vertices.view(-1,self.ndims), patch_size),
+                self.sphere_vertices,
                 patch_size
-            ).view(sphere_vertices.shape)[None]
-        else:
-            self.sphere_vertices = sphere_vertices[None]
+            ).view(raw_sphere_vertices.shape)[None]
 
-        self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
+        else:
+            self.sphere_vertices = raw_sphere_vertices
+            self.sphere_faces = raw_sphere_faces
+
+        self.sphere_vertices = self.sphere_vertices.view_as(
+            raw_sphere_vertices
+        )[None]
+        self.sphere_faces = self.sphere_faces.view_as(raw_sphere_faces)[None]
 
     @property
     def unpool_indices(self):
