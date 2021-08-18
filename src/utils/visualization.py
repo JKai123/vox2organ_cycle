@@ -172,7 +172,7 @@ def _get_labels_from_mesh(mesh_labels, patch_size):
     if not isinstance(mesh_labels, list):
         mesh_labels = [mesh_labels]
 
-    voxel_labels = []
+    label1, label2, label3 = [], [], []
     for ml in mesh_labels:
         mesh = trimesh.load(ml)
         vertices = torch.from_numpy(mesh.vertices)
@@ -182,9 +182,12 @@ def _get_labels_from_mesh(mesh_labels, patch_size):
         if vertices.mean() > 2:
             vertices = normalize_vertices_per_max_dim(vertices, patch_size)
 
-        voxel_labels.append(voxelize_mesh(vertices, faces, patch_size, 1))
+        voxelized = voxelize_mesh(vertices, faces, patch_size, 1).cpu().numpy()
+        label1.append(voxelized[int(patch_size[0]/2), :, :])
+        label2.append(voxelized[:, int(patch_size[1]/2), :])
+        label3.append(voxelized[:, :, int(patch_size[2]/2)])
 
-    return voxel_labels
+    return [label1, label2, label3]
 
 def _get_labels_cortex(filename):
     """ Get label slices for all three axes. """
