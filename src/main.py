@@ -69,7 +69,6 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.01, 0.1, 0.001, 5.0], # Tuned on hemisphere (exp_443/exp_451)
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
@@ -135,6 +134,7 @@ hyper_ps_cortex = {
 
 ###### White matter ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.01, 0.1, 0.001, 5.0], # Tuned on hemisphere (exp_443/exp_451)
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             ## Large
@@ -187,6 +187,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
 
 ####### Cerebral cortex ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.05, 0.5, 0.001, 5.0], # Tuned on hemisphere (exp_482)
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
