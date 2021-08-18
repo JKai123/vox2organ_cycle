@@ -7,7 +7,6 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import random
 import logging
-from enum import IntEnum
 from copy import deepcopy
 
 import torch
@@ -45,23 +44,7 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
-
-class CortexLabels(IntEnum):
-    right_white_matter = 41
-    left_white_matter = 2
-    left_cerebral_cortex = 3
-    right_cerebral_cortex = 42
-
-def combine_labels(labels, names):
-    """ Only consider labels in 'names' and set all those labels equally to 1
-    """
-    ids = [CortexLabels[n].value for n in names]
-    combined_labels = np.isin(labels, ids).astype(int)
-
-    if isinstance(labels, torch.Tensor):
-        combined_labels = torch.from_numpy(combined_labels)
-
-    return combined_labels
+from data.cortex_labels import combine_labels
 
 class Cortex(DatasetHandler):
     """ Cortex dataset

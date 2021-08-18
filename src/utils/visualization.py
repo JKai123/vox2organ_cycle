@@ -6,9 +6,15 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 from typing import Union
 
-# import open3d as o3d # leads to double logging, uncomment if needed
+import numpy as np
+import open3d as o3d
 import nibabel as nib
 import matplotlib.pyplot as plt
+
+from pyntcloud import PyntCloud
+from skimage.measure import find_contours
+
+from data.cortex_labels import combine_labels
 
 def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     """
@@ -97,7 +103,8 @@ def show_pointcloud_pyvista(filename: str):
     plotter.add_mesh(cloud)
     plotter.show()
 
-def show_img_slices_3D(filenames: str, show_label=True):
+def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
+                       label_mode='contour'):
     """
     Show three centered slices of a 3D image
 
@@ -121,9 +128,12 @@ def show_img_slices_3D(filenames: str, show_label=True):
         assert img3D.ndim == 3, "Image dimension not equal to 3."
 
         # Try to find ground truth
-        base_dir = '/'.join(fn.split('/')[:-2]) # Dataset base directory
-        img_id = fn.split('/')[-1].split('.')[0] # Name of image without type
-        label_name = find_label_to_img(base_dir, img_id)
+        if dataset == "Hippocampus":
+            labels = _get_labels_hippocampus(fn)
+        elif dataset == "Cortex":
+            labels = _get_labels_cortex(fn)
+        else:
+            raise ValueError(f"Unknown dataset {dataset}")
 
         img1 = img3D.get_fdata() # get np.ndarray
         img1 = img1[int(img3D.shape[0]/2), :, :]
@@ -132,29 +142,96 @@ def show_img_slices_3D(filenames: str, show_label=True):
         img3 = img3D.get_fdata() # get np.ndarray
         img3 = img3[:, :, int(img3D.shape[2]/2)]
 
-        if label_name is not None and show_label:
+        if labels is not None and show_label:
             # Read and show ground truth
-            label3D = nib.load(label_name)
-
-            label1 = label3D.get_fdata() # get np.ndarray
-            label1 = label1[int(label3D.shape[0]/2), :, :]
-            label2 = label3D.get_fdata() # get np.ndarray
-            label2 = label2[:, int(label3D.shape[1]/2), :]
-            label3 = label3D.get_fdata() # get np.ndarray
-            label3 = label3[:, :, int(label3D.shape[2]/2)]
-
-            show_slices([img1, img2, img3], labels=[label1, label2, label3])
+            show_slices([img1, img2, img3], labels=labels,
+                        label_mode=label_mode)
 
         else:
-            show_slices([img1, img2, img3])
+            show_slices([img1, img2, img3], label_mode=label_mode)
 
-def show_slices(slices, labels=None, save_path=None):
+def _get_labels_cortex(filename):
+    """ Get label slices for all three axes. """
+    sample_dir = "/".join(filename.split("/")[:-1])
+    label_name = os.path.join(sample_dir, "aseg.nii.gz")
+    try:
+        label3D = nib.load(label_name)
+    except FileNotFoundError:
+        print("[Warning] Label " + label_name + " could not be found.")
+        return None
+
+    label1_pial = label3D.get_fdata() # get np.ndarray
+    label1_pial = combine_labels(
+        label1_pial, ('right_cerebral_cortex', 'left_cerebral_cortex')
+    )
+    label1_pial = label1_pial[int(label3D.shape[0]/2), :, :]
+
+    label1_white = label3D.get_fdata() # get np.ndarray
+    label1_white = combine_labels(
+        label1_white, ('right_white_matter', 'left_white_matter')
+    )
+    label1_white = label1_white[int(label3D.shape[0]/2), :, :]
+
+    label2_pial = label3D.get_fdata() # get np.ndarray
+    label2_pial = combine_labels(
+        label2_pial, ('right_cerebral_cortex', 'left_cerebral_cortex')
+    )
+    label2_pial = label2_pial[:, int(label3D.shape[1]/2), :]
+
+    label2_white = label3D.get_fdata() # get np.ndarray
+    label2_white = combine_labels(
+        label2_white, ('right_white_matter', 'left_white_matter')
+    )
+    label2_white = label2_white[:, int(label3D.shape[1]/2), :]
+
+    label3_pial = label3D.get_fdata() # get np.ndarray
+    label3_pial = combine_labels(
+        label3_pial, ('right_cerebral_cortex', 'left_cerebral_cortex')
+    )
+    label3_pial = label3_pial[:, :, int(label3D.shape[2]/2)]
+
+    label3_white = label3D.get_fdata() # get np.ndarray
+    label3_white = combine_labels(
+        label3_white, ('right_white_matter', 'left_white_matter')
+    )
+    label3_white = label3_white[:, :, int(label3D.shape[2]/2)]
+
+    return [[label1_pial, label1_white],
+            [label2_pial, label2_white],
+            [label3_pial, label3_white]]
+
+def _get_labels_hippocampus(filename):
+    """ Get label slices for all three axes. """
+    base_dir = '/'.join(filename.split('/')[:-2]) # Dataset base directory
+    img_id = filename.split('/')[-1].split('.')[0] # Name of image without type
+    label_name = find_label_to_img(base_dir, img_id)
+
+    try:
+        label3D = nib.load(label_name)
+    except FileNotFoundError:
+        print("[Warning] Label " + label_name + " could not be found.")
+        return None
+
+    label1 = label3D.get_fdata() # get np.ndarray
+    label1 = label1[int(label3D.shape[0]/2), :, :]
+    label2 = label3D.get_fdata() # get np.ndarray
+    label2 = label2[:, int(label3D.shape[1]/2), :]
+    label3 = label3D.get_fdata() # get np.ndarray
+    label3 = label3[:, :, int(label3D.shape[2]/2)]
+
+    return [[label1], [label2], [label3]]
+
+
+def show_slices(slices, labels=None, save_path=None, label_mode='contour'):
     """
     Visualize image slices in a row.
 
     :param array-like slices: The image slices to visualize.
     :param array-like labels (optional): The image segmentation label slices.
     """
+
+    assert label_mode in ('contour', 'fill')
+    colors = ('blue', 'green')
 
     _, axs = plt.subplots(1, len(slices))
     if len(slices) == 1:
@@ -165,7 +242,19 @@ def show_slices(slices, labels=None, save_path=None):
 
     if labels is not None:
         for i, l in enumerate(labels):
-            axs[i].imshow(l, cmap="OrRd", alpha=0.3)
+            if not isinstance(l, list):
+                l_ = [l]
+            else:
+                l_ = l
+
+            for ll, col in zip(l_, colors):
+                if label_mode == 'fill':
+                    axs[i].imshow(ll, cmap="OrRd", alpha=0.3)
+                else:
+                    contours = find_contours(ll, np.max(ll)/2)
+                    for c in contours:
+                        axs[i].plot(c[:, 1], c[:, 0], linewidth=0.5,
+                                    color=col)
 
     plt.suptitle("Image Slices")
     if save_path is None:
