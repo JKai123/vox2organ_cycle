@@ -7,7 +7,7 @@ import os
 from typing import Union
 
 import numpy as np
-import open3d as o3d
+# import open3d as o3d # Leads to double logging, uncomment if needed
 import nibabel as nib
 import matplotlib.pyplot as plt
 import trimesh
