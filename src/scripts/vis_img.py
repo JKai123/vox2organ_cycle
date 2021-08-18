@@ -29,6 +29,19 @@ def vis_img3D():
                         default="Cortex",
                         type=str,
                         help="Either 'Cortex' or 'Hippocampus'")
+    parser.add_argument('--labels_from_mesh',
+                        dest='labels_from_mesh',
+                        type=str,
+                        nargs='+',
+                        default=None,
+                        help="Use a voxelized mesh (given its path) as label"
+                        " in the image visualization. If not specified, it is"
+                        " searched for segmentation labels of nifity format.")
+    parser.add_argument('--output',
+                        dest='output_file',
+                        type=str,
+                        default=None,
+                        help="Store the output in a file.")
 
     args = parser.parse_args()
     if os.path.isdir(args.filenames[0]):
@@ -36,7 +49,7 @@ def vis_img3D():
     else:
         filenames = args.filenames
     show_img_slices_3D(filenames, args.show_label, args.dataset,
-                       args.label_mode)
+                       args.label_mode, args.labels_from_mesh, args.output_file)
 
 if __name__ == "__main__":
     vis_img3D()

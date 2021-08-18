@@ -10,11 +10,14 @@ import numpy as np
 import open3d as o3d
 import nibabel as nib
 import matplotlib.pyplot as plt
+import trimesh
+import torch
 
 from pyntcloud import PyntCloud
 from skimage.measure import find_contours
 
 from data.cortex_labels import combine_labels
+from utils.coordinate_transform import normalize_vertices_per_max_dim
 
 def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     """
@@ -104,13 +107,18 @@ def show_pointcloud_pyvista(filename: str):
     plotter.show()
 
 def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
-                       label_mode='contour'):
+                       label_mode='contour', labels_from_mesh: str=None, 
+                       output_file=None):
     """
     Show three centered slices of a 3D image
 
     :param str filenames: A list of files or a directory name.
     :param bool show_label: Try to find label corresponding to image and show
     image and label together if possible.
+    :param dataset: Either 'Hippocampus' or 'Cortex'
+    :param label_mode: Either 'contour' or 'fill'
+    :param labels_from_mesh: Path to a mesh that is used as mesh label then.
+    :param output_dir: Optionally specify an output file.
     """
 
     if isinstance(filenames, str):
@@ -127,14 +135,6 @@ def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
         print(f"Loading image {fn}...")
         assert img3D.ndim == 3, "Image dimension not equal to 3."
 
-        # Try to find ground truth
-        if dataset == "Hippocampus":
-            labels = _get_labels_hippocampus(fn)
-        elif dataset == "Cortex":
-            labels = _get_labels_cortex(fn)
-        else:
-            raise ValueError(f"Unknown dataset {dataset}")
-
         img1 = img3D.get_fdata() # get np.ndarray
         img1 = img1[int(img3D.shape[0]/2), :, :]
         img2 = img3D.get_fdata() # get np.ndarray
@@ -142,13 +142,49 @@ def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
         img3 = img3D.get_fdata() # get np.ndarray
         img3 = img3[:, :, int(img3D.shape[2]/2)]
 
+        # Try to find ground truth
+        if labels_from_mesh is None:
+            if dataset == "Hippocampus":
+                labels = _get_labels_hippocampus(fn)
+            elif dataset == "Cortex":
+                labels = _get_labels_cortex(fn)
+            else:
+                raise ValueError(f"Unknown dataset {dataset}")
+        else:
+            labels = _get_labels_from_mesh(
+                labels_from_mesh, patch_size=img3D.get_fdata().shape
+            )
+
         if labels is not None and show_label:
             # Read and show ground truth
             show_slices([img1, img2, img3], labels=labels,
-                        label_mode=label_mode)
+                        label_mode=label_mode, save_path=output_file)
 
         else:
-            show_slices([img1, img2, img3], label_mode=label_mode)
+            show_slices([img1, img2, img3], save_path=output_file)
+
+def _get_labels_from_mesh(mesh_labels, patch_size):
+    """ Generate voxel labels from mesh prediction(s)."""
+
+    # Mesh processing requires pytorch3d
+    from utils.utils import voxelize_mesh
+
+    if not isinstance(mesh_labels, list):
+        mesh_labels = [mesh_labels]
+
+    voxel_labels = []
+    for ml in mesh_labels:
+        mesh = trimesh.load(ml)
+        vertices = torch.from_numpy(mesh.vertices)
+        faces = torch.from_numpy(mesh.faces)
+        # Potentially normalize: if the mean of all vertex coordinates is > 2,
+        # it is assumed that the coordinates are not normalized
+        if vertices.mean() > 2:
+            vertices = normalize_vertices_per_max_dim(vertices, patch_size)
+
+        voxel_labels.append(voxelize_mesh(vertices, faces, patch_size, 1))
+
+    return voxel_labels
 
 def _get_labels_cortex(filename):
     """ Get label slices for all three axes. """
