@@ -8,6 +8,7 @@ import logging
 import glob
 
 import numpy as np
+import nibabel as nib
 import torch
 from tqdm import tqdm
 
@@ -102,6 +103,13 @@ class ModelEvaluator():
                         print("Error while deleting file ", f)
         # Data
         img = data[0].squeeze()
+        if img.ndim == 3:
+            img_filename = filename + "_mri.nii.gz"
+            img_filename = os.path.join(self._mesh_dir, img_filename)
+            if not os.path.isfile(img_filename):
+                nib_img = nib.Nifti1Image(img.cpu().numpy(), np.eye(4))
+                nib.save(nib_img, img_filename)
+
         # Label
         gt_mesh = data[2]
         ndims = gt_mesh.ndims

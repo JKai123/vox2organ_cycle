@@ -23,6 +23,7 @@ def vis_img3D():
     parser.add_argument('--label',
                         dest='label_mode',
                         type=str,
+                        default='contour',
                         help="Either 'contour' or 'fill'.")
     parser.add_argument('--dataset',
                         dest='dataset',
