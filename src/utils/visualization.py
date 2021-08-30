@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 from typing import Union
+from collections.abc import Sequence
 
 import numpy as np
 # import open3d as o3d # Leads to double logging, uncomment if needed
@@ -169,14 +170,15 @@ def _get_labels_from_mesh(mesh_labels, patch_size):
     # Mesh processing requires pytorch3d
     from utils.utils import voxelize_mesh
 
-    if not isinstance(mesh_labels, list):
+    if not isinstance(mesh_labels, Sequence):
         mesh_labels = [mesh_labels]
 
     label1, label2, label3 = [], [], []
     for ml in mesh_labels:
+        # trimesh.load does not distinguish structures in mesh
         mesh = trimesh.load(ml)
-        vertices = torch.from_numpy(mesh.vertices)
-        faces = torch.from_numpy(mesh.faces)
+        vertices = torch.from_numpy(mesh.vertices) # Vx3
+        faces = torch.from_numpy(mesh.faces) # Fx3
         # Potentially normalize: if the mean of all vertex coordinates is > 2,
         # it is assumed that the coordinates are not normalized
         if vertices.mean() > 2:
@@ -281,7 +283,7 @@ def show_slices(slices, labels=None, save_path=None, label_mode='contour'):
 
     if labels is not None:
         for i, l in enumerate(labels):
-            if not isinstance(l, list):
+            if not isinstance(l, Sequence):
                 l_ = [l]
             else:
                 l_ = l

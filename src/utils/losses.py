@@ -7,7 +7,6 @@ and/or instances of meshes.
         - S: number of instances, e.g. steps/positions where the loss is computed in
         the model
         - C: number of channels (= number of classes usually)
-        architecture
         - V: number of vertices
         - F: number of faces
 """
@@ -17,6 +16,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from abc import ABC, abstractmethod
 from typing import Union
+from collections.abc import Sequence
 
 import torch
 import pytorch3d.structures
@@ -76,13 +76,14 @@ def meshes_to_vertex_normals_2D_packed(meshes: Meshes):
 class MeshLoss(ABC):
     def __str__(self):
         return self.__class__.__name__ + "()"
-    def __call__(self, pred_meshes, target):
+    def __call__(self, pred_meshes, target, weights=None):
         """ Mesh loss calculation
 
         :param pred_meshes: A multidimensional array of predicted meshes of shape
         (S, C), each of type pytorch3d.structures.Meshes
         :param target: A multidimensional array of target points of shape (C)
         i.e. one tensor per class
+        :param weights: Losses are weighed per class.
         :return: The calculated loss.
         """
         if isinstance(self, ChamferAndNormalsLoss):
@@ -95,9 +96,15 @@ class MeshLoss(ABC):
         S = len(pred_meshes)
         C = len(pred_meshes[0])
 
+        if weights is not None:
+            if len(weights) != C:
+                raise ValueError("Weights should be specified per class.")
+        else: # no per-class-weights provided
+            weights = torch.tensor([1.0] * C).float().cuda()
+
         for s in range(S):
-            for c in range(C):
-                mesh_loss += self.get_loss(pred_meshes[s][c], target[c])
+            for c, w in zip(range(C), weights):
+                mesh_loss += self.get_loss(pred_meshes[s][c], target[c]) * w
 
         return mesh_loss
 
@@ -128,17 +135,18 @@ class WassersteinLoss(MeshLoss):
             target_ = target.points_padded()
         if isinstance(target, pytorch3d.structures.Meshes):
             target_ = target.verts_padded()
-        if isinstance(target, (tuple, list)):
+        if isinstance(target, Sequence):
             # target = (verts, normals)
             target_ = target[0] # Only vertices relevant
         # Select an equal number of points
         assert pred_.ndim == 3 and target_.ndim == 3
         if pred_.shape[1] < target_.shape[1]:
             n_points = pred_.shape[1]
-            target_ = choose_n_random_points(target_, n_points)
+            target_ = choose_n_random_points(target_, n_points,
+                                             ignore_padded=True)
         elif target_.shape[1] < pred_.shape[1]:
             n_points = target_.shape[1]
-            pred_ = choose_n_random_points(pred_, n_points)
+            pred_ = choose_n_random_points(pred_, n_points, ignore_padded=True)
 
         w_loss = torch.tensor(0.0, requires_grad=True).cuda()
         for p, t in zip(pred_, target_):
@@ -177,7 +185,7 @@ class ChamferLoss(MeshLoss):
                 raise RuntimeError("Cannot apply curvature weights for"
                                    " targets of type 'Meshes'.")
 
-        if isinstance(target, (tuple, list)):
+        if isinstance(target, Sequence):
             # target = (verts, normals, curvatures)
             target_ = target[0] # Only vertices relevant
             assert target_.ndim == 3 # padded
@@ -400,43 +408,77 @@ def geometric_loss_combine(losses, weights):
 
     return loss_total
 
+def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
+                            mesh_target, weights, names):
+    """ Add a multi-loss (i.e. a loss that returns multiple values like
+    ChamferAndNormalsLoss) to the loss_dict.
+    """
+    # All weights a Sequence or none of them
+    assert (all(map(lambda x: isinstance(x, Sequence), weights))
+            or
+            not any(map(lambda x: isinstance(x, Sequence), weights)))
+    # Same length of weights and names
+    assert len(weights) == len(names)
+    # Either per-class weight or single weight for all classes
+    if isinstance(weights[0], Sequence):
+        # Reorder weights by exchanging class and loss function dimension
+        weights = torch.tensor(weights).cuda().T
+        # Weights processed by loss function
+        ml = loss_func(mesh_pred, mesh_target, weights)
+        for i, n in enumerate(names):
+            loss_dict[n] = ml[i]
+    else:
+        ml = loss_func(mesh_pred, mesh_target)
+        # Weights multiplied here
+        for i, (n, w) in enumerate(zip(names, weights)):
+            loss_dict[n] = ml[i] * w
+
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
                             mesh_pred, mesh_target):
-    """ Linear combination of all losses. """
+    """ Linear combination of all losses. In contrast to geometric averaging,
+    this also allows for per-class mesh loss weights. """
     losses = {}
     # Voxel losses
     if voxel_pred is not None:
-        if not isinstance(voxel_pred, list):
-            # If deep supervision is used, voxel predicition is a list. Therefore,
+        if not isinstance(voxel_pred, Sequence):
+            # If deep supervision is used, voxel prediction is a list. Therefore,
             # non-list predictions are made compatible
             voxel_pred = [voxel_pred]
-        for lf in voxel_loss_func:
+        for lf, w in zip(voxel_loss_func, voxel_loss_func_weights):
             losses[str(lf)] = 0.0
             for vp in voxel_pred:
-                losses[str(lf)] += lf(vp, voxel_target)
+                losses[str(lf)] += lf(vp, voxel_target) * w
+
     # Mesh losses
+    mesh_loss_weights_iter = iter(mesh_loss_func_weights)
     for lf in mesh_loss_func:
-        ml = lf(mesh_pred, mesh_target)
+        weight = next(mesh_loss_weights_iter)
         if isinstance(lf, ChamferAndNormalsLoss):
-            assert len(ml) == 2
-            losses['ChamferLoss()'] = ml[0]
-            losses['CosineLoss()'] = ml[1]
+            w1 = weight
+            w2 = next(mesh_loss_weights_iter)
+            _add_MultiLoss_to_dict(
+                losses, lf, mesh_pred, mesh_target, (w1, w2),
+                ("ChamferLoss()", "CosineLoss()")
+            )
         elif isinstance(lf, ChamferAndNormalsAndCurvatureLoss):
-            assert len(ml) == 3
-            losses['ChamferLoss()'] = ml[0]
-            losses['CosineLoss()'] = ml[1]
-            losses['CurvatureLoss()'] = ml[2]
-        else:
-            losses[str(lf)] = ml
+            w1 = weight
+            w2 = next(mesh_loss_weights_iter)
+            w3 = next(mesh_loss_weights_iter)
+            _add_MultiLoss_to_dict(
+                losses, lf, mesh_pred, mesh_target, (w1, w2, w3),
+                ("ChamferLoss()", "CosineLoss()", "CurvatureLoss()")
+            )
+        else: # add single loss to dict
+            if isinstance(weight, Sequence):
+                ml = lf(mesh_pred, mesh_target, weight)
+                losses[str(lf)] = ml
+            else:
+                ml = lf(mesh_pred, mesh_target)
+                losses[str(lf)] = ml * weight
 
-    # Merge loss weights into one list
-    combined_loss_weights = voxel_loss_func_weights +\
-            mesh_loss_func_weights
-
-    loss_total = linear_loss_combine(losses.values(),
-                                     combined_loss_weights)
+    loss_total = sum(losses.values())
 
     return losses, loss_total
 
@@ -448,10 +490,13 @@ def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_we
     at each step and linear combination of steps and voxel and mesh losses.
     Reference: Kong et al. 2021 """
 
+    if any(map(lambda x: isinstance(x, Sequence), mesh_loss_func_weights)):
+        raise ValueError("Per-class-weights not supported.")
+
     # Voxel losses
     voxel_losses = {}
     if voxel_pred is not None:
-        if not isinstance(voxel_pred, list):
+        if not isinstance(voxel_pred, Sequence):
             # If deep supervision is used, voxel predicition is a list. Therefore,
             # non-list predictions are made compatible
             voxel_pred = [voxel_pred]
