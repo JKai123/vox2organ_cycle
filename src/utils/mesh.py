@@ -64,28 +64,13 @@ class Mesh():
         assert type(self.vertices) == type(self.faces)
         if isinstance(self.vertices, torch.Tensor):
             if self.vertices.ndim == 3:
-                # padded --> packed representation
-                # Use process=True to remove padded vertices (padded vertices
-                # can lead to problems with some trimesh functions).
-                # On the other hand, this may also remove unoccupied vertices
-                # leading to invalid faces. In the latter case, process=False
-                # should be used.
-                if process:
-                    valid_ids = [np.unique(f) for f in self.faces.cpu()]
-                    valid_ids = [i[i != -1] for i in valid_ids]
-
-                    vertices_ = [v[valid_ids[i]] for i, v in
-                                   enumerate(self.vertices.cpu())]
-                    faces_ = [f for f in self.faces.cpu()]
-                else:
-                    vertices_ = self.vertices
-                    faces_ = self.faces
-                m = Meshes(vertices_, faces_)
+                m = Meshes(self.vertices, self.faces)
                 faces = m.faces_packed().cpu().numpy()
                 vertices = m.verts_packed().cpu().numpy()
-            else:
+            else: # Vx3, Fx3
                 vertices = self.vertices.cpu().numpy()
-                faces = self.faces.cpu().numpy()
+                # Remove padded faces
+                faces = self.faces[(self.faces != -1).any(dim=1)].cpu().numpy()
         else:
             # numpy
             vertices = self.vertices

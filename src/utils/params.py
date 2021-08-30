@@ -175,6 +175,14 @@ hyper_ps_default={
         'P_DROPOUT': None,
         # The used patch size, should be equal to global patch size
         'PATCH_SIZE': [64, 64, 64],
+        # The ids of structures that should be grouped in the graph net.
+        # Example: if lh_white and rh_white have ids 0 and 1 and lh_pial and
+        # rh_pial have ids 2 and 3, then the groups should be specified as
+        # ((0,1),(2,3))
+        'GROUP_STRUCTS': None,
+        # The number of neighbors considered for feature aggregation from
+        # vertices of different structures in the graph net
+        'K_STRUCT_NEIGHBORS': 5,
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]]
     },

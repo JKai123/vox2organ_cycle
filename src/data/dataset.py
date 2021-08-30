@@ -157,7 +157,7 @@ def flip_img(img, label, coordinates=None, normals=None):
 
     Note: The coordinates need to be given in the image coordinate system.
     """
-    if coordinates and normals is None: # No mesh vertices
+    if coordinates is None and normals is None: # No mesh vertices
         if np.random.rand(1) > 0.5:
             img, label = np.flip(img, 0), np.flip(label, 0)
         if np.random.rand(1) > 0.5:
@@ -309,7 +309,7 @@ class DatasetHandler(torch.utils.data.Dataset):
             faces = faces.view(self.n_m_classes, -1, 3)
             voxelized_mesh = voxelize_mesh(
                 vertices, faces, shape, self.n_m_classes
-            ).cuda()
+            ).cuda().sum(0).bool().long() # Treat as one class
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 

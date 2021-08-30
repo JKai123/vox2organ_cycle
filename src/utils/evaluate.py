@@ -6,8 +6,10 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import logging
 import glob
+from collections.abc import Sequence
 
 import numpy as np
+import nibabel as nib
 import torch
 from tqdm import tqdm
 
@@ -24,6 +26,27 @@ from utils.logging import (
     write_img_if_debug
 )
 from utils.visualization import show_slices, show_img_with_contour
+
+def add_to_results_(result_dict, metric_name, result):
+    """ Helper function to add evaluation results to the result dict."""
+    # Extract atomic results
+    if isinstance(result, Sequence):
+        if len(result) == 1:
+            result = result[0]
+
+    # Add to dict
+    if metric_name not in result_dict:
+        result_dict[metric_name] = []
+    if not isinstance(result, Sequence): # Atomic result
+        result_dict[metric_name].append(result)
+    else: # Per-structure result
+        result_dict[metric_name] = np.mean(result)
+        for i, res in enumerate(result):
+            name = metric_name + f"_Struc{i}"
+            if name not in result_dict:
+                result_dict[name] = []
+            result_dict[name].append(res)
+
 
 class ModelEvaluator():
     """ Class for evaluation of models.
@@ -51,8 +74,6 @@ class ModelEvaluator():
     def evaluate(self, model, epoch, save_meshes=5, remove_previous_meshes=True):
         results_all = {}
         model_class = model.__class__
-        for m in self._eval_metrics:
-            results_all[m] = []
 
         # Iterate over data split
         for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
@@ -69,7 +90,7 @@ class ModelEvaluator():
                                                 self._n_v_classes,
                                                 self._n_m_classes,
                                                 model_class)
-                results_all[metric].append(res)
+                add_to_results_(results_all, metric, res)
 
             if i < save_meshes: # Store meshes for visual inspection
                 filename =\
@@ -86,8 +107,7 @@ class ModelEvaluator():
 
     def store_meshes(self, pred, data, filename, epoch, model_class,
                      show_all_steps=False, remove_previous=True):
-        """ Save predicted meshes and ground truth created with marching
-        cubes
+        """ Save predicted meshes and ground truth
         """
         # Remove previously stored files to avoid dumping storage
         if remove_previous:
@@ -103,6 +123,13 @@ class ModelEvaluator():
                         print("Error while deleting file ", f)
         # Data
         img = data[0].squeeze()
+        if img.ndim == 3:
+            img_filename = filename + "_mri.nii.gz"
+            img_filename = os.path.join(self._mesh_dir, img_filename)
+            if not os.path.isfile(img_filename):
+                nib_img = nib.Nifti1Image(img.cpu().numpy(), np.eye(4))
+                nib.save(nib_img, img_filename)
+
         # Label
         gt_mesh = data[2]
         ndims = gt_mesh.ndims

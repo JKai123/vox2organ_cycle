@@ -6,6 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from typing import Union, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.cuda.amp import autocast
@@ -19,6 +20,7 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
     zero_weight_init
 )
 from utils.utils_voxel2meshplusplus.feature_aggregation import (
+    aggregate_structural_features,
     aggregate_from_indices
 )
 from utils.file_handle import read_obj
@@ -47,6 +49,8 @@ class GraphDecoder(nn.Module):
                  propagate_coords: bool,
                  patch_size: Tuple[int, int, int],
                  aggregate_indices: Tuple[Tuple[int]],
+                 group_structs: Tuple[Tuple[int]]=None,
+                 k_struct_neighbors=5,
                  ndims: int=3,
                  aggregate: str='trilinear',
                  n_residual_blocks: int=3,
@@ -74,6 +78,8 @@ class GraphDecoder(nn.Module):
         self.GC = GC
         self.patch_size = patch_size
         self.ndims = ndims
+        self.group_structs = group_structs
+        self.k_struct_neighbors = k_struct_neighbors
 
         # Aggregation of voxel features
         self.aggregate = aggregate
@@ -95,6 +101,12 @@ class GraphDecoder(nn.Module):
             add_n = ndims
         else:
             add_n = 0
+
+        # Additional structural information added
+        if group_structs:
+            # Neighbor coordinates + pos. encoding
+            add_n += k_struct_neighbors * ndims +\
+                    int(np.ceil(np.log2(len(group_structs))))
 
         for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
@@ -138,20 +150,42 @@ class GraphDecoder(nn.Module):
 
         # Template (batch size 1)
         sphere_path = mesh_template
-        sphere_vertices, sphere_faces, _ = read_obj(sphere_path)
-        sphere_vertices = torch.from_numpy(sphere_vertices).cuda().float()
+        raw_sphere_vertices, raw_sphere_faces, _ = read_obj(sphere_path)
+        raw_sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
+        raw_sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
 
-        # Normalize template
-        if "icosahedron" in sphere_path or "icocircle" in sphere_path:
+        # Re-normalize single-sphere template, keep others unmodified
+        if "/spheres/" in sphere_path or "icocircle" in sphere_path:
+            # Image coords
+            self.sphere_vertices, self.sphere_faces = unnormalize_vertices(
+                raw_sphere_vertices.view(-1, self.ndims),
+                patch_size,
+                raw_sphere_faces.view(-1, self.ndims)
+            )
+            # Mesh coords
             self.sphere_vertices = normalize_vertices_per_max_dim(
-                unnormalize_vertices(sphere_vertices.view(-1,self.ndims), patch_size),
+                self.sphere_vertices,
                 patch_size
-            ).view(sphere_vertices.shape)[None]
-        else:
-            raise NotImplementedError("Normalization not implemented for"
-                                      " non-sphere templates.")
+            ).view(raw_sphere_vertices.shape)[None]
 
-        self.sphere_faces = torch.from_numpy(sphere_faces).cuda().long()[None]
+        else:
+            self.sphere_vertices = raw_sphere_vertices
+            self.sphere_faces = raw_sphere_faces
+
+        self.sphere_vertices = self.sphere_vertices.view_as(
+            raw_sphere_vertices
+        )[None]
+        self.sphere_faces = self.sphere_faces.view_as(raw_sphere_faces)[None]
+
+        # Assert correctness of the structure grouping
+        if group_structs:
+            n_m_classes = raw_sphere_vertices.shape[0]
+            gs_tensor = torch.tensor(group_structs)
+            gs_unique = set(torch.unique(gs_tensor).tolist())
+            assert len(set(range(n_m_classes)) - gs_unique) == 0,\
+                    "Missing structure IDs in structure groups."
+            assert torch.bincount(gs_tensor.flatten()).max() == 1,\
+                    "Structure IDs must only occur once."
 
     @property
     def unpool_indices(self):
@@ -252,9 +286,26 @@ class GraphDecoder(nn.Module):
                         mode=self.aggregate
                     ).view(batch_size, M, V_new, -1)
 
-                latent_features_padded = torch.cat(
-                    (latent_features_padded, skipped_features), dim=3
-                )
+                # Latent features related to structural information (ID of
+                # structure, geometry of nearby structure)
+                if self.group_structs:
+                    struct_features = aggregate_structural_features(
+                        vertices_padded,
+                        self.group_structs,
+                        self.k_struct_neighbors
+                    )
+                    # Concatenate along feature dimension
+                    latent_features_padded = torch.cat(
+                        (latent_features_padded,
+                         skipped_features,
+                         struct_features),
+                        dim=3
+                    )
+                else: # No struct features
+                    # Concatenate along feature dimension
+                    latent_features_padded = torch.cat(
+                        (latent_features_padded, skipped_features), dim=3
+                    )
 
                 # New latent features
                 new_meshes = MeshesOfMeshes(vertices_padded, faces_padded,

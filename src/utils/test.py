@@ -107,7 +107,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         n_m_classes=training_hps['N_M_CLASSES'],
         patch_shape=training_hps['PATCH_SIZE'],
         **model_config
-    ).float().cuda()
+    ).float()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
@@ -130,7 +130,11 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         if epoch not in epochs_tested or epoch == -1:
             testLogger.info("Test model %s stored in training epoch %d",
                             model_path, epoch)
-            model.load_state_dict(torch.load(model_path))
+
+            # Avoid problem of cuda out of memory by first loading to cpu, see
+            # https://discuss.pytorch.org/t/cuda-error-out-of-memory-when-load-models/38011/3
+            model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            model.cuda()
             model.eval()
 
             results = evaluator.evaluate(

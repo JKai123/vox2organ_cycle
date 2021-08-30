@@ -56,7 +56,7 @@ def check_mc(volume):
     else:
         print("[Error] Normal convention not fulfilled in mc mesh.")
 
-    voxelized = voxelize_mesh(vertices, faces, volume.shape, 1)
+    voxelized = voxelize_mesh(vertices, faces, volume.shape, 1).squeeze(0)
     j_vox = Jaccard(volume, voxelized, 2)
 
     if np.isclose(j_vox, 1.0):

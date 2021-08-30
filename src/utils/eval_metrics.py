@@ -73,7 +73,7 @@ def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
 
         wds.append(dist(p_, gt_).cpu().item())
 
-    return np.mean(wds)
+    return wds
 
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
@@ -96,13 +96,13 @@ def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
                 directed_hausdorff(gt, pred)[0])
         hds.append(d)
 
-    return np.max(hds)
+    return hds
 
 @measure_time
 def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
-                     strip=True, compare_with='voxel_gt'):
+                     strip=True, compare_with='mesh_gt'):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
-    is compared against the voxel ground truth.
+    is compared against the voxel ground truth or against the mesh ground truth.
     """
     assert compare_with in ("voxel_gt", "mesh_gt")
     input_img = data[0].cuda()
@@ -130,20 +130,33 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
         voxel_pred = voxelize_mesh(
             vertices, faces, shape, n_m_classes
         ).cuda()
-        write_img_if_debug(input_img.squeeze().cpu().numpy(),
-                           "../misc/voxel_input_img_eval.nii.gz")
-        write_img_if_debug(voxel_pred.squeeze().cpu().numpy(),
-                           "../misc/mesh_pred_img_eval.nii.gz")
-        write_img_if_debug(voxel_target.squeeze().cpu().numpy(),
-                           "../misc/voxel_target_img_eval.nii.gz")
     else: # 2D
         voxel_pred = voxelize_contour(
             vertices, shape
         ).cuda()
 
-    j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), 2)
+    if voxel_target.ndim == 3:
+        voxel_target = voxel_target.unsqueeze(0)
+        # Combine all structures into one voxelization
+        voxel_pred = voxel_pred.sum(0).bool().long().unsqueeze(0)
 
-    return j_vox
+    # Debug
+    write_img_if_debug(input_img.squeeze().cpu().numpy(),
+                       "../misc/voxel_input_img_eval.nii.gz")
+    for i, (vp, vt) in enumerate(zip(voxel_pred, voxel_target)):
+        write_img_if_debug(vp.squeeze().cpu().numpy(),
+                           f"../misc/mesh_pred_img_eval_{i}.nii.gz")
+        write_img_if_debug(vt.squeeze().cpu().numpy(),
+                           f"../misc/voxel_target_img_eval_{i}.nii.gz")
+
+    # Jaccard per structure
+    j_vox_all = []
+    for vp, vt in zip(voxel_pred.cuda(), voxel_target.cuda()):
+        j_vox_all.append(
+            Jaccard(vp.cuda(), vt.cuda(), 2)
+        )
+
+    return j_vox_all
 
 @measure_time
 def JaccardVoxelScore(pred, data, n_v_classes, n_m_classes, model_class, *args):

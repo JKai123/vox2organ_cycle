@@ -69,7 +69,6 @@ hyper_ps = {
     # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.01, 0.1, 0.001, 5.0], # Tuned on hemisphere (exp_443/exp_451)
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
@@ -115,9 +114,10 @@ hyper_ps_cortex = {
     'N_EPOCHS': 3000,
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 1,
     'MODEL_CONFIG': {
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
+        'GROUP_STRUCTS': [[0, 1], [2, 3]],
+        'GRAPH_CHANNELS': [512, 256, 128, 64, 32],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
@@ -126,13 +126,16 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'white_matter',
+    'STRUCTURE_TYPE': ('white_matter', 'cerebral_cortex'),
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "single-patch"
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
+
+###### White matter ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.01, 0.1, 0.001, 5.0] # Tuned on hemisphere (exp_443/exp_451)
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             ## Large
@@ -168,6 +171,46 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         else: # no patch mode
             hyper_ps_cortex['N_M_CLASSES'] = 2
             hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/white_matter/cortex_white_matter_icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    else: # 2D
+        hyper_ps_cortex['N_M_CLASSES'] = 1
+        hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 712
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
+        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
+####### Cerebral cortex ######
+if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.025, 0.25, 0.0015, 5.0] # Tuned on hemisphere (exp_496)
+    if hyper_ps_cortex['NDIMS'] == 3:
+        if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
+            hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
+            hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        else: # no patch mode
+            hyper_ps_cortex['N_M_CLASSES'] = 2
+            hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
             hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
@@ -179,17 +222,35 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
-if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
-    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
+
+####### White matter & cerebral cortex ######
+if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
+    and 'white_matter' in hyper_ps_cortex['STRUCTURE_TYPE']):
+    # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
+    # weights should respect this order!
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
+        [1.0] * 4, # Chamfer
+        [0.01] * 2 + [0.025] * 2, # Cosine,
+        [0.1] * 2 + [0.25] * 2, # Laplace,
+        [0.001] * 2 + [0.0015] * 2, # NormalConsistency
+        [5.0] * 4 # Edge
+    ]
+    # No patch mode
+    hyper_ps_cortex['N_M_CLASSES'] = 4
+    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+    hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+    hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+    hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28676
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_cerebral_cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'BATCH_SIZE': 6,
+    'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
 }

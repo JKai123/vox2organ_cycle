@@ -47,3 +47,8 @@ Output:
 ```
 tensor([[[[[1.]]]]])
 ```
+
+## Normal convention
+The normal convention follows the convention used in most libraries like
+pytorch3d or trimesh. That is, the face indices are ordered such that the face
+normal of a face with vertex indices (i, j, k) calculates as (vj - vi) x (vk - vi).

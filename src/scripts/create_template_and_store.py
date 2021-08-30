@@ -6,10 +6,11 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from data.cortex import Cortex
 
-structure_type = 'white_matter'
+structure_type = ('white_matter', 'cerebral_cortex')
 
 # template_path = "../supplementary_material/" + structure_type + "/cortex_" + structure_type + "_convex.obj"
-template_path = "../supplementary_material/" + structure_type + "/cortex_" + structure_type + "_icosahedron_40962.obj"
+# template_path = "../supplementary_material/" + structure_type + "/cortex_" + structure_type + "_icosahedron_40962.obj"
+template_path = "../supplementary_material/white_pial/cortex_4_icosahedra_40962.obj"
 
 print("Creating dataset...")
 dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
@@ -21,6 +22,7 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              structure_type=structure_type,
                              mesh_target_type='mesh',
                              n_ref_points_per_structure=10000, # irrelevant
+                             mesh_type='freesurfer',
                              patch_mode="no")
 print("Dataset created.")
 print("Creating template...")

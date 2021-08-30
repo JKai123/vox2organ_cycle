@@ -4,6 +4,8 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+from trimesh import Trimesh
+from trimesh.scene.scene import Scene
 from pytorch3d.utils import ico_sphere
 
 def generate_sphere_template(centers: dict, radii: dict, level=6):

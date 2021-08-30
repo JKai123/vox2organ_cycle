@@ -319,7 +319,8 @@ def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
     return mirrored_mesh
 
 def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
-    """ Voxelize the mesh and return a segmentation map of 'shape'. 
+    """ Voxelize the mesh and return a segmentation map of 'shape' for each
+    mesh class.
 
     :param vertices: The vertices of the mesh
     :param faces: Corresponding faces as indices to vertices
@@ -332,25 +333,34 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
     the mesh.
     """
     assert len(shape) == 3, "Shape should be 3D"
+    assert (n_m_classes == vertices.shape[0] == faces.shape[0]
+            or (n_m_classes == 1 and vertices.ndim == faces.ndim == 2)),\
+            "Wrong shape of vertices and/or faces."
+
     voxelized_mesh = torch.zeros(shape, dtype=torch.long)
     vertices = vertices.view(n_m_classes, -1, 3)
     faces = faces.view(n_m_classes, -1, 3)
     unnorm_verts = unnormalize_vertices_per_max_dim(
         vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
-    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(shape)
-    if pv is not None:
-        # Occupied voxels are considered to belong to one class
-        voxelized_mesh[pv[:,0], pv[:,1], pv[:,2]] = 1
-    else:
-        # No mesh in the valid range predicted --> keep zeros
-        pass
+    voxelized_all = []
+    for v, f in zip(unnorm_verts, faces):
+        vm = voxelized_mesh.clone()
+        pv = Mesh(v, f).get_occupied_voxels(shape)
+        if pv is not None:
+            # Occupied voxels belong to one class
+            vm[pv[:,0], pv[:,1], pv[:,2]] = 1
+        else:
+            # No mesh in the valid range predicted --> keep zeros
+            pass
 
-    # Strip outer layer of voxelized mesh
-    if strip:
-        voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+        # Strip outer layer of voxelized mesh
+        if strip:
+            vm = sample_inner_volume_in_voxel(vm)
 
-    return voxelized_mesh
+        voxelized_all.append(vm)
+
+    return torch.stack(voxelized_all)
 
 def dict_to_lower_dict(d_in: dict):
     """ Convert all keys in the dict to lower case. """
@@ -396,26 +406,44 @@ def edge_lengths_in_contours(vertices, edges):
 
     return torch.norm(v1 - v2, dim=1)
 
-def choose_n_random_points(points: torch.Tensor, n: int, return_idx=False):
+def choose_n_random_points(points: torch.Tensor, n: int, return_idx=False,
+                           ignore_padded=False):
     """ Choose n points randomly from points. """
     if points.ndim == 3:
         res = []
         idx = []
         for k, ps in enumerate(points):
             if return_idx:
-                p, i = choose_n_random_points(ps, n, return_idx)
+                p, i = choose_n_random_points(ps, n, return_idx, ignore_padded)
                 res.append(p)
                 idx += [torch.tensor([k,ii]) for ii in i]
             else:
-                res.append(choose_n_random_points(ps, n, return_idx))
+                res.append(
+                    choose_n_random_points(ps, n, return_idx, ignore_padded)
+                )
         if return_idx:
             return torch.stack(res), torch.stack(idx)
         return torch.stack(res)
     if points.ndim == 2:
-        perm = torch.randperm(len(points))
+        n_points = len(points)
+        if ignore_padded:
+            n_padded = 0
+            # Zero-padded points have coordinates (-1, -1, -1) after
+            # normalization (in mesh coordinates)
+            while (
+                (points[-n_padded-1] == - torch.ones(points.shape[1])).all()
+                or (points[-n_padded-1] == torch.zeros(points.shape[1])).all()
+            ): n_padded += 1
+            n_points = n_points - n_padded
+        perm = torch.randperm(n_points)
         perm = perm[:n].sort()[0]
         if return_idx:
             return points[perm], perm
         return points[perm]
 
     raise ValueError("Invalid number of dimensions.")
+
+def int_to_binlist(i, n_digits):
+    """ Convert an integer to binary in the form of a list of integers with
+    length n_digits, e.g.  int_to_binlist(6, 4) --> [0,1,1,0]"""
+    return list(map(int, bin(i)[2:].zfill(n_digits)))

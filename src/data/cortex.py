@@ -7,8 +7,9 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import random
 import logging
-from enum import IntEnum
 from copy import deepcopy
+from collections.abc import Sequence
+from typing import Union
 
 import torch
 import torch.nn.functional as F
@@ -45,23 +46,55 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
+from data.cortex_labels import combine_labels
 
-class CortexLabels(IntEnum):
-    right_white_matter = 41
-    left_white_matter = 2
-    left_cerebral_cortex = 3
-    right_cerebral_cortex = 42
-
-def combine_labels(labels, names):
-    """ Only consider labels in 'names' and set all those labels equally to 1
+def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
+    """ Helper function to map the structure type and the patch mode to the
+    correct segmentation and mesh label names.
     """
-    ids = [CortexLabels[n].value for n in names]
-    combined_labels = np.isin(labels, ids).astype(int)
+    if structure_type == "cerebral_cortex":
+        if patch_mode=="single-patch":
+            seg_label_names = ("right_cerebral_cortex",)
+            mesh_label_names = ("rh_pial",)
+        elif patch_mode == "multi-patch":
+            raise NotImplementedError()
+        else: # not patch mode
+            raise NotImplementedError()
+    elif structure_type == "white_matter":
+        if patch_mode=="single-patch":
+            seg_label_names = ("right_white_matter",)
+            mesh_label_names = ("rh_white",)
+        elif patch_mode == "multi-patch":
+            seg_label_names = ("left_white_matter", "right_white_matter")
+            mesh_label_names = ("lh_white", "rh_white")
+        else: # not patch mode
+            if ndims == 3: # 3D
+                seg_label_names = ("left_white_matter", "right_white_matter")
+                mesh_label_names = ("lh_white", "rh_white")
+            elif ndims == 2: # 2D
+                seg_label_names = ("right_white_matter",)
+                mesh_label_names = ("rh_white",)
+            else:
+                raise ValueError("Wrong dimensionality.")
+    elif ("cerebral_cortex" in structure_type
+          and "white_matter" in structure_type):
+        if patch_mode == "single-patch":
+            raise NotImplementedError()
+        if patch_mode == "multi-patch":
+            raise NotImplementedError()
+        # Not patch mode
+        seg_label_names = ("left_white_matter",
+                           "right_white_matter",
+                           "left_cerebral_cortex",
+                           "right_cerebral_cortex")
+        mesh_label_names = ("lh_white",
+                            "rh_white",
+                            "lh_pial",
+                            "rh_pial")
+    else:
+        raise ValueError("Unknown structure type.")
 
-    if isinstance(labels, torch.Tensor):
-        combined_labels = torch.from_numpy(combined_labels)
-
-    return combined_labels
+    return seg_label_names, mesh_label_names
 
 class Cortex(DatasetHandler):
     """ Cortex dataset
@@ -97,11 +130,20 @@ class Cortex(DatasetHandler):
     img_filename = "mri.nii.gz"
     label_filename = "aseg.nii.gz"
 
-    def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 augment: bool, patch_size, mesh_target_type: str,
-                 n_ref_points_per_structure: int, structure_type: str,
-                 patch_mode: str="no", patch_origin=(0,0,0), select_patch_size=None,
-                 reduced_freesurfer: int=None, mesh_type='marching cubes',
+    def __init__(self,
+                 ids: Sequence,
+                 mode: DataModes,
+                 raw_data_dir: str,
+                 augment: bool,
+                 patch_size,
+                 mesh_target_type: str,
+                 n_ref_points_per_structure: int,
+                 structure_type: Union[str, Sequence],
+                 patch_mode: str="no",
+                 patch_origin=(0,0,0),
+                 select_patch_size=None,
+                 reduced_freesurfer: int=None,
+                 mesh_type='marching cubes',
                  provide_curvatures=False,
                  **kwargs):
         super().__init__(ids, mode)
@@ -111,28 +153,9 @@ class Cortex(DatasetHandler):
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
 
-        if structure_type == "cerebral_cortex":
-            seg_label_names = 'all' # all present labels are combined
-            mesh_label_names = ("rh_pial", "lh_pial")
-        elif structure_type == "white_matter":
-            if patch_mode=="single-patch":
-                seg_label_names = ("right_white_matter",)
-                mesh_label_names = ("rh_white",)
-            elif patch_mode == "multi-patch":
-                seg_label_names = ("left_white_matter", "right_white_matter")
-                mesh_label_names = ("lh_white", "rh_white")
-            else: # not patch mode
-                if len(patch_size) == 3: # 3D
-                    seg_label_names = ("left_white_matter", "right_white_matter")
-                    mesh_label_names = ("lh_white", "rh_white")
-                elif len(patch_size) == 2: # 2D
-                    seg_label_names = ("right_white_matter",)
-                    mesh_label_names = ("rh_white",)
-                else:
-                    raise ValueError("Wrong dimensionality.")
-        else:
-            raise ValueError("Unknown structure type.")
-
+        seg_label_names, mesh_label_names = _get_seg_and_mesh_label_names(
+            structure_type, patch_mode, len(patch_size)
+        )
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
         self._augment = augment
@@ -189,6 +212,9 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.normal_labels)
         if self.provide_curvatures:
             assert self.__len__() == len(self.curvatures)
+
+        if self._augment:
+            self.check_augmentation_normals()
 
     def _prepare_data_2D(self):
         """ Load 2D data """
@@ -503,7 +529,9 @@ class Cortex(DatasetHandler):
 
         # Available files
         all_files = os.listdir(raw_data_dir)
-        all_files = [fn for fn in all_files if "meshes" not in fn] # Remove invalid
+        all_files = [fn for fn in all_files if (
+            "meshes" not in fn and "unregistered" not in fn
+        )] # Remove invalid
 
         # Shuffle with seed
         random.Random(dataset_seed).shuffle(all_files)
@@ -564,10 +592,10 @@ class Cortex(DatasetHandler):
         # Raw data
         img = self.images[index]
         voxel_label = self.voxel_labels[index]
-        target_points,\
-                target_faces,\
-                target_normals,\
-                target_curvs = self._get_mesh_target(index, mesh_target_type)
+        (target_points,
+         target_faces,
+         target_normals,
+         target_curvs) = self._get_mesh_target(index, mesh_target_type)
 
         # Potentially augment
         if self._augment and self.ndims == 3:
@@ -578,14 +606,20 @@ class Cortex(DatasetHandler):
             # Mesh coordinates --> image coordinates
             target_points = unnormalize_vertices_per_max_dim(
                 target_points.view(-1, 3), self.patch_size
-            )
+            ).view(self.n_m_classes, -1, 3)
             # Augment
-            img, voxel_label, target_points = self.augment_data(
-                img.numpy(), voxel_label.numpy(), target_points, target_normals
-            )
+            (img,
+             voxel_label,
+             target_points,
+             target_normals) = self.augment_data(
+                 img.numpy(),
+                 voxel_label.numpy(),
+                 target_points,
+                 target_normals
+             )
             # Image coordinates --> mesh coordinates
             target_points = normalize_vertices_per_max_dim(
-                target_points, self.patch_size
+                target_points.view(-1, 3), self.patch_size
             ).view(self.n_m_classes, -1, 3)
 
             img = torch.from_numpy(img)
@@ -622,9 +656,10 @@ class Cortex(DatasetHandler):
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
             faces = self.mesh_labels[index].faces
+            mesh = self.mesh_labels[index].to_pytorch3d_Meshes()
             curvs = curv_from_cotcurv_laplacian(
-                points.view(-1, 3),
-                faces.view(-1, 3)
+                mesh.verts_packed(),
+                mesh.faces_packed()
             ).view(self.n_m_classes, -1, 1)
         else:
             raise ValueError("Invalid mesh target type.")
@@ -826,14 +861,15 @@ class Cortex(DatasetHandler):
 
 
     def _create_voxel_labels_from_meshes(self, mesh_labels):
-        """ Return the voxelized meshes as 3D voxel labels """
+        """ Return the voxelized meshes as 3D voxel labels. Here, individual
+        structures are not distinguished. """
         data = []
         for m in mesh_labels:
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
                 vertices, faces, self.patch_size, self.n_m_classes
-            )
+            ).sum(0).bool().long() # Treat as one class
 
             data.append(voxel_label)
 
@@ -898,7 +934,14 @@ class Cortex(DatasetHandler):
                 voxel_verts = (world2vox_affine @ coords).T[:,:-1]
                 # Add to structures of file
                 file_vertices.append(torch.from_numpy(voxel_verts))
-                file_faces.append(torch.from_numpy(mesh.faces))
+                # Keep normal convention if coordinates are mirrored an uneven
+                # number of times
+                if np.sum(np.sign(np.diag(world2vox_affine)) == -1) % 2 == 1:
+                    file_faces.append(
+                        torch.from_numpy(mesh.faces).flip(dims=[1])
+                    )
+                else: # no flips required
+                    file_faces.append(torch.from_numpy(mesh.faces))
 
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
@@ -955,7 +998,8 @@ class Cortex(DatasetHandler):
                     p, idx = choose_n_random_points(
                         m_.verts_padded(),
                         self.n_ref_points_per_structure,
-                        return_idx=True
+                        return_idx=True,
+                        ignore_padded=True
                     )
                     # Choose normals with the same indices as vertices
                     n = m_.verts_normals_padded()[idx.unbind(1)].view(
@@ -992,3 +1036,21 @@ class Cortex(DatasetHandler):
     def augment_data(self, img, label, coordinates, normals):
         assert self._augment, "No augmentation in this dataset."
         return flip_img(img, label, coordinates, normals)
+
+    def check_augmentation_normals(self):
+        """ Assert correctness of the transformation of normals during
+        augmentation.
+        """
+        py3d_mesh = self.mesh_labels[0].to_pytorch3d_Meshes()
+        img_f, label_f, coo_f, normals_f = self.augment_data(
+            self.images[0].numpy(), self.voxel_labels[0].numpy(),
+            py3d_mesh.verts_padded(), py3d_mesh.verts_normals_padded()
+        )
+        py3d_mesh_aug = Meshes(coo_f, py3d_mesh.faces_padded())
+        # Assert up to sign of direction
+        assert (
+            torch.allclose(normals_f, py3d_mesh_aug.verts_normals_padded(),
+                           atol=2e-03)
+            or torch.allclose(-normals_f, py3d_mesh_aug.verts_normals_padded(),
+                             atol=2e-03)
+        )
