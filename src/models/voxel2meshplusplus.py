@@ -507,6 +507,13 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param aggregate_indices: Where to take the features from the UNet
     :param p_dropout: Dropout probability for UNet blocks
     :param ndims: Dimensionality of images
+    :param group_structs: Group the structures in the graph network, e.g.,
+    group left and right white matter hemisphere into group "white matter".
+    During a graph net forward pass, features are exchanged between distinct
+    groups but not within a group. For example, white surface vertex positions
+    can be provided to the pial vertices and vice versa.
+    :param k_struct_neighbors: K for the KNN features of other structures, only
+    relevant if group_structs is specified.
     """
 
     def __init__(self,
@@ -530,6 +537,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  aggregate_indices: Tuple[Tuple[int]],
                  p_dropout: float,
                  ndims: int,
+                 group_structs: Tuple[Tuple[int]],
+                 k_struct_neighbors: int,
                  **kwargs
                  ):
         super().__init__()
@@ -557,7 +566,9 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       patch_size=patch_size,
                                       aggregate_indices=aggregate_indices,
                                       aggregate=aggregate,
+                                      k_struct_neighbors=k_struct_neighbors,
                                       GC=gc,
+                                      group_structs=group_structs,
                                       ndims=ndims)
 
     @measure_time
@@ -628,7 +639,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
         vertices = []
         faces = []
-        meshes = pred[0]
+        meshes = pred[0][1:] # Ignore template mesh at pos. 0
         for s, m in enumerate(meshes):
             v_s = []
             f_s = []

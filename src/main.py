@@ -114,9 +114,10 @@ hyper_ps_cortex = {
     'N_EPOCHS': 3000,
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 1,
     'MODEL_CONFIG': {
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
+        'GROUP_STRUCTS': [[0, 1], [2, 3]],
+        'GRAPH_CHANNELS': [512, 256, 128, 64, 32],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
@@ -125,10 +126,10 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'white_matter',
+    'STRUCTURE_TYPE': ('white_matter', 'cerebral_cortex'),
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "single-patch"
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
 
@@ -221,6 +222,29 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
+####### White matter & cerebral cortex ######
+if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
+    and 'white_matter' in hyper_ps_cortex['STRUCTURE_TYPE']):
+    # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
+    # weights should respect this order!
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
+        [1.0] * 4, # Chamfer
+        [0.01] * 2 + [0.025] * 2, # Cosine,
+        [0.1] * 2 + [0.25] * 2, # Laplace,
+        [0.001] * 2 + [0.0015] * 2, # NormalConsistency
+        [5.0] * 4 # Edge
+    ]
+    # No patch mode
+    hyper_ps_cortex['N_M_CLASSES'] = 4
+    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+    hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+    hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+    hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28676
+    hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+        f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)

@@ -8,6 +8,8 @@ import os
 import random
 import logging
 from copy import deepcopy
+from collections.abc import Sequence
+from typing import Union
 
 import torch
 import torch.nn.functional as F
@@ -46,6 +48,54 @@ from data.dataset import (
 )
 from data.cortex_labels import combine_labels
 
+def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
+    """ Helper function to map the structure type and the patch mode to the
+    correct segmentation and mesh label names.
+    """
+    if structure_type == "cerebral_cortex":
+        if patch_mode=="single-patch":
+            seg_label_names = ("right_cerebral_cortex",)
+            mesh_label_names = ("rh_pial",)
+        elif patch_mode == "multi-patch":
+            raise NotImplementedError()
+        else: # not patch mode
+            raise NotImplementedError()
+    elif structure_type == "white_matter":
+        if patch_mode=="single-patch":
+            seg_label_names = ("right_white_matter",)
+            mesh_label_names = ("rh_white",)
+        elif patch_mode == "multi-patch":
+            seg_label_names = ("left_white_matter", "right_white_matter")
+            mesh_label_names = ("lh_white", "rh_white")
+        else: # not patch mode
+            if ndims == 3: # 3D
+                seg_label_names = ("left_white_matter", "right_white_matter")
+                mesh_label_names = ("lh_white", "rh_white")
+            elif ndims == 2: # 2D
+                seg_label_names = ("right_white_matter",)
+                mesh_label_names = ("rh_white",)
+            else:
+                raise ValueError("Wrong dimensionality.")
+    elif ("cerebral_cortex" in structure_type
+          and "white_matter" in structure_type):
+        if patch_mode == "single-patch":
+            raise NotImplementedError()
+        if patch_mode == "multi-patch":
+            raise NotImplementedError()
+        # Not patch mode
+        seg_label_names = ("left_white_matter",
+                           "right_white_matter",
+                           "left_cerebral_cortex",
+                           "right_cerebral_cortex")
+        mesh_label_names = ("lh_white",
+                            "rh_white",
+                            "lh_pial",
+                            "rh_pial")
+    else:
+        raise ValueError("Unknown structure type.")
+
+    return seg_label_names, mesh_label_names
+
 class Cortex(DatasetHandler):
     """ Cortex dataset
 
@@ -80,11 +130,20 @@ class Cortex(DatasetHandler):
     img_filename = "mri.nii.gz"
     label_filename = "aseg.nii.gz"
 
-    def __init__(self, ids: list, mode: DataModes, raw_data_dir: str,
-                 augment: bool, patch_size, mesh_target_type: str,
-                 n_ref_points_per_structure: int, structure_type: str,
-                 patch_mode: str="no", patch_origin=(0,0,0), select_patch_size=None,
-                 reduced_freesurfer: int=None, mesh_type='marching cubes',
+    def __init__(self,
+                 ids: Sequence,
+                 mode: DataModes,
+                 raw_data_dir: str,
+                 augment: bool,
+                 patch_size,
+                 mesh_target_type: str,
+                 n_ref_points_per_structure: int,
+                 structure_type: Union[str, Sequence],
+                 patch_mode: str="no",
+                 patch_origin=(0,0,0),
+                 select_patch_size=None,
+                 reduced_freesurfer: int=None,
+                 mesh_type='marching cubes',
                  provide_curvatures=False,
                  **kwargs):
         super().__init__(ids, mode)
@@ -94,33 +153,9 @@ class Cortex(DatasetHandler):
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
 
-        if structure_type == "cerebral_cortex":
-            if patch_mode=="single-patch":
-                seg_label_names = ("right_cerebral_cortex",)
-                mesh_label_names = ("rh_pial",)
-            elif patch_mode == "multi-patch":
-                raise NotImplementedError()
-            else: # not patch mode
-                raise NotImplementedError()
-        elif structure_type == "white_matter":
-            if patch_mode=="single-patch":
-                seg_label_names = ("right_white_matter",)
-                mesh_label_names = ("rh_white",)
-            elif patch_mode == "multi-patch":
-                seg_label_names = ("left_white_matter", "right_white_matter")
-                mesh_label_names = ("lh_white", "rh_white")
-            else: # not patch mode
-                if len(patch_size) == 3: # 3D
-                    seg_label_names = ("left_white_matter", "right_white_matter")
-                    mesh_label_names = ("lh_white", "rh_white")
-                elif len(patch_size) == 2: # 2D
-                    seg_label_names = ("right_white_matter",)
-                    mesh_label_names = ("rh_white",)
-                else:
-                    raise ValueError("Wrong dimensionality.")
-        else:
-            raise ValueError("Unknown structure type.")
-
+        seg_label_names, mesh_label_names = _get_seg_and_mesh_label_names(
+            structure_type, patch_mode, len(patch_size)
+        )
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
         self._augment = augment
@@ -826,14 +861,15 @@ class Cortex(DatasetHandler):
 
 
     def _create_voxel_labels_from_meshes(self, mesh_labels):
-        """ Return the voxelized meshes as 3D voxel labels """
+        """ Return the voxelized meshes as 3D voxel labels. Here, individual
+        structures are not distinguished. """
         data = []
         for m in mesh_labels:
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
                 vertices, faces, self.patch_size, self.n_m_classes
-            )
+            ).sum(0).bool().long() # Treat as one class
 
             data.append(voxel_label)
 
@@ -962,7 +998,8 @@ class Cortex(DatasetHandler):
                     p, idx = choose_n_random_points(
                         m_.verts_padded(),
                         self.n_ref_points_per_structure,
-                        return_idx=True
+                        return_idx=True,
+                        ignore_padded=True
                     )
                     # Choose normals with the same indices as vertices
                     n = m_.verts_normals_padded()[idx.unbind(1)].view(

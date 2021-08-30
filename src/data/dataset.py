@@ -309,7 +309,7 @@ class DatasetHandler(torch.utils.data.Dataset):
             faces = faces.view(self.n_m_classes, -1, 3)
             voxelized_mesh = voxelize_mesh(
                 vertices, faces, shape, self.n_m_classes
-            ).cuda()
+            ).cuda().sum(0).bool().long() # Treat as one class
 
             j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
 
