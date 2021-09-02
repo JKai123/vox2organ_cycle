@@ -4,4 +4,5 @@ experiments/
 meshes/
 misc/
 to_check/
+tmp/
 *.pdf
