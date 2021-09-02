@@ -375,6 +375,9 @@ class Solver():
             if save_models:
                 model.eval()
                 model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
+                model.save(os.path.join(
+                    self.save_path, "epoch_" + str(epoch) + "_" + INTERMEDIATE_MODEL_NAME
+                ))
                 models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
                 with open(epochs_file, 'w') as f:
                     json.dump(models_to_epochs, f)
