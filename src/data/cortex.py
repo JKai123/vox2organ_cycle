@@ -178,6 +178,7 @@ class Cortex(DatasetHandler):
         self.n_structures = len(mesh_label_names)
         self.mesh_type = mesh_type
         self.centers, self.radii = None, None
+        self.n_min_vertices, self.n_max_vertices = None, None
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
 
@@ -932,6 +933,13 @@ class Cortex(DatasetHandler):
                     axis=0
                 )
                 voxel_verts = (world2vox_affine @ coords).T[:,:-1]
+                # Store min/max number of vertices
+                self.n_max_vertices = np.maximum(
+                    voxel_verts.shape[0], self.n_max_vertices) if (
+                self.n_max_vertices is not None) else voxel_verts.shape[0]
+                self.n_min_vertices = np.minimum(
+                    voxel_verts.shape[0], self.n_min_vertices) if (
+                self.n_min_vertices is not None) else voxel_verts.shape[0]
                 # Add to structures of file
                 file_vertices.append(torch.from_numpy(voxel_verts))
                 # Keep normal convention if coordinates are mirrored an uneven
@@ -999,7 +1007,11 @@ class Cortex(DatasetHandler):
                         m_.verts_padded(),
                         self.n_ref_points_per_structure,
                         return_idx=True,
-                        ignore_padded=True
+                        # Ignoring padded vertices is only possible if the
+                        # number of required vertices is smaller than the
+                        # minimum number of vertices in the dataset
+                        ignore_padded=(self.n_ref_points_per_structure <
+                                       self.n_min_vertices)
                     )
                     # Choose normals with the same indices as vertices
                     n = m_.verts_normals_padded()[idx.unbind(1)].view(

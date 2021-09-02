@@ -237,12 +237,12 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
     ]
     # No patch mode
     hyper_ps_cortex['N_M_CLASSES'] = 4
-    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+    hyper_ps_cortex['PATCH_SIZE'] = [192, 208, 192]
     hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
     hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
     hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28676
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 44000 # max. number of gt points in this case (batch size 1)
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
         f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
