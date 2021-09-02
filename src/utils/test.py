@@ -16,6 +16,11 @@ from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
+from utils.model_names import (
+    INTERMEDIATE_MODEL_NAME,
+    BEST_MODEL_NAME,
+    FINAL_MODEL_NAME
+)
 
 def write_test_results(results: dict, model_name: str, experiment_dir: str):
     res_file = os.path.join(experiment_dir, "test_results.txt")
@@ -108,7 +113,17 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         patch_shape=training_hps['PATCH_SIZE'],
         **model_config
     ).float()
-    model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
+
+    # Select best and last model and potentially certain epoch
+    model_names = [fn for fn in os.listdir(experiment_dir) if (
+        ".model" in fn and (
+        BEST_MODEL_NAME in fn or
+        INTERMEDIATE_MODEL_NAME in fn or
+        FINAL_MODEL_NAME in fn or
+        str(hps['TEST_MODEL_EPOCH']) in fn
+        ))
+    ]
+
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
         with open(epochs_file, 'r') as f:
@@ -124,7 +139,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
     for mn in model_names:
         model_path = os.path.join(experiment_dir, mn)
-        epoch = models_to_epochs[mn]
+        epoch = models_to_epochs.get(mn, int(hps['TEST_MODEL_EPOCH']))
 
         # Test each epoch that has been stored
         if epoch not in epochs_tested or epoch == -1:

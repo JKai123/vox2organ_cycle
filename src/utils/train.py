@@ -41,11 +41,11 @@ from utils.losses import (
     voxel_linear_mesh_geometric_loss_combine)
 from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
-
-# Model names
-INTERMEDIATE_MODEL_NAME = "intermediate.model"
-BEST_MODEL_NAME = "best.model"
-FINAL_MODEL_NAME = "final.model"
+from utils.model_names import (
+    INTERMEDIATE_MODEL_NAME,
+    BEST_MODEL_NAME,
+    FINAL_MODEL_NAME
+)
 
 class Solver():
     """
@@ -376,7 +376,7 @@ class Solver():
                 model.eval()
                 model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
                 model.save(os.path.join(
-                    self.save_path, "epoch_" + str(epoch) + "_" + INTERMEDIATE_MODEL_NAME
+                    self.save_path, f"epoch_{epoch}.model"
                 ))
                 models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
                 with open(epochs_file, 'w') as f:
