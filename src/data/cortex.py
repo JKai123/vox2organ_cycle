@@ -531,7 +531,9 @@ class Cortex(DatasetHandler):
         # Available files
         all_files = os.listdir(raw_data_dir)
         all_files = [fn for fn in all_files if (
-            "meshes" not in fn and "unregistered" not in fn
+            "meshes" not in fn and
+            "unregistered" not in fn and
+            "FS" not in fn
         )] # Remove invalid
 
         # Shuffle with seed

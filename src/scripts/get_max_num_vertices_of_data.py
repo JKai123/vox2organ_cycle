@@ -11,7 +11,9 @@ import trimesh
 directory = "/mnt/nas/Data_Neuro/MALC_CSR/"
 
 files = [fn for fn in os.listdir(directory) if (
-    "meshes" not in fn and "unregistered" not in fn
+    "meshes" not in fn and
+    "unregistered" not in fn and
+    "FS" not in fn
 )]
 files.sort()
 print(f"{len(files)} files")
