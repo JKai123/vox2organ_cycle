@@ -184,7 +184,7 @@ def _get_labels_from_mesh(mesh_labels, patch_size):
         if vertices.mean() > 2:
             vertices = normalize_vertices_per_max_dim(vertices, patch_size)
 
-        voxelized = voxelize_mesh(vertices, faces, patch_size, 1).cpu().numpy()
+        voxelized = voxelize_mesh(vertices, faces, patch_size, 1).squeeze().cpu().numpy()
         label1.append(voxelized[int(patch_size[0]/2), :, :])
         label2.append(voxelized[:, int(patch_size[1]/2), :])
         label3.append(voxelized[:, :, int(patch_size[2]/2)])
