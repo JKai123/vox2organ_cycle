@@ -85,7 +85,7 @@ def run_preprocess_check(dataset):
     for iter_in_epoch in tqdm(range(n_samples), desc="Creating visuals...", position=0, leave=True):
         # w/o augmentation
         img, label, mesh = training_set.get_item_and_mesh_from_index(iter_in_epoch)
-        img, label = img.squeeze(), label.squeeze()
+        img, label = img.squeeze().numpy(), label.squeeze().numpy()
         shape = img.shape
         assert shape == label.shape, "Shapes should be identical."
         if training_set.ndims == 3:
@@ -117,7 +117,7 @@ def run_preprocess_check(dataset):
         # /w augmentation
         if training_set_augment is not None:
             img, label, mesh = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
-            img, label = img.squeeze(), label.squeeze()
+            img, label = img.squeeze().numpy(), label.squeeze().numpy()
             shape = img.shape
             assert shape == label.shape, "Shapes should be identical."
             img_slices = [img[shape[0]//2, :, :],

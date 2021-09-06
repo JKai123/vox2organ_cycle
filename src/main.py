@@ -237,12 +237,12 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
     ]
     # No patch mode
     hyper_ps_cortex['N_M_CLASSES'] = 4
-    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+    hyper_ps_cortex['PATCH_SIZE'] = [192, 208, 192]
     hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
     hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
     hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28676
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 44000 # max. number of gt points in this case (batch size 1)
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
         f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
@@ -297,8 +297,13 @@ def main(hps):
                            action='store_true',
                            help="Train a model.")
     argparser.add_argument('--test',
-                           action='store_true',
-                           help="Test a model.")
+                           type=int,
+                           default=None,
+                           nargs='?',
+                           const=-1,
+                           help="Test a model, optionally specified by epoch."
+                           " If no epoch is specified, the best and the last"
+                           " model are evaluated.")
     argparser.add_argument('--tune',
                            default=None,
                            type=str,
@@ -369,6 +374,7 @@ def main(hps):
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
     hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
+    hps['TEST_MODEL_EPOCH'] = args.test
 
     if args.params_to_tune and args.params_to_fine_tune:
         raise RuntimeError(

@@ -10,14 +10,18 @@ import trimesh
 
 directory = "/mnt/nas/Data_Neuro/MALC_CSR/"
 
-files = [fn for fn in os.listdir(directory) if "meshes" not in fn]
+files = [fn for fn in os.listdir(directory) if (
+    "meshes" not in fn and
+    "unregistered" not in fn and
+    "FS" not in fn
+)]
 files.sort()
 print(f"{len(files)} files")
 
-names = ("lh_pial.stl",
-         "rh_pial.stl",
-         "lh_white.stl",
-         "rh_white.stl")
+names = ("lh_pial_reduced_0.3.stl",
+         "rh_pial_reduced_0.3.stl",
+         "lh_white_reduced_0.3.stl",
+         "rh_white_reduced_0.3.stl")
 
 max_n = {k: 0. for k in names}
 

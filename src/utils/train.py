@@ -41,11 +41,11 @@ from utils.losses import (
     voxel_linear_mesh_geometric_loss_combine)
 from data.supported_datasets import dataset_split_handler
 from models.model_handler import ModelHandler
-
-# Model names
-INTERMEDIATE_MODEL_NAME = "intermediate.model"
-BEST_MODEL_NAME = "best.model"
-FINAL_MODEL_NAME = "final.model"
+from utils.model_names import (
+    INTERMEDIATE_MODEL_NAME,
+    BEST_MODEL_NAME,
+    FINAL_MODEL_NAME
+)
 
 class Solver():
     """
@@ -67,8 +67,6 @@ class Solver():
     computed, e.g. 'linear' weighted average, 'geometric' mean
     :param str save_path: The path where results and stats are saved.
     :param log_every: Log the stats every n iterations.
-    :param n_sample_points: The number of points sampled for mesh loss
-    computation.
     :param str device: The device for execution, e.g. 'cuda:0'.
     :param str main_eval_metric: The main evaluation metric according to which
     the best model is determined.
@@ -94,7 +92,6 @@ class Solver():
                  loss_averaging,
                  save_path,
                  log_every,
-                 n_sample_points,
                  device,
                  main_eval_metric,
                  accumulate_n_gradients,
@@ -133,7 +130,6 @@ class Solver():
         self.loss_averaging = loss_averaging
         self.save_path = save_path
         self.log_every = log_every
-        self.n_sample_points = n_sample_points
         self.device = device
         self.main_eval_metric = main_eval_metric
         self.accumulate_ngrad = accumulate_n_gradients
@@ -191,6 +187,9 @@ class Solver():
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
         x, y, points, faces, normals, curvs = data
+        self.trainLogger.debug(
+            "%d reference points in ground truth", points.shape[-2]
+        )
         if normals.nelement() == 0:
             # Only point reference
             mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
@@ -291,8 +290,8 @@ class Solver():
         # log_model_tensorboard_if_debug(model,
                                        # training_set[0][0][None,None].cuda())
 
-        trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-        trainLogger.info("Training on device %s", self.device)
+        self.trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+        self.trainLogger.info("Training on device %s", self.device)
 
         # Optimizer and lr scheduling
         if self.optim_params.get('graph_lr', None) is not None:
@@ -319,7 +318,7 @@ class Solver():
 
         training_loader = DataLoader(training_set, batch_size=batch_size,
                                      shuffle=True)
-        trainLogger.info("Created training loader of length %d",
+        self.trainLogger.info("Created training loader of length %d",
                     len(training_loader))
 
         # Logging every epoch
@@ -339,7 +338,7 @@ class Solver():
             self.reduce_reg_losses(epoch, n_epochs)
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
-                    trainLogger.info("Iteration: %d", iteration)
+                    self.trainLogger.info("Iteration: %d", iteration)
                     log_epoch(epoch, iteration)
                     log_lr(np.mean([p['lr'] for p in self.optim.param_groups]),
                            iteration)
@@ -356,6 +355,11 @@ class Solver():
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=5)
                 log_val_results(val_results, iteration - 1)
+
+                # Save model of current epoch
+                model.save(os.path.join(
+                    self.save_path, f"epoch_{epoch}.model"
+                ))
 
                 # Main validation score
                 main_val_score = val_results[self.main_eval_metric]
@@ -378,7 +382,7 @@ class Solver():
                 models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
                 with open(epochs_file, 'w') as f:
                     json.dump(models_to_epochs, f)
-                trainLogger.debug("Saved intermediate model from epoch %d.",
+                self.trainLogger.debug("Saved intermediate model from epoch %d.",
                                   epoch)
 
         # Save final model
@@ -387,13 +391,13 @@ class Solver():
             model.save(os.path.join(self.save_path, FINAL_MODEL_NAME))
             models_to_epochs[FINAL_MODEL_NAME] = epoch
             if best_state is not None:
-                trainLogger.info("Best model in epoch %d", best_epoch)
+                self.trainLogger.info("Best model in epoch %d", best_epoch)
 
             # Save epochs corresponding to models
             with open(epochs_file, 'w') as f:
                 json.dump(models_to_epochs, f)
 
-            trainLogger.info("Saved models at %s", self.save_path)
+            self.trainLogger.info("Saved models at %s", self.save_path)
 
             if log_was_epoch:
                 self.log_every = 'epoch'
