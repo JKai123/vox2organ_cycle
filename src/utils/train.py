@@ -356,6 +356,11 @@ class Solver():
                                                       save_meshes=5)
                 log_val_results(val_results, iteration - 1)
 
+                # Save model of current epoch
+                model.save(os.path.join(
+                    self.save_path, f"epoch_{epoch}.model"
+                ))
+
                 # Main validation score
                 main_val_score = val_results[self.main_eval_metric]
                 if score_is_better(best_val_score, main_val_score,
@@ -374,9 +379,6 @@ class Solver():
             if save_models:
                 model.eval()
                 model.save(os.path.join(self.save_path, INTERMEDIATE_MODEL_NAME))
-                model.save(os.path.join(
-                    self.save_path, f"epoch_{epoch}.model"
-                ))
                 models_to_epochs[INTERMEDIATE_MODEL_NAME] = epoch
                 with open(epochs_file, 'w') as f:
                     json.dump(models_to_epochs, f)
