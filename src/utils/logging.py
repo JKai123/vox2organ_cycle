@@ -20,12 +20,16 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils.modes import ExecModes
 
 # global variables
-use_wandb = True
+use_wandb = False
 debug = False
 log_time = False
+wandb_run = None
 
-def get_log_dir(experiment_dir: str):
-    return os.path.join(experiment_dir, "logs")
+def get_log_dir(experiment_dir: str, create: bool=False):
+    log_dir = os.path.join(experiment_dir, "logs")
+    if not os.path.isdir(log_dir) and create:
+        os.makedirs(log_dir)
+    return log_dir
 
 def log_losses(losses, iteration):
     """ Logging with wandb and std logging """
@@ -88,11 +92,31 @@ def log_val_results(val_results, iteration):
         wandb.log(val_results, step=iteration)
 
 def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
-                       wandb_group_name, wandb_job_type, params):
+                       wandb_group_name, wandb_job_type, params, notes="",
+                       id=None):
     """ Initialization for logging with wandb
     """
-    wandb.init(name=exp_name, dir=log_dir, config=params, project=wandb_proj_name,
-               group=wandb_group_name, job_type=wandb_job_type)
+    global wandb_run
+    global use_wandb
+    use_wandb = True if not debug else False
+    if use_wandb:
+        wandb_run = wandb.init(
+            name=exp_name,
+            dir=log_dir,
+            config=params,
+            project=wandb_proj_name,
+            group=wandb_group_name,
+            job_type=wandb_job_type,
+            notes=notes,
+            id=exp_name if id is None else id,
+            resume="allow",
+            reinit=True
+        )
+
+def finish_wandb_run():
+    global wandb_run
+    if use_wandb:
+        wandb_run.finish()
 
 def init_std_logging(name, log_dir, loglevel, mode):
     """ The standard logger with levels 'INFO', 'DEBUG', etc.
@@ -139,18 +163,15 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     :param bool measure_time: Enable time measurement for some functions.
     """
     # no wanb when debugging or not in training mode
-    global use_wandb
     global debug
     if exp_name == 'debug' or loglevel == 'DEBUG':
         use_wandb = False
         debug = True
         loglevel='DEBUG'
 
-    if mode != ExecModes.TRAIN:
-        use_wandb = False
-
     init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
-    if use_wandb:
+
+    if mode == ExecModes.TRAIN:
         init_wandb_logging(exp_name=exp_name,
                            log_dir=log_dir,
                            wandb_proj_name=proj_name,
@@ -163,6 +184,8 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     if time_logging:
         # Enable time logging
         timeLogger = logging.getLogger("TIME")
+        for handler in timeLogger.handlers[:]:
+            timeLogger.removeHandler(handler)
         timeLogger.setLevel('DEBUG')
         time_file = os.path.join(log_dir, "times.txt")
         fileHandler = logging.FileHandler(time_file, mode='a')

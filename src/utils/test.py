@@ -11,7 +11,7 @@ import json
 import torch
 
 from utils.logging import init_logging, get_log_dir
-from utils.utils import string_dict
+from utils.utils import string_dict, dict_to_lower_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from data.supported_datasets import dataset_split_handler
@@ -45,7 +45,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         return
 
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
-    log_dir = get_log_dir(experiment_dir)
+    log_dir = get_log_dir(experiment_dir, create=True)
     hps_to_write = string_dict(hps)
 
     init_logging(logger_name=ExecModes.TEST.name,
@@ -75,9 +75,16 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         training_hps = json.load(f)
 
     # Lower case param names as input to constructors/functions
-    training_hps_lower = dict((k.lower(), v) for k, v in training_hps.items())
-    hps_lower = dict((k.lower(), v) for k, v in hps.items())
-    model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
+    training_hps_lower = dict_to_lower_dict(training_hps)
+    hps_lower = dict_to_lower_dict(hps)
+    model_config = hps_lower['model_config']
+    # Check if model configs are equal
+    for k, v in string_dict(model_config).items():
+        v_train = training_hps_lower['model_config'][k]
+        if v_train != v:
+            raise RuntimeError(f"Hyperparameter {k.upper()} is not equal to the"\
+                               " model that should be tested. Values are "\
+                               f" {v_train} and {v}.")
 
     # Get same split as defined during training for testset
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
@@ -100,7 +107,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         n_m_classes=training_hps['N_M_CLASSES'],
         patch_shape=training_hps['PATCH_SIZE'],
         **model_config
-    ).float().cuda()
+    ).float()
     model_names = [fn for fn in os.listdir(experiment_dir) if ".model" in fn]
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
@@ -123,10 +130,17 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         if epoch not in epochs_tested or epoch == -1:
             testLogger.info("Test model %s stored in training epoch %d",
                             model_path, epoch)
-            model.load_state_dict(torch.load(model_path))
+
+            # Avoid problem of cuda out of memory by first loading to cpu, see
+            # https://discuss.pytorch.org/t/cuda-error-out-of-memory-when-load-models/38011/3
+            model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            model.cuda()
             model.eval()
 
-            results = evaluator.evaluate(model, epoch, save_meshes=len(test_set))
+            results = evaluator.evaluate(
+                model, epoch, save_meshes=len(test_set),
+                remove_previous_meshes=False
+            )
 
             write_test_results(results, mn, test_dir)
 

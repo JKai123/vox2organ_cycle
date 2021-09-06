@@ -16,9 +16,11 @@ from utils.train_test import train_test_routine
 from utils.losses import (
     ChamferLoss,
     ChamferAndNormalsLoss,
+    ChamferAndNormalsAndCurvatureLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
-    EdgeLoss
+    EdgeLoss,
+    WassersteinLoss
 )
 from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm,
@@ -40,29 +42,34 @@ hyper_ps = {
     'ACCUMULATE_N_GRADIENTS': 1,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
-    'OPTIMIZER_CLASS': torch.optim.SGD,
+    'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
-        'lr': 1e-3, # voxel lr if graph lr not None
-        'graph_lr': 2.5e-5,
+        'lr': 1e-4, # voxel lr
+        'graph_lr': 5e-5,
         # SGD
-        'momentum': 0.9,
+        # 'momentum': 0.9,
         # Adam
-        # 'betas': [0.9, 0.999],
-        # 'eps': 1e-8,
-        # 'weight_decay': 0.0
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0
     },
-    'LR_DECAY_AFTER': 500,
+    'LR_DECAY_AFTER': 300,
     'DATASET_SEED': 1532,
-    'LOSS_AVERAGING': 'geometric',
+    'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-    'MESH_LOSS_FUNC': [ChamferAndNormalsLoss(),
+    'MESH_LOSS_FUNC': [
+                       # WassersteinLoss(),
+                       # ChamferLoss(),
+                       ChamferAndNormalsLoss(curv_weight_max=5.0),
                        LaplacianLoss(),
                        NormalConsistencyLoss(),
-                       EdgeLoss()],
+                       EdgeLoss(0.0)
+                      ],
+    # 'MESH_LOSS_FUNC': [WassersteinLoss()],
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.3, 0.05, 0.46, 0.16], # Kong
-    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0], # Wickramasinghe
-    'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
+    # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 0.1, 1.0], # Wickramasinghe (adapted)
+    # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned for geometric averaging
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.5, 0.01, 0.1, 0.01], # Tuned on patch
     # 'MESH_LOSS_FUNC_WEIGHTS': [0.1, 0.01, 0.01, 0.01], # Tuned with smaller lr
     # 'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.5, 0.001, 10.0], # Reverse tuned
@@ -71,9 +78,6 @@ hyper_ps = {
         'NORM': 'batch', # Only for graph convs
         # Decoder channels from Kong, should be multiples of 2
         'DECODER_CHANNELS': [64, 32, 16, 8],
-        # Graph decoder channels should be multiples of 2
-        # 'GRAPH_CHANNELS': [128, 64, 32, 16],
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
         'DEEP_SUPERVISION': True,
         'WEIGHTED_EDGES': False,
         'PROPAGATE_COORDS': True,
@@ -87,13 +91,17 @@ hyper_ps_hippocampus = {
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': True,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
-    'PATCH_SIZE': (64, 64, 64),
+    'PATCH_SIZE': [64, 64, 64],
     'BATCH_SIZE': 15,
     'N_M_CLASSES': 1,
     'N_REF_POINTS_PER_STRUCTURE': 1400,
     'N_TEMPLATE_VERTICES': 162,
     'MODEL_CONFIG': {
+        'GRAPH_CHANNELS': [128, 64, 32, 16],
         'UNPOOL_INDICES': [0,1,1],
+        'AGGREGATE_INDICES': [[0,1],
+                              [1,2],
+                              [3,4]], # 8 = last decoder skip
     },
     'PROJ_NAME': "hippocampus",
     'MESH_TARGET_TYPE': "mesh"
@@ -102,49 +110,146 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    'N_EPOCHS': 15000,
+    'NDIMS': 3,
+    'N_EPOCHS': 3000,
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'BATCH_SIZE': 5,
+    'BATCH_SIZE': 1,
     'MODEL_CONFIG': {
+        'GROUP_STRUCTS': [[0, 1], [2, 3]],
+        'GRAPH_CHANNELS': [512, 256, 128, 64, 32],
         'UNPOOL_INDICES': [0,0,0,0],
+        'AGGREGATE_INDICES': [[3,4,5,6],
+                              [2,3,6,7],
+                              [1,2,7,8],
+                              [0,1,7,8]], # 8 = last decoder skip
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'white_matter',
+    'STRUCTURE_TYPE': ('white_matter', 'cerebral_cortex'),
     'REDUCE_REG_LOSS_MODE': 'none',
-    'PATCH_MODE': True
+    'PROVIDE_CURVATURES': True,
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
+
+###### White matter ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
-    if hyper_ps_cortex['PATCH_MODE']:
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.01, 0.1, 0.001, 5.0] # Tuned on hemisphere (exp_443/exp_451)
+    if hyper_ps_cortex['NDIMS'] == 3:
+        if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
+            ## Large
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
+            hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+            ## Small
+            # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
+            # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
+            # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 64, 64]
+            # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+            # hyper_ps_cortex['PATCH_ORIGIN'] = [40, 120, 60]
+            # hyper_ps_cortex['PATCH_SIZE'] = [64, 80, 48]
+            # hyper_ps_cortex['SELECT_PATCH_SIZE'] = [64, 96, 48]
+            # hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 15000
+            ## General
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
+            hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        else: # no patch mode
+            hyper_ps_cortex['N_M_CLASSES'] = 2
+            hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/white_matter/cortex_white_matter_icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    else: # 2D
         hyper_ps_cortex['N_M_CLASSES'] = 1
-        hyper_ps_cortex['PATCH_ORIGIN'] = (0, 10, 0)
-        hyper_ps_cortex['PATCH_SIZE'] = (64, 144, 128)
-        hyper_ps_cortex['SELECT_PATCH_SIZE'] = (96, 192, 176)
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 38000
+        hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 712
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
-    else:
-        hyper_ps_cortex['N_M_CLASSES'] = 2
-        hyper_ps_cortex['PATCH_SIZE'] = (192, 224, 192)
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 119871
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 125000
-        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+            f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
+####### Cerebral cortex ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
-    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 53954
-    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 53954
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.025, 0.25, 0.0015, 5.0] # Tuned on hemisphere (exp_496)
+    if hyper_ps_cortex['NDIMS'] == 3:
+        if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
+            hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+            hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+            hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
+            hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
+            hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
+            hyper_ps_cortex['N_M_CLASSES'] = 1
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        else: # no patch mode
+            hyper_ps_cortex['N_M_CLASSES'] = 2
+            hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+            hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 50000
+            hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+                f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+    else: # 2D
+        hyper_ps_cortex['N_M_CLASSES'] = 1
+        hyper_ps_cortex['PATCH_SIZE'] = [128, 128]
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 712
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 712
+        hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            f"../supplementary_material/circles/icocircle_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+
+####### White matter & cerebral cortex ######
+if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
+    and 'white_matter' in hyper_ps_cortex['STRUCTURE_TYPE']):
+    # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
+    # weights should respect this order!
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
+        [1.0] * 4, # Chamfer
+        [0.01] * 2 + [0.025] * 2, # Cosine,
+        [0.1] * 2 + [0.25] * 2, # Laplace,
+        [0.001] * 2 + [0.0015] * 2, # NormalConsistency
+        [5.0] * 4 # Edge
+    ]
+    # No patch mode
+    hyper_ps_cortex['N_M_CLASSES'] = 4
+    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+    hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+    hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
+    hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
+    hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+    hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28676
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/spheres/cortex_cerebral_cortex_convex_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
 hyper_ps_overfit = {
     # Learning
-    'N_EPOCHS': 15000,
-    'EVAL_EVERY': 100,
     'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
     'MIXED_PRECISION': True,
@@ -200,6 +305,12 @@ def main(hps):
                            dest='params_to_tune',
                            nargs='+',
                            help="Specify the name of a parameter to tune.")
+    argparser.add_argument('--fine-tune',
+                           default=None,
+                           type=str,
+                           dest='params_to_fine_tune',
+                           nargs='+',
+                           help="Specify the name of a parameter to tune.")
     argparser.add_argument('--resume',
                            action='store_true',
                            help="Resume an existing, potentially unfinished"\
@@ -228,7 +339,7 @@ def main(hps):
                            type=int,
                            nargs='?',
                            const=1,
-                           default=None,
+                           default=False,
                            help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
@@ -257,6 +368,12 @@ def main(hps):
     hps['OVERFIT'] = args.overfit
     hps['TIME_LOGGING'] = args.time
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
+    hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
+
+    if args.params_to_tune and args.params_to_fine_tune:
+        raise RuntimeError(
+            "Cannot tune and fine-tune parameters at the same time."
+        )
 
     if args.exp_name == "debug" and not args.overfit:
         # Overfit when debugging
@@ -277,7 +394,7 @@ def main(hps):
     if hps['OVERFIT']:
         hps = update_dict(hps, hyper_ps_overfit)
 
-    if args.params_to_tune is not None:
+    if args.params_to_tune or args.params_to_fine_tune:
         mode = ExecModes.TUNE
     else:
         if args.train and not args.test:
@@ -302,6 +419,13 @@ def main(hps):
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
+
+    # Add patch size to model config
+    hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
+
+    # Set project name automatically
+    if hps['PROJ_NAME'] == 'cortex' and hps['NDIMS'] == 2:
+        hps['PROJ_NAME'] = 'cortex_2D'
 
     # Run
     routine = mode_handler[mode]

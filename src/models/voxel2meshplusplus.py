@@ -4,7 +4,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from itertools import chain
-from typing import Union
+from typing import Union, Tuple
 from deprecated import deprecated
 
 import numpy as np
@@ -17,7 +17,8 @@ from torch.cuda.amp import autocast
 from utils.utils import (
     crop_and_merge,
     sample_outer_surface_in_voxel,
-    normalize_vertices)
+)
+from utils.coordinate_transform import normalize_vertices_per_max_dim
 from utils.utils_voxel2meshplusplus.graph_conv import (
     Feature2VertexLayer,
     Features2Features)
@@ -377,13 +378,14 @@ class Voxel2MeshPlusPlus(V2MModel):
             # Coord. 0 = index of data within batch
             batch_ids = surface_points[:,0]
             # Point coordinates
-            surface_points_normalized = normalize_vertices(surface_points[:,1:], shape[None])
+            surface_points_normalized = normalize_vertices_per_max_dim(
+                surface_points[:,1:], shape
+            )
 
             surface_points_normalized_batch = []
             # Iterate over minibatch
             for b in range(batch_size):
                 points = surface_points_normalized[batch_ids == b]
-                points = torch.flip(points, dims=[1]).float() # convert z,y,x -> x, y, z
 
                 # debug
                 write_scatter_plot_if_debug(points,
@@ -501,6 +503,17 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param voxel_decoder: Whether or not to use a voxel decoder
     :param GC: The graph conv implementation to use
     :param propagate_coords: Whether to propagate coordinates in the graph conv
+    :param patch_size: The used patch size of input images.
+    :param aggregate_indices: Where to take the features from the UNet
+    :param p_dropout: Dropout probability for UNet blocks
+    :param ndims: Dimensionality of images
+    :param group_structs: Group the structures in the graph network, e.g.,
+    group left and right white matter hemisphere into group "white matter".
+    During a graph net forward pass, features are exchanged between distinct
+    groups but not within a group. For example, white surface vertex positions
+    can be provided to the pial vertices and vice versa.
+    :param k_struct_neighbors: K for the KNN features of other structures, only
+    relevant if group_structs is specified.
     """
 
     def __init__(self,
@@ -520,6 +533,12 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  voxel_decoder: bool,
                  gc,
                  propagate_coords: bool,
+                 patch_size: Tuple[int, int, int],
+                 aggregate_indices: Tuple[Tuple[int]],
+                 p_dropout: float,
+                 ndims: int,
+                 group_structs: Tuple[Tuple[int]],
+                 k_struct_neighbors: int,
                  **kwargs
                  ):
         super().__init__()
@@ -531,8 +550,11 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       down_channels=encoder_channels,
                                       up_channels=decoder_channels,
                                       deep_supervision=deep_supervision,
-                                      voxel_decoder=voxel_decoder)
+                                      voxel_decoder=voxel_decoder,
+                                      p_dropout=p_dropout,
+                                      ndims=ndims)
         # Graph network
+        aggregate = 'trilinear' if ndims == 3 else 'bilinear'
         self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
                                       unpool_indices=unpool_indices,
@@ -541,7 +563,13 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       skip_channels=encoder_channels+decoder_channels,
                                       weighted_edges=weighted_edges,
                                       propagate_coords=propagate_coords,
-                                      GC=gc)
+                                      patch_size=patch_size,
+                                      aggregate_indices=aggregate_indices,
+                                      aggregate=aggregate,
+                                      k_struct_neighbors=k_struct_neighbors,
+                                      GC=gc,
+                                      group_structs=group_structs,
+                                      ndims=ndims)
 
     @measure_time
     def forward(self, x):
@@ -611,7 +639,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
         vertices = []
         faces = []
-        meshes = pred[0]
+        meshes = pred[0][1:] # Ignore template mesh at pos. 0
         for s, m in enumerate(meshes):
             v_s = []
             f_s = []

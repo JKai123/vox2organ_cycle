@@ -10,12 +10,14 @@ import numpy as np
 import torch
 from pytorch3d.loss import chamfer_distance
 from scipy.spatial.distance import directed_hausdorff
+from geomloss import SamplesLoss
 
 from utils.mesh import Mesh
 from utils.utils import (
-    unnormalize_vertices,
     sample_inner_volume_in_voxel,
-    voxelize_mesh)
+    voxelize_mesh,
+    voxelize_contour,
+)
 from utils.logging import (
     write_img_if_debug,
     measure_time)
@@ -34,6 +36,45 @@ class EvalMetrics(IntEnum):
     # Symmetric Hausdorff distance between two meshes
     SymmetricHausdorff = 4
 
+    # Wasserstein distance between point clouds
+    Wasserstein = 5
+
+@measure_time
+def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
+    """ Approximate Wasserstein distance with Sinkhorn iteration.
+    If multiple structures are present, the average is returned.
+    """
+    # Ground truth
+    mesh_gt = data[2]
+    ndims = mesh_gt.ndims
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims).cuda()
+
+    # Prediction: Only consider mesh of last step
+    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+
+    # Loss criterion: Sinkhorn divergence with L2 ground distance
+    dist = SamplesLoss(loss="sinkhorn", p=2, diameter=2, blur=0.05)
+
+    wds = []
+
+    for p, gt in zip(pred_vertices, gt_vertices):
+        # Select an equal number of points
+        if len(p) < len(gt):
+            p_ = p
+            perm = torch.randperm(len(gt))
+            perm = perm[:len(p)]
+            gt_ = gt[perm, :]
+        else:
+            gt_ = gt
+            perm = torch.randperm(len(p))
+            perm = perm[:len(gt)]
+            p_ = p[perm, :]
+
+        wds.append(dist(p_, gt_).cpu().item())
+
+    return wds
+
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
     """ Symmetric Hausdorff distance between predicted point clouds. If
@@ -42,11 +83,12 @@ def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
     """
     # Ground truth
     mesh_gt = data[2]
-    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, 3)
+    ndims = mesh_gt.ndims
+    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims)
 
     # Prediction: Only consider mesh of last step
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, 3).cpu().numpy()
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims).cpu().numpy()
 
     hds = []
     for pred, gt in zip(pred_vertices, gt_vertices):
@@ -54,45 +96,67 @@ def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
                 directed_hausdorff(gt, pred)[0])
         hds.append(d)
 
-    return np.max(hds)
+    return hds
 
 @measure_time
 def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
-                     strip=True, compare_with='voxel_gt'):
+                     strip=True, compare_with='mesh_gt'):
     """ Jaccard averaged over classes ignoring background. The mesh prediction
-    is compared against the voxel ground truth.
+    is compared against the voxel ground truth or against the mesh ground truth.
     """
     assert compare_with in ("voxel_gt", "mesh_gt")
     input_img = data[0].cuda()
     voxel_gt = data[1].cuda()
+    mesh_gt = data[2]
+    ndims = mesh_gt.ndims
     shape = voxel_gt.shape
     if compare_with == 'mesh_gt':
-        mesh_gt = data[2]
         vertices, faces = mesh_gt.vertices, mesh_gt.faces
-        vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
-        voxel_target = voxelize_mesh(
-            vertices, faces, shape, n_m_classes
-        ).cuda()
+        if ndims == 3:
+            voxel_target = voxelize_mesh(
+                vertices, faces, shape, n_m_classes
+            ).cuda()
+        else: # 2D
+            voxel_target = voxelize_contour(
+                vertices, shape
+            ).cuda()
     else: # voxel gt
         voxel_target = voxel_gt
     vertices, faces = model_class.pred_to_verts_and_faces(pred)
     # Only mesh of last step considered and batch dimension squeezed out
-    vertices = vertices[-1].view(n_m_classes, -1, 3)
-    vertices = vertices.flip(dims=[2]) # convert x,y,z -> z, y, x
-    faces = faces[-1].view(n_m_classes, -1, 3)
-    voxel_pred = voxelize_mesh(
-        vertices, faces, shape, n_m_classes
-    ).cuda()
+    vertices = vertices[-1].view(n_m_classes, -1, ndims)
+    faces = faces[-1].view(n_m_classes, -1, ndims)
+    if ndims == 3:
+        voxel_pred = voxelize_mesh(
+            vertices, faces, shape, n_m_classes
+        ).cuda()
+    else: # 2D
+        voxel_pred = voxelize_contour(
+            vertices, shape
+        ).cuda()
+
+    if voxel_target.ndim == 3:
+        voxel_target = voxel_target.unsqueeze(0)
+        # Combine all structures into one voxelization
+        voxel_pred = voxel_pred.sum(0).bool().long().unsqueeze(0)
+
+    # Debug
     write_img_if_debug(input_img.squeeze().cpu().numpy(),
                        "../misc/voxel_input_img_eval.nii.gz")
-    write_img_if_debug(voxel_pred.squeeze().cpu().numpy(),
-                       "../misc/mesh_pred_img_eval.nii.gz")
-    write_img_if_debug(voxel_target.squeeze().cpu().numpy(),
-                       "../misc/voxel_target_img_eval.nii.gz")
+    for i, (vp, vt) in enumerate(zip(voxel_pred, voxel_target)):
+        write_img_if_debug(vp.squeeze().cpu().numpy(),
+                           f"../misc/mesh_pred_img_eval_{i}.nii.gz")
+        write_img_if_debug(vt.squeeze().cpu().numpy(),
+                           f"../misc/voxel_target_img_eval_{i}.nii.gz")
 
-    j_vox = Jaccard(voxel_pred.cuda(), voxel_target.cuda(), 2)
+    # Jaccard per structure
+    j_vox_all = []
+    for vp, vt in zip(voxel_pred.cuda(), voxel_target.cuda()):
+        j_vox_all.append(
+            Jaccard(vp.cuda(), vt.cuda(), 2)
+        )
 
-    return j_vox
+    return j_vox_all
 
 @measure_time
 def JaccardVoxelScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
@@ -135,7 +199,7 @@ def Jaccard_from_Coords(pred, target, n_v_classes):
 
 @measure_time
 def Jaccard(pred, target, n_classes):
-    """ Jaccard/Intersection over Union from 3D voxel volumes """
+    """ Jaccard/Intersection over Union """
     ious = []
     # Ignoring background class 0
     for c in range(1, n_classes):
@@ -176,5 +240,6 @@ EvalMetricHandler = {
     EvalMetrics.JaccardVoxel.name: JaccardVoxelScore,
     EvalMetrics.JaccardMesh.name: JaccardMeshScore,
     EvalMetrics.Chamfer.name: ChamferScore,
-    EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore
+    EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
+    EvalMetrics.Wasserstein.name: WassersteinScore
 }

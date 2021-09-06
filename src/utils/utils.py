@@ -8,6 +8,7 @@ import copy
 import inspect
 import collections.abc
 from enum import Enum
+from typing import Union, Tuple
 
 import numpy as np
 import nibabel as nib
@@ -15,10 +16,14 @@ import torch
 import torch.nn.functional as F
 from trimesh import Trimesh
 from skimage import measure
+from skimage.draw import polygon
 from plyfile import PlyData
 
-from utils.modes import ExecModes
 from utils.mesh import Mesh
+from utils.coordinate_transform import (
+    normalize_vertices_per_max_dim,
+    unnormalize_vertices_per_max_dim
+)
 
 class ExtendedEnum(Enum):
     """
@@ -80,21 +85,7 @@ def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
 
     return mesh
 
-def normalize_vertices(vertices, shape):
-    """ Normalize vertex coordinates from [0, patch size-1] into [-1, 1] """
-    assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
-    assert shape.shape[0] == 1, "first dim of shape should be length 1"
-
-    return 2*(vertices/(torch.max(shape)-1) - 0.5)
-
-def unnormalize_vertices(vertices, shape):
-    """ Inverse of 'normalize vertices' """
-    assert len(vertices.shape) == 2 and len(shape.shape) == 2, "Inputs must be 2 dim"
-    assert shape.shape[0] == 1, "first dim of shape should be length 1"
-
-    return (0.5 * vertices + 0.5) * (torch.max(shape) - 1)
-
-def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
+def create_mesh_from_voxels(volume, mc_step_size=1):
     """ Convert a voxel volume to mesh using marching cubes
 
     :param volume: The voxel volume.
@@ -104,7 +95,7 @@ def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
     if isinstance(volume, torch.Tensor):
         volume = volume.cpu().data.numpy()
 
-    shape = torch.tensor(volume.shape)[None].float()
+    shape = volume.shape
 
     vertices_mc, faces_mc, normals, values = measure.marching_cubes(
                                     volume,
@@ -112,17 +103,43 @@ def create_mesh_from_voxels(volume, mc_step_size=1, flip=True):
                                     step_size=mc_step_size,
                                     allow_degenerate=False)
 
-    if flip:
-        vertices_mc = torch.flip(torch.from_numpy(vertices_mc), dims=[1]).float()  # convert z,y,x -> x, y, z
-        vertices_mc = normalize_vertices(vertices_mc, shape.flip(dims=[1]))
-    else:
-        vertices_mc = normalize_vertices(vertices_mc, shape)
-    faces_mc = torch.from_numpy(faces_mc).long()
+    vertices_mc = normalize_vertices_per_max_dim(
+        torch.from_numpy(vertices_mc).float(), shape
+    )
+    # measure.marching_cubes uses left-hand rule for normal directions, our
+    # convention is right-hand rule
+    faces_mc = torch.from_numpy(faces_mc).long().flip(dims=[1])
 
     # ! Normals are not valid anymore after normalization of vertices
     normals = None
 
     return Mesh(vertices_mc, faces_mc, normals, values)
+
+def create_mesh_from_pixels(img):
+    """ Convert an image to a 2D mesh (= a graph) using marching squares.
+
+    :param img: The pixel input from which contours should be extracted.
+    :return: The generated mesh.
+    """
+    if isinstance(img, torch.Tensor):
+        img = img.cpu().data.numpy()
+
+    shape = img.shape
+
+    vertices_ms = measure.find_contours(img)
+    # Only consider main contour
+    vertices_ms = sorted(vertices_ms, key=lambda x: len(x))[-1]
+    # Edges = faces in 2D
+    faces_ms = []
+    faces_ms = torch.tensor(
+        faces_ms + [[i,i+1] for i in range(len(vertices_ms) - 1)]
+    )
+
+    vertices_ms = normalize_vertices_per_max_dim(
+        torch.from_numpy(vertices_ms).float(), shape
+    )
+
+    return Mesh(vertices_ms, faces_ms)
 
 def update_dict(d, u):
     """
@@ -302,7 +319,8 @@ def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
     return mirrored_mesh
 
 def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
-    """ Voxelize the mesh and return a segmentation map of 'shape'. 
+    """ Voxelize the mesh and return a segmentation map of 'shape' for each
+    mesh class.
 
     :param vertices: The vertices of the mesh
     :param faces: Corresponding faces as indices to vertices
@@ -315,23 +333,117 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
     the mesh.
     """
     assert len(shape) == 3, "Shape should be 3D"
+    assert (n_m_classes == vertices.shape[0] == faces.shape[0]
+            or (n_m_classes == 1 and vertices.ndim == faces.ndim == 2)),\
+            "Wrong shape of vertices and/or faces."
+
     voxelized_mesh = torch.zeros(shape, dtype=torch.long)
     vertices = vertices.view(n_m_classes, -1, 3)
     faces = faces.view(n_m_classes, -1, 3)
-    unnorm_verts = unnormalize_vertices(
-        vertices.view(-1, 3), torch.tensor(shape)[None]
+    unnorm_verts = unnormalize_vertices_per_max_dim(
+        vertices.view(-1, 3), shape
     ).view(n_m_classes, -1, 3)
-    pv = Mesh(unnorm_verts, faces).get_occupied_voxels(shape)
-    if pv is not None:
-        # Occupied voxels are considered to belong to one class
-        voxelized_mesh[pv[:,0], pv[:,1], pv[:,2]] = 1
-    else:
-        # No mesh in the valid range predicted --> keep zeros
-        pass
+    voxelized_all = []
+    for v, f in zip(unnorm_verts, faces):
+        vm = voxelized_mesh.clone()
+        pv = Mesh(v, f).get_occupied_voxels(shape)
+        if pv is not None:
+            # Occupied voxels belong to one class
+            vm[pv[:,0], pv[:,1], pv[:,2]] = 1
+        else:
+            # No mesh in the valid range predicted --> keep zeros
+            pass
 
-    # Strip outer layer of voxelized mesh
-    if strip:
-        voxelized_mesh = sample_inner_volume_in_voxel(voxelized_mesh)
+        # Strip outer layer of voxelized mesh
+        if strip:
+            vm = sample_inner_volume_in_voxel(vm)
 
-    return voxelized_mesh
+        voxelized_all.append(vm)
 
+    return torch.stack(voxelized_all)
+
+def dict_to_lower_dict(d_in: dict):
+    """ Convert all keys in the dict to lower case. """
+    d_out = dict((k.lower(), v) for k, v in d_in.items())
+    for k, v in d_out.items():
+        if isinstance(v, dict):
+            d_out[k] = dict_to_lower_dict(v)
+
+    return d_out
+
+def voxelize_contour(vertices, shape):
+    """ Voxelize the contour and return a segmentation map of shape 'shape'.
+    See also
+    https://stackoverflow.com/questions/39642680/create-mask-from-skimage-contour
+
+    :param vertices: The vertices of the contour.
+    :param shape: The target shape of the voxel map.
+    """
+    assert vertices.ndim == 3, "Vertices should be padded."
+    assert vertices.shape[2] == 2 and len(shape) == 2,\
+            "Method is dedicated to 2D data."
+    v_shape = vertices.shape
+    unnorm_verts = unnormalize_vertices_per_max_dim(
+        vertices.view(-1, 2), shape
+    ).view(v_shape)
+    if isinstance(unnorm_verts, torch.Tensor):
+        unnorm_verts = unnorm_verts.cpu().numpy()
+    voxelized_contour = np.zeros(shape, dtype=np.long)
+    for vs in unnorm_verts:
+        # Round to voxel coordinates
+        rr, cc = polygon(vs[:,0], vs[:,1], shape)
+        voxelized_contour[rr, cc] = 1
+
+    return torch.from_numpy(voxelized_contour).long()
+
+def edge_lengths_in_contours(vertices, edges):
+    """ Compute edge lengths for all edges in 'edges'."""
+    if vertices.ndim != 2 or edges.ndim != 2:
+        raise ValueError("Vertices and edges should be packed.")
+
+    vertices_edges = vertices[edges]
+    v1, v2 = vertices_edges[:,0], vertices_edges[:,1]
+
+    return torch.norm(v1 - v2, dim=1)
+
+def choose_n_random_points(points: torch.Tensor, n: int, return_idx=False,
+                           ignore_padded=False):
+    """ Choose n points randomly from points. """
+    if points.ndim == 3:
+        res = []
+        idx = []
+        for k, ps in enumerate(points):
+            if return_idx:
+                p, i = choose_n_random_points(ps, n, return_idx, ignore_padded)
+                res.append(p)
+                idx += [torch.tensor([k,ii]) for ii in i]
+            else:
+                res.append(
+                    choose_n_random_points(ps, n, return_idx, ignore_padded)
+                )
+        if return_idx:
+            return torch.stack(res), torch.stack(idx)
+        return torch.stack(res)
+    if points.ndim == 2:
+        n_points = len(points)
+        if ignore_padded:
+            n_padded = 0
+            # Zero-padded points have coordinates (-1, -1, -1) after
+            # normalization (in mesh coordinates)
+            while (
+                (points[-n_padded-1] == - torch.ones(points.shape[1])).all()
+                or (points[-n_padded-1] == torch.zeros(points.shape[1])).all()
+            ): n_padded += 1
+            n_points = n_points - n_padded
+        perm = torch.randperm(n_points)
+        perm = perm[:n].sort()[0]
+        if return_idx:
+            return points[perm], perm
+        return points[perm]
+
+    raise ValueError("Invalid number of dimensions.")
+
+def int_to_binlist(i, n_digits):
+    """ Convert an integer to binary in the form of a list of integers with
+    length n_digits, e.g.  int_to_binlist(6, 4) --> [0,1,1,0]"""
+    return list(map(int, bin(i)[2:].zfill(n_digits)))
