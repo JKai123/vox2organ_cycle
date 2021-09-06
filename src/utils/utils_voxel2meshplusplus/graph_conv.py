@@ -18,9 +18,6 @@ from torch_sparse import SparseTensor
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.utils import Euclidean_weights
 
-from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
-from utils.utils import Euclidean_weights
-
 class GraphConvNorm(GraphConv):
     """ Wrapper for pytorch3d.ops.GraphConv that normalizes the features
     w.r.t. the degree of the vertices.

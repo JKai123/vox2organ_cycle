@@ -256,16 +256,6 @@ hyper_ps_overfit = {
 }
 
 
-# Overwrite params for overfitting (fewer epochs, no augmentation, smaller
-# dataset)
-hyper_ps_overfit = {
-    # Learning
-    'N_EPOCHS': 1000,
-    'BATCH_SIZE': 5,
-    'AUGMENT_TRAIN': False,
-}
-
-
 mode_handler = {
     ExecModes.TRAIN.value: training_routine,
     ExecModes.TEST.value: test_routine,
