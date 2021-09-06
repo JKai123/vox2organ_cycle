@@ -115,9 +115,10 @@ hyper_ps_cortex = {
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'BATCH_SIZE': 1,
+    'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': [[0, 1], [2, 3]],
-        'GRAPH_CHANNELS': [512, 256, 128, 64, 32],
+        'GRAPH_CHANNELS': [256, 256, 128, 64, 32],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
@@ -233,11 +234,11 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         [0.01] * 2 + [0.025] * 2, # Cosine,
         [0.1] * 2 + [0.25] * 2, # Laplace,
         [0.001] * 2 + [0.0015] * 2, # NormalConsistency
-        [5.0] * 4 # Edge
+        [7.5] * 4 # Edge
     ]
     # No patch mode
     hyper_ps_cortex['N_M_CLASSES'] = 4
-    hyper_ps_cortex['PATCH_SIZE'] = [192, 208, 192]
+    hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
     hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
     hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
     hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
