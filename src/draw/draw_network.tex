@@ -109,20 +109,20 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % final conv
 \pic[shift={(1,0,0)}] at (urb1-east) {Box={name=cf,%
-	xlabel={"seg.\ classes","dummy"},zlabel=I,fill=\ConvKOneColor,%
+	xlabel={"2","dummy"},zlabel=I,fill=\ConvKOneColor,%
         opacity=0.5,height=40,width=1,depth=40}};
 % upsamplefordeepsupervision2
 \pic[shift={(0,-6,0)}] at (cf-south) {Box={name=uds2,%
 	fill=\UpsampleColor,opacity=0.5,height=40,width=1,depth=40}};
 % deepsupervision2
 \pic[shift={(0,0,0)}] at (uds2-east) {Box={name=ds2,%
-	xlabel={{"seg.\ classes", "dummy"}},fill=\ConvKOneColor,opacity=0.5,height=40,width=1,depth=40}};
+	xlabel={{"2", "dummy"}},fill=\ConvKOneColor,opacity=0.5,height=40,width=1,depth=40}};
 % upsamplefordeepsupervision3
 \pic[shift={(0,-6,0)}] at (uds2-south) {Box={name=uds3,%
 	fill=\UpsampleColor,opacity=0.5,height=40,width=1,depth=40}};
 % deepsupervision3
 \pic[shift={(0,0,0)}] at (uds3-east) {Box={name=ds3,%
-	xlabel={{"seg.\ classes", "dummy"}},fill=\ConvKOneColor,opacity=0.5,height=40,width=1,depth=40}};
+	xlabel={{"2", "dummy"}},fill=\ConvKOneColor,opacity=0.5,height=40,width=1,depth=40}};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Graph network
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -131,7 +131,7 @@
 	opacity=0.5,height=25,width={8,8,8},depth=25}};
 %% step 1
 \pic[shift={(-6,0,0)}] at (grb0-west) {LeftBandedCylinder={name=grb1,caption=x3,%
-	xlabel={{"128", "128","128"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
+	xlabel={{"256", "256","256"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
 %\pic[shift={(-2.5,0,0)}] at (grb1-west) {LeftBandedCylinder={name=gc1,%
@@ -143,7 +143,7 @@
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 2
 \pic[shift={(-7.5,0,0)}] at (grb1-west) {LeftBandedCylinder={name=grb2,caption=x3,%
-	xlabel={{"64", "64","64"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
+	xlabel={{"128", "128","128"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={3,3,3},depth=25}};
 %%
 %\pic[shift={(-2.5,0,0)}] at (grb2-west) {LeftBandedCylinder={name=gc2,%
@@ -155,7 +155,7 @@
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 3
 \pic[shift={(-6.5,0,0)}] at (grb2-west) {LeftBandedCylinder={name=grb3,caption=x3,%
-	xlabel={{"32", "32","32"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
+	xlabel={{"64", "64","64"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={2,2,2},depth=25}};
 %%
 %\pic[shift={(-2.5,0,0)}] at (grb3-west) {LeftBandedCylinder={name=gc3,%
@@ -167,7 +167,7 @@
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 4
 \pic[shift={(-5.5,0,0)}] at (grb3-west) {LeftBandedCylinder={name=grb4,caption=x3,%
-	xlabel={{"16", "16","16"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
+	xlabel={{"32", "32","32"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={1,1,1},depth=25}};
 %%
 \pic[shift={(-1,-6,0)}] at (grb4-west) {Cylinder={name=fv4,%
@@ -625,16 +625,25 @@
 %% Output meshes and images
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \node[inner sep=0pt] (img-in) at ([xshift=-100] c1-west)
-    {\includegraphics[width=.25\textwidth]{mri_half.png}};
+    {\includegraphics[width=.25\textwidth]{mri.png}};
 \draw [connection] (img-in.east) -- node {\midarrow} (c1-west);
+\node[inner sep=0pt] (img-out-1) at ([xshift=100] cf-east)
+	{\includegraphics[width=.25\textwidth]{segmap.png}};
+\draw [connection] (cf-east) -- node {\midarrow} (img-out-1.west);
+\node[inner sep=0pt] (img-out-2) at ([xshift=100] ds2-east)
+	{\includegraphics[width=.25\textwidth]{segmap.png}};
+\draw [connection] (ds2-east) -- node {\midarrow} (img-out-2.west);
+\node[inner sep=0pt] (img-out-3) at ([xshift=100] ds3-east)
+	{\includegraphics[width=.25\textwidth]{segmap.png}};
+\draw [connection] (ds3-east) -- node {\midarrow} (img-out-3.west);
 \node[inner sep=0pt] (mout1) at ([yshift=-50, xshift=-30] mout-01)
-    {\includegraphics[width=.25\textwidth]{hemisphere.png}};
+    {\includegraphics[width=.25\textwidth]{step_1.png}};
 \node[inner sep=0pt] (mout2) at ([yshift=-50, xshift=-30] mout-02)
-    {\includegraphics[width=.25\textwidth]{hemisphere.png}};
+    {\includegraphics[width=.25\textwidth]{step_2.png}};
 \node[inner sep=0pt] (mout3) at ([yshift=-50, xshift=-30] mout-03)
-    {\includegraphics[width=.25\textwidth]{hemisphere.png}};
+    {\includegraphics[width=.25\textwidth]{step_3.png}};
 \node[inner sep=0pt] (mout4) at ([yshift=-60, xshift=-30] mout-04)
-    {\includegraphics[width=.25\textwidth]{hemisphere.png}};
+    {\includegraphics[width=.25\textwidth]{step_4.png}};
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw legend
