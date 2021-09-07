@@ -272,7 +272,7 @@ def show_slices(slices, labels=None, save_path=None, label_mode='contour'):
     """
 
     assert label_mode in ('contour', 'fill')
-    colors = ('blue', 'green')
+    colors = ('blue', 'green', 'cyan', 'yellow')
 
     _, axs = plt.subplots(1, len(slices))
     if len(slices) == 1:
