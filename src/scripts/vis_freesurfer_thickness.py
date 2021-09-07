@@ -7,8 +7,8 @@ __email__ = "fabi.bongratz@gmail.com"
 from argparse import ArgumentParser
 
 import numpy as np
-import trimesh
-from nibabel.freesurfer.io import read_morph_data
+from trimesh.base import Trimesh
+from nibabel.freesurfer.io import read_morph_data, read_geometry
 from matplotlib import cm
 
 from utils.utils import normalize_min_max
@@ -24,11 +24,13 @@ args = argparser.parse_args()
 in_file_name = args.FILE_NAME
 out_file_name = args.OUT_NAME
 
-mesh_fn = f"/mnt/nas/Data_Neuro/MALC_CSR/{in_file_name}/lh_white.stl"
+mesh_fn = f"/mnt/nas/Data_Neuro/MALC_CSR/FS/FS/{in_file_name}/surf/lh.white"
 thickness_fn = f"/mnt/nas/Data_Neuro/MALC_CSR/FS/FS/{in_file_name}/surf/lh.thickness"
 
-# Problem: Merged vertices do not correspond to order of thickness
-mesh = trimesh.load(mesh_fn, process=False)
+# Use nibabel.freesurfer.io.read_geometry to load mesh since lh_pial.stl etc.
+# contain duplicate vertices
+vertices, faces = read_geometry(mesh_fn)
+mesh = Trimesh(vertices, faces)
 thickness = read_morph_data(thickness_fn)
 
 viridis = cm.get_cmap('viridis')
