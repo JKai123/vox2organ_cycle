@@ -616,10 +616,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mesh template
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\pic[shift={(4,0,0)}] at (grb0-east) {Ball={name=template,%
+\pic[shift={(4,0,2)}] at (grb0-east) {Ball={name=template,%
 	fill={rgb:black,5}, logo= ,%
         radius=10}};
-\draw [connection] (template-west) -- node {\midarrow} (grb0-east);
+\pic[shift={(4,0,-2)}] at (grb0-east) {Ball={name=template-2,%
+	fill={rgb:black,5}, logo= ,%
+        radius=10}};
+\draw [connection] ([xshift=100] grb0-east) -- node {\midarrow} (grb0-east);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Output meshes and images
