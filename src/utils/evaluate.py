@@ -102,7 +102,6 @@ class ModelEvaluator():
 
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
-        breakpoint()
 
         return results
 
