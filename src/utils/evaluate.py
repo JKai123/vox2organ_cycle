@@ -40,7 +40,7 @@ def add_to_results_(result_dict, metric_name, result):
     if not isinstance(result, Sequence): # Atomic result
         result_dict[metric_name].append(result)
     else: # Per-structure result
-        result_dict[metric_name] = np.mean(result)
+        result_dict[metric_name].append(np.mean(result))
         for i, res in enumerate(result):
             name = metric_name + f"_Struc{i}"
             if name not in result_dict:
@@ -102,6 +102,7 @@ class ModelEvaluator():
 
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
+        breakpoint()
 
         return results
 
