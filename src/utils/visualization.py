@@ -138,10 +138,13 @@ def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
 
         img1 = img3D.get_fdata() # get np.ndarray
         img1 = img1[int(img3D.shape[0]/2), :, :]
+        img1 = np.flip(np.rot90(img1), axis=1)
         img2 = img3D.get_fdata() # get np.ndarray
         img2 = img2[:, int(img3D.shape[1]/2), :]
+        img2 = np.rot90(img2)
         img3 = img3D.get_fdata() # get np.ndarray
         img3 = img3[:, :, int(img3D.shape[2]/2)]
+        img3 = np.rot90(img3)
 
         # Try to find ground truth
         if labels_from_mesh is None:
