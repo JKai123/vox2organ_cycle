@@ -26,7 +26,10 @@ from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
-from utils.ico_template import generate_sphere_template
+from utils.ico_template import (
+    generate_sphere_template,
+    generate_ellipsoid_template
+)
 from utils.utils import (
     choose_n_random_points,
     voxelize_mesh,
@@ -177,7 +180,11 @@ class Cortex(DatasetHandler):
         self.seg_label_names = seg_label_names
         self.n_structures = len(mesh_label_names)
         self.mesh_type = mesh_type
-        self.centers, self.radii = None, None
+        self.centers = None
+        self.radii = None
+        self.radii_x = None
+        self.radii_y = None
+        self.radii_z = None
         self.n_min_vertices, self.n_max_vertices = None, None
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
@@ -282,9 +289,13 @@ class Cortex(DatasetHandler):
                     raw_imgs, raw_voxel_labels, raw_mesh_labels
                 )
 
-        self.centers, self.radii = self._get_centers_and_radii(
+        (self.centers,
+         self.radii,
+         self.radii_x,
+         self.radii_y,
+         self.radii_z) = self._get_centers_and_radii(
             self.mesh_labels
-        )
+         )
 
     def preprocess_data_3D(self, raw_imgs: list, raw_voxel_labels: list,
                            raw_mesh_labels: list):
@@ -412,6 +423,23 @@ class Cortex(DatasetHandler):
                                " cannnot be created. ")
         return path
 
+    def store_ellipsoid_template(self, path):
+        """ Template for dataset. This can be stored and later used during
+        training.
+        """
+        if (self.centers is not None and
+            self.radii_x is not None and
+            self.radii_y is not None and
+            self.radii_z is not None):
+            template = generate_ellipsoid_template(
+                self.centers, self.radii_x, self.radii_y, self.radii_z, level=6
+            )
+            template.export(path)
+        else:
+            raise RuntimeError("Centers and/or radii are unknown, template"
+                               " cannnot be created. ")
+        return path
+
     def store_index0_template(self, path, n_max_points=41000):
         """ This template is the structure of dataset element at index 0,
         potentially mirrored at the hemisphere plane. """
@@ -462,49 +490,55 @@ class Cortex(DatasetHandler):
             hemispheres
             3. Store both meshes together in one template
         """
-        n_points = 0
-        i = 0
-        while n_points > n_max_points or n_points < n_min_points:
-            if i >= len(self):
-                print("Template with the desired number of vertices could not"
-                      " be created. Aborting.")
-                return None
-            template = Scene()
-            if len(self.mesh_label_names) == 2:
-                label_1, label_2 = self.mesh_label_names
-            else:
-                label_1 = self.mesh_labels[0]
-                label_2 = None
-            # Select mesh to generate the template from
-            vertices = self.mesh_labels[i].vertices[0]
-            faces = self.mesh_labels[i].faces[0]
+        ml_names = self.mesh_label_names
+        # Assume ordering lh_white, rh_white, lh_pial, rh_pial
+        if len(ml_names) == 4:
+            ml_names = ((ml_names[0], ml_names[1]), (ml_names[2], ml_names[3]))
+        else:
+            ml_names = (ml_names,)
+        template = Scene()
+        for struc_id, mln in enumerate(ml_names):
+            n_points = 0
+            i = 0
+            while n_points > n_max_points or n_points < n_min_points:
+                if i >= len(self):
+                    print("Template with the desired number of vertices could not"
+                          " be created. Aborting.")
+                    return None
+                if len(mln) == 2:
+                    label_1, label_2 = mln
+                else:
+                    label_1 = mln[0]
+                    label_2 = None
+                # Select mesh to generate the template from
+                vertices = self.mesh_labels[i].vertices[struc_id * 2]
+                faces = self.mesh_labels[i].faces[struc_id * 2]
 
-            # Remove padded vertices
-            valid_ids = np.unique(faces)
-            valid_ids = valid_ids[valid_ids != -1]
-            vertices_ = vertices[valid_ids]
+                # Remove padded faces
+                faces = faces[(faces != -1).any(dim=1)]
 
-            # Get convex hull of the mesh label
-            structure_1 = Trimesh(vertices_, faces, process=False).convex_hull
+                # Get convex hull of the mesh label
+                structure_1 = Trimesh(vertices, faces).convex_hull
 
-            # Increase granularity until desired number of points is reached
-            while structure_1.subdivide().vertices.shape[0] < n_max_points:
-                structure_1 = structure_1.subdivide()
+                # Increase granularity until desired number of points is reached
+                while structure_1.subdivide().vertices.shape[0] < n_max_points:
+                    structure_1 = structure_1.subdivide()
 
-            assert structure_1.is_watertight, "Mesh template should be watertight."
-            n_points = structure_1.vertices.shape[0]
-            print(f"Template structure {i} has {n_points} vertices.")
-            i += 1
-        template.add_geometry(structure_1, geom_name=label_1)
+                assert structure_1.is_watertight, "Mesh template should be watertight."
+                n_points = structure_1.vertices.shape[0]
+                print(f"Template structure {i} has {n_points} vertices.")
+                i += 1
 
-        # Second structure = mirror of first structure
-        if label_2 is not None:
-            plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
-            plane_point = 0.5 * np.array((self.centers[label_1] +
-                                          self.centers[label_2]))
-            structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
-                                              plane_point)
-            template.add_geometry(structure_2, geom_name=label_2)
+            template.add_geometry(structure_1, geom_name=label_1)
+
+            # Second structure = mirror of first structure
+            if label_2 is not None:
+                plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
+                plane_point = 0.5 * np.array((self.centers[label_1] +
+                                              self.centers[label_2]))
+                structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
+                                                  plane_point)
+                template.add_geometry(structure_2, geom_name=label_2)
 
         template.export(path)
 
@@ -894,13 +928,27 @@ class Cortex(DatasetHandler):
 
         centers_per_structure = {mn: [] for mn in self.mesh_label_names}
         radii_per_structure = {mn: [] for mn in self.mesh_label_names}
+        radii_x_per_structure = {mn: [] for mn in self.mesh_label_names}
+        radii_y_per_structure = {mn: [] for mn in self.mesh_label_names}
+        radii_z_per_structure = {mn: [] for mn in self.mesh_label_names}
 
         for m in meshes:
-            for verts, mn in zip(m.vertices, self.mesh_label_names):
+            for verts_, mn in zip(m.vertices, self.mesh_label_names):
+                # Remove padded vertices
+                verts = verts_[(verts_ != (-1.0)).all(dim=1)]
+                # Centroid of vertex coordinates
                 center = verts.mean(dim=0)
-                radius = torch.sqrt(torch.sum((verts - center)**2, dim=1)).mean(dim=0)
                 centers_per_structure[mn].append(center)
+                # Average radius --> "sphere"
+                radius = torch.sqrt(torch.sum((verts - center)**2, dim=1)).mean(dim=0)
                 radii_per_structure[mn].append(radius)
+                # Max. radius across dimensions --> "ellipsoid"
+                (radius_x,
+                 radius_y,
+                 radius_z) = torch.max(torch.abs(verts - center), dim=0)[0].unbind()
+                radii_x_per_structure[mn].append(radius_x)
+                radii_y_per_structure[mn].append(radius_y)
+                radii_z_per_structure[mn].append(radius_z)
 
         # Average radius per structure
         if self.__len__() > 0 and self.patch_mode != "multi-patch":
@@ -908,10 +956,20 @@ class Cortex(DatasetHandler):
                          for k, v in centers_per_structure.items()}
             radii = {k: torch.mean(torch.stack(v), dim=0)
                      for k, v in radii_per_structure.items()}
+            radii_x = {k: torch.mean(torch.stack(v), dim=0)
+                     for k, v in radii_x_per_structure.items()}
+            radii_y = {k: torch.mean(torch.stack(v), dim=0)
+                     for k, v in radii_y_per_structure.items()}
+            radii_z = {k: torch.mean(torch.stack(v), dim=0)
+                     for k, v in radii_z_per_structure.items()}
         else:
-            centroids, radii = None, None
+            centroids = None
+            radii = None
+            radii_x = None
+            radii_y = None
+            radii_z = None
 
-        return centroids, radii
+        return centroids, radii, radii_x, radii_y, radii_z
 
     def _load_dataMesh_raw(self, meshnames):
         """ Load mesh such that it's registered to the respective 3D image

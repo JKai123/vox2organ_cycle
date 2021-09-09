@@ -114,15 +114,16 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         **model_config
     ).float()
 
-    # Select best and last model and potentially certain epoch
-    model_names = [fn for fn in os.listdir(experiment_dir) if (
-        ".model" in fn and (
-        BEST_MODEL_NAME in fn or
-        INTERMEDIATE_MODEL_NAME in fn or
-        FINAL_MODEL_NAME in fn or
-        str(hps['TEST_MODEL_EPOCH']) in fn
-        ))
-    ]
+    # Select best and last model by default or model of a certain epoch
+    if hps['TEST_MODEL_EPOCH'] > 0:
+        model_names = ["epoch_" + str(hps['TEST_MODEL_EPOCH']) + ".model"]
+    else:
+        model_names = [fn for fn in os.listdir(experiment_dir) if (
+            BEST_MODEL_NAME in fn or
+            INTERMEDIATE_MODEL_NAME in fn or
+            FINAL_MODEL_NAME in fn
+            )
+        ]
 
     epochs_file = os.path.join(experiment_dir, "models_to_epochs.json")
     try:
