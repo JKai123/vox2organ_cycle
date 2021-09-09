@@ -8,9 +8,11 @@ from data.cortex import Cortex
 
 structure_type = ('white_matter', 'cerebral_cortex')
 
-# template_path = "../supplementary_material/" + structure_type + "/cortex_" + structure_type + "_convex.obj"
-# template_path = "../supplementary_material/" + structure_type + "/cortex_" + structure_type + "_icosahedron_40962.obj"
-template_path = "../supplementary_material/white_pial/cortex_4_icosahedra_40962.obj"
+# Important!!! (defines coordinate normalization in the template)
+patch_size = [128, 144, 128]
+select_patch_size = [192, 224, 192]
+
+template_path = f"../supplementary_material/white_pial/cortex_4_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}.obj"
 
 print("Creating dataset...")
 dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
@@ -18,7 +20,8 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
                              (100, 0, 0),
                              False,
                              "../misc",
-                             patch_size=(192, 224, 192),
+                             select_patch_size=select_patch_size,
+                             patch_size=patch_size,
                              structure_type=structure_type,
                              mesh_target_type='mesh',
                              n_ref_points_per_structure=10000, # irrelevant
@@ -27,9 +30,10 @@ dataset, _, _ = Cortex.split("/mnt/nas/Data_Neuro/MALC_CSR/",
 print("Dataset created.")
 print("Creating template...")
 
-# path = dataset.store_convex_cortex_template(template_path, n_min_points=100000,
-                                            # n_max_points=140000)
-path = dataset.store_sphere_template(template_path)
+# path = dataset.store_convex_cortex_template(
+    # template_path, n_min_points=40000, n_max_points=60000
+# )
+path = dataset.store_ellipsoid_template(template_path)
 
 if path is not None:
     print("Template stored at " + path)
