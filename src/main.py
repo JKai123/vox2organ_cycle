@@ -172,7 +172,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
         else: # no patch mode
             hyper_ps_cortex['N_M_CLASSES'] = 2
             hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
-            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 224, 192]
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
             hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
@@ -196,7 +196,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
             hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
-            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 224, 176]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
             hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
             hyper_ps_cortex['N_M_CLASSES'] = 1
@@ -234,18 +234,18 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         [0.01] * 2 + [0.025] * 2, # Cosine,
         [0.1] * 2 + [0.25] * 2, # Laplace,
         [0.001] * 2 + [0.0015] * 2, # NormalConsistency
-        [7.5] * 4 # Edge
+        [5.0] * 4 # Edge
     ]
     # No patch mode
     hyper_ps_cortex['N_M_CLASSES'] = 4
     hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
-    hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
+    hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 224, 192]
     hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
     hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
     hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
     hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 44000 # max. number of gt points in this case (batch size 1)
     hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-        f"../supplementary_material/white_pial/cortex_4_icosahedra_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
+        f"../supplementary_material/white_pial/cortex_4_ellipsoid_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
 
 # Overwrite params for overfitting (fewer epochs, no augmentation, smaller
 # dataset)
