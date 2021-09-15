@@ -33,12 +33,23 @@ from utils.utils import choose_n_random_points
 from utils.mesh import curv_from_cotcurv_laplacian
 
 def point_weigths_from_curvature(curvatures: torch.Tensor,
-                                 max_weight: Union[float, int, torch.Tensor]):
+                                 points: torch.Tensor,
+                                 max_weight: Union[float, int, torch.Tensor],
+                                 padded_coordinates=(-1.0, -1.0, -1.0)):
     """ Calculate Chamfer weights from curvatures such that they are in
-    [1, max_weight]. """
+    [1, max_weight]. In addition, the weight of padded points is set to zero."""
+
     if not isinstance(max_weight, torch.Tensor):
         max_weight = torch.tensor(max_weight).float()
-    return torch.minimum(1 + curvatures, max_weight.cuda())
+
+    # Weights in [1, max_weight]
+    weights = torch.minimum(1 + curvatures, max_weight.cuda())
+
+    # Set weights of padded vertices to 0
+    padded_coordinates = torch.Tensor(padded_coordinates).to(points.device)
+    weights[torch.isclose(points, padded_coordinates).all(dim=2)] = 0.0
+
+    return weights
 
 def meshes_to_edge_normals_2D_packed(meshes: Meshes):
     """ Helper function to get normals of 2D meshes (contours) for every edge.
@@ -190,8 +201,9 @@ class ChamferLoss(MeshLoss):
             target_ = target[0] # Only vertices relevant
             assert target_.ndim == 3 # padded
             n_points = target_.shape[1]
+            target_curvs = target[2]
             point_weights = point_weigths_from_curvature(
-                target[2], self.curv_weight_max
+                target_curvs, target_points, self.curv_weight_max
             ) if self.curv_weight_max else None
 
         if pred_meshes.verts_packed().shape[-1] == 3:
@@ -244,7 +256,7 @@ class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
                 pred_points.shape[0], pred_points.shape[1], 1
             ) # (N,L,1)
             point_weights = point_weigths_from_curvature(
-                target_curvs, self.curv_weight_max
+                target_curvs, target_points, self.curv_weight_max
             ) if self.curv_weight_max else None
         else: # 2D
             raise NotImplementedError()
@@ -288,8 +300,9 @@ class ChamferAndNormalsLoss(MeshLoss):
             pred_points, pred_normals = sample_points_from_meshes(
                 pred_meshes, n_points, return_normals=True
             )
+            target_curvs = target[2]
             point_weights = point_weigths_from_curvature(
-                target[2], self.curv_weight_max
+                target_curvs, target_points, self.curv_weight_max
             ) if self.curv_weight_max else None
         else: # 2D
             pred_points, idx = choose_n_random_points(
