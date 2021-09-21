@@ -204,12 +204,19 @@ hyper_ps_default={
     # Proportions of dataset splits
     'DATASET_SPLIT_PROPORTIONS': [80, 10, 10],
 
+    # Dict that allows for specifying fixed ids for dataset splitting. If
+    # specified, 'DATASET_SEED' and 'DATASET_SPLIT_PROPORTIONS' will be
+    # ignored. The dict should contain values for keys 'train', 'validation',
+    # and 'test'.
+    'FIXED_SPLIT': {'train': [], 'validation': [], 'test': []},
+
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",
 
     # Directory of raw data
     'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
 
-    # Directory of preprocessed data
+    # Directory of preprocessed data, e.g., containing thickness values from
+    # FreeSurfer
     'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
 }

@@ -40,6 +40,7 @@ from utils.utils import (
     normalize_min_max,
 )
 from utils.coordinate_transform import (
+    transform_mesh_affine,
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
 )
@@ -49,7 +50,7 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
-from data.cortex_labels import combine_labels
+from data.cortex_labels import combine_labels, valid_MALC_ids
 
 def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
     """ Helper function to map the structure type and the patch mode to the
@@ -126,6 +127,8 @@ class Cortex(DatasetHandler):
     vertices as mesh ground truth, e.g., 0.3. This has only an effect if patch_mode='no'.
     :param mesh_type: 'freesurfer' or 'marching cubes'
     :param: provide_curvatures: Whether curvatures should be part of the items.
+    :param: preprocessed_data_dir: A directory that contains additional
+    preprocessed data, e.g., thickness values.
     As a consequence, the ground truth can only consist of vertices and not of
     sampled surface points.
     """
@@ -148,6 +151,7 @@ class Cortex(DatasetHandler):
                  reduced_freesurfer: int=None,
                  mesh_type='marching cubes',
                  provide_curvatures=False,
+                 preprocessed_data_dir=None,
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -161,10 +165,12 @@ class Cortex(DatasetHandler):
         )
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
+        self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
         self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
         self._mc_step_size = kwargs.get('mc_step_size', 1)
+        self.trans_affine = []
         self.ndims = len(patch_size)
         self.patch_mode = patch_mode
         self.patch_size = tuple(patch_size)
@@ -218,6 +224,8 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.mesh_labels)
         assert self.__len__() == len(self.point_labels)
         assert self.__len__() == len(self.normal_labels)
+        if self.ndims == 3:
+            assert self.__len__() == len(self.trans_affine)
         if self.provide_curvatures:
             assert self.__len__() == len(self.curvatures)
 
@@ -297,6 +305,9 @@ class Cortex(DatasetHandler):
             self.mesh_labels
          )
 
+        self.thickness_per_vertex = self._get_per_vertex_label("thickness",
+                                                               subfolder="")
+
     def preprocess_data_3D(self, raw_imgs: list, raw_voxel_labels: list,
                            raw_mesh_labels: list):
         """ Preprocess routine according to dataset parameters. """
@@ -339,11 +350,21 @@ class Cortex(DatasetHandler):
             # Transform meshes according to image transformations
             # (crops, resize) and normalize
             processed_mesh_labels = deepcopy(raw_mesh_labels)
-            for m, t in zip(processed_mesh_labels, trans_affine):
-                m.transform_vertices(t)
-                m.vertices = normalize_vertices_per_max_dim(
-                    m.vertices.view(-1, self.ndims), self.patch_size
-                ).view(self.n_m_classes, -1, self.ndims)
+            for i, (m, t) in enumerate(zip(processed_mesh_labels,
+                                           trans_affine)):
+                new_vertices, new_faces = transform_mesh_affine(m.vertices, m.faces, t)
+                new_vertices, norm_affine = normalize_vertices_per_max_dim(
+                    new_vertices.view(-1, self.ndims),
+                    self.patch_size,
+                    return_affine=True
+                )
+                new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
+                processed_mesh_labels[i] = Mesh(
+                    new_vertices, new_faces, m.normals, m.features
+                )
+
+                # Store affine transformations
+                self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
 
             # Voxelize meshes
             voxelized_meshes = self._create_voxel_labels_from_meshes(
@@ -453,12 +474,11 @@ class Cortex(DatasetHandler):
         vertices = self.mesh_labels[0].vertices[0]
         faces = self.mesh_labels[0].faces[0]
 
-        # Remove padded vertices
-        valid_ids = np.unique(faces)
-        valid_ids = valid_ids[valid_ids != -1]
-        vertices_ = vertices[valid_ids]
+        # Remove padded vertices and faces
+        vertices_ = vertices[~torch.isclose(vertices, torch.Tensor([-1.0])).all(dim=1)]
+        faces_ = faces[~(faces == -1).any(dim=1)]
 
-        structure_1 = Trimesh(vertices_, faces, process=False)
+        structure_1 = Trimesh(vertices_, faces_, process=False)
 
         # Increase granularity until desired number of points is reached
         while structure_1.subdivide().vertices.shape[0] < n_max_points:
@@ -545,8 +565,9 @@ class Cortex(DatasetHandler):
         return path
 
     @staticmethod
-    def split(raw_data_dir, dataset_seed, dataset_split_proportions,
-              augment_train, save_dir, overfit=False, **kwargs):
+    def split(raw_data_dir, augment_train, save_dir, dataset_seed=0,
+              dataset_split_proportions=None, fixed_split: dict={},
+              overfit=False, **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -556,6 +577,9 @@ class Cortex(DatasetHandler):
         splits, e.g. (80, 10, 10)
         :param augment_train: Augment training data.
         :param save_dir: A directory where the split ids can be saved.
+        :param fixed_split: A dict containing file ids for 'train',
+        'validation', and 'test'. If specified, values of dataset_seed,
+        overfit, and dataset_split_proportions will be ignored.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
         :param kwargs: Dataset parameters.
@@ -564,50 +588,59 @@ class Cortex(DatasetHandler):
 
         # Available files
         all_files = os.listdir(raw_data_dir)
-        all_files = [fn for fn in all_files if (
-            "meshes" not in fn and
-            "unregistered" not in fn and
-            "FS" not in fn
-        )] # Remove invalid
+        all_files = valid_MALC_ids(all_files) # Remove invalid
 
-        # Shuffle with seed
-        random.Random(dataset_seed).shuffle(all_files)
-
-        # Split
-        if overfit:
-            # Consider the same splits for train validation and test
-            indices_train = slice(0, overfit)
-            indices_val = slice(0, overfit)
-            indices_test = slice(0, overfit)
+        # Decide between fixed and random split
+        if any(len(s) > 0 for _, s in fixed_split.items()):
+            files_train = fixed_split['train']
+            files_val = fixed_split['validation']
+            files_test = fixed_split['test']
         else:
-            # No overfit
-            assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
-            indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
-            indices_val = slice(indices_train.stop,
-                                indices_train.stop +\
-                                    (dataset_split_proportions[1] * len(all_files) // 100))
-            indices_test = slice(indices_val.stop, len(all_files))
+            # Shuffle with seed
+            random.Random(dataset_seed).shuffle(all_files)
+
+            # Split
+            if overfit:
+                # Consider the same splits for train validation and test
+                indices_train = slice(0, overfit)
+                indices_val = slice(0, overfit)
+                indices_test = slice(0, overfit)
+            else:
+                # No overfit
+                assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
+                indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
+                indices_val = slice(indices_train.stop,
+                                    indices_train.stop +\
+                                        (dataset_split_proportions[1] * len(all_files) // 100))
+                indices_test = slice(indices_val.stop, len(all_files))
+
+            files_train = all_files[indices_train]
+            files_val = all_files[indices_val]
+            files_test = all_files[indices_test]
 
         # Create datasets
-        train_dataset = Cortex(all_files[indices_train],
+        train_dataset = Cortex(files_train,
                                DataModes.TRAIN,
                                raw_data_dir,
                                augment=augment_train,
                                **kwargs)
-        val_dataset = Cortex(all_files[indices_val],
+        val_dataset = Cortex(files_val,
                              DataModes.VALIDATION,
                              raw_data_dir,
                              augment=False,
                              **kwargs)
-        test_dataset = Cortex(all_files[indices_test],
+        test_dataset = Cortex(files_test,
                               DataModes.TEST,
                               raw_data_dir,
                               augment=False,
                               **kwargs)
 
         # Save ids to file
-        DatasetHandler.save_ids(all_files[indices_train], all_files[indices_val],
-                         all_files[indices_test], save_dir)
+        DatasetHandler.save_ids(files_train, files_val, files_test, save_dir)
+
+        assert (len(set(files_train) & set(files_val) & set(files_test)) == 0
+                or overfit),\
+                "Train, validation, and test set should not intersect!"
 
         return train_dataset, val_dataset, test_dataset
 
@@ -712,9 +745,16 @@ class Cortex(DatasetHandler):
          normals, _) = self.get_item_from_index(
             index, mesh_target_type='full_mesh'
         )
-        mesh_label = Mesh(vertices, faces, normals)
+        thickness = self.get_thickness_from_index(index)
+        mesh_label = Mesh(vertices, faces, normals, thickness)
+        trans_affine_label = self.trans_affine[index]
 
-        return img, voxel_label, mesh_label
+        return img, voxel_label, mesh_label, trans_affine_label
+
+    def get_thickness_from_index(self, index: int):
+        """ Return per-vertex thickness of the ith dataset element if possible."""
+        return self.thickness_per_vertex[index] if (
+            self.thickness_per_vertex is not None) else None
 
     def _load_data3D_raw(self, filename: str):
         data = []
@@ -935,7 +975,7 @@ class Cortex(DatasetHandler):
         for m in meshes:
             for verts_, mn in zip(m.vertices, self.mesh_label_names):
                 # Remove padded vertices
-                verts = verts_[(verts_ != (-1.0)).all(dim=1)]
+                verts = verts_[~torch.isclose(verts_, torch.Tensor([-1.0])).all(dim=1)]
                 # Centroid of vertex coordinates
                 center = verts.mean(dim=0)
                 centers_per_structure[mn].append(center)
@@ -975,12 +1015,14 @@ class Cortex(DatasetHandler):
         """ Load mesh such that it's registered to the respective 3D image
         """
         data = []
+        assert len(self.trans_affine) == 0, "Should be empty."
         for fn in self._files:
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
                                          self.img_filename))
             vox2world_affine = orig.affine
             world2vox_affine = np.linalg.inv(vox2world_affine)
+            self.trans_affine.append(world2vox_affine)
             file_vertices = []
             file_faces = []
             for mn in meshnames:
@@ -988,11 +1030,9 @@ class Cortex(DatasetHandler):
                     self._raw_data_dir, fn, mn + ".stl"
                 ))
                 # World --> voxel coordinates
-                coords = np.concatenate(
-                    (mesh.vertices.T, np.ones((1, mesh.vertices.shape[0]))),
-                    axis=0
+                voxel_verts, voxel_faces = transform_mesh_affine(
+                    mesh.vertices, mesh.faces, world2vox_affine
                 )
-                voxel_verts = (world2vox_affine @ coords).T[:,:-1]
                 # Store min/max number of vertices
                 self.n_max_vertices = np.maximum(
                     voxel_verts.shape[0], self.n_max_vertices) if (
@@ -1002,14 +1042,7 @@ class Cortex(DatasetHandler):
                 self.n_min_vertices is not None) else voxel_verts.shape[0]
                 # Add to structures of file
                 file_vertices.append(torch.from_numpy(voxel_verts))
-                # Keep normal convention if coordinates are mirrored an uneven
-                # number of times
-                if np.sum(np.sign(np.diag(world2vox_affine)) == -1) % 2 == 1:
-                    file_faces.append(
-                        torch.from_numpy(mesh.faces).flip(dims=[1])
-                    )
-                else: # no flips required
-                    file_faces.append(torch.from_numpy(mesh.faces))
+                file_faces.append(torch.from_numpy(voxel_faces))
 
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
@@ -1122,7 +1155,49 @@ class Cortex(DatasetHandler):
         # Assert up to sign of direction
         assert (
             torch.allclose(normals_f, py3d_mesh_aug.verts_normals_padded(),
-                           atol=2e-03)
+                           atol=7e-03)
             or torch.allclose(-normals_f, py3d_mesh_aug.verts_normals_padded(),
-                             atol=2e-03)
+                             atol=7e-03)
         )
+
+    def _get_per_vertex_label(self, morphology, subfolder="surf"):
+        """ Load per-vertex labels, e.g., thickness values, from a freesurfer
+        morphology (curv) file in the preprocessed data (FS) directory for each
+        dataset sample.
+        :param morphology: The morphology to load, e.g., 'thickness'
+        :param subfolder: The subfolder of a the sample folder where the
+        morphology file could be found.
+        :return: List of len(self) containing per-vertex morphology values for
+        each sample.
+        """
+        if self._preprocessed_data_dir is None:
+            return None
+
+        morph_labels = []
+        for fn in self._files:
+            file_dir = os.path.join(
+                self._preprocessed_data_dir, fn, subfolder
+            )
+            file_labels = []
+            n_max = 0
+            for mn in self.mesh_label_names:
+                # Filenames have form 'lh_white_reduced_0.x.thickness'
+                morph_fn = mn + "." + morphology
+                morph_fn = os.path.join(file_dir, morph_fn)
+                morph_label = nib.freesurfer.io.read_morph_data(morph_fn)
+                file_labels.append(
+                    torch.from_numpy(morph_label.astype(np.float32))
+                )
+                if morph_label.shape[0] > n_max:
+                    n_max = morph_label.shape[0]
+
+            # Pad values with 0
+            file_labels_padded = []
+            for fl in file_labels:
+                file_labels_padded.append(
+                    F.pad(fl, (0, n_max - fl.shape[0]))
+                )
+
+            morph_labels.append(torch.stack(file_labels_padded))
+
+        return morph_labels

@@ -58,3 +58,24 @@ def read_obj(filepath):
             return vertices, faces, normals
         else:
             return vertices, faces, None
+
+def read_dataset_ids(filename: str, split: str='Test'):
+    """ Read the ids corresponding to the desired split. """
+    ids = []
+    with open(filename, 'r') as f:
+        line = f.readline()
+
+        # Read ids
+        read = False
+        while line:
+            if read:
+                if ":" not in line:
+                    break
+                ids.append(line.split(": ")[-1][:-1])
+            else:
+                if split in line:
+                    f.readline() # Empty line
+                    read = True
+            line = f.readline()
+
+    return ids

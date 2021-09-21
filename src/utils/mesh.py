@@ -11,6 +11,8 @@ import torch
 from trimesh import Trimesh
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import cot_laplacian
+from matplotlib import cm
+from matplotlib.colors import Normalize
 
 class Mesh():
     """ Custom meshes
@@ -27,9 +29,9 @@ class Mesh():
     def __init__(self, vertices, faces, normals=None, features=None):
         self._vertices = vertices
         self._faces = faces
-        self._normals = normals
-        self._features = features
         self._ndims = vertices.shape[-1]
+        self.normals = normals
+        self.features = features
 
     @property
     def vertices(self):
@@ -44,10 +46,7 @@ class Mesh():
     def ndims(self):
         return self._ndims
 
-    @property
-    def ndims(self):
-        return self._ndims
-
+    # Faces cannot be changed! --> Preserve topology
     @property
     def faces(self):
         return self._faces
@@ -56,9 +55,28 @@ class Mesh():
     def normals(self):
         return self._normals
 
+    @normals.setter
+    def normals(self, new_normals):
+        if new_normals is not None:
+            assert new_normals.shape[-1] == self.ndims
+            if len(self.vertices.shape) == 3: # Padded
+                assert new_normals.shape[0:2] == self.vertices.shape[0:2]
+            else: # Packed
+                assert new_normals.shape[0] == self.vertices.shape[0]
+        self._normals = new_normals
+
     @property
     def features(self):
         return self._features
+
+    @features.setter
+    def features(self, new_features):
+        if new_features is not None:
+            if len(self.vertices.shape) == 3: # Padded
+                assert new_features.shape[0:2] == self.vertices.shape[0:2]
+            else: # Packed
+                assert new_features.shape[0] == self.vertices.shape[0]
+        self._features = new_features
 
     def to_trimesh(self, process=False):
         assert type(self.vertices) == type(self.faces)
@@ -94,7 +112,23 @@ class Mesh():
         raise ValueError("Invalid dimension of vertices and/or faces.")
 
     def store(self, path: str):
+        """ Store only the mesh itself. For storing with features see
+        'store_with_features'.  """
         t_mesh = self.to_trimesh()
+        t_mesh.export(path)
+
+    def store_with_features(self, path: str, vmin: float=0.1, vmax: float=3.0):
+        """ Store a mesh together with its morphology features. Default vmin
+        and vmax correspond to typical values for the visualization of cortical
+        thickness."""
+        t_mesh = self.to_trimesh(process=False)
+        autumn = cm.get_cmap('autumn')
+        color_norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
+        features = self.features.reshape(t_mesh.vertices.shape[0])
+        if isinstance(features, torch.Tensor):
+            features = features.cpu().numpy()
+        colors = autumn(color_norm(features))
+        t_mesh.visual.vertex_colors = colors
         t_mesh.export(path)
 
     def get_occupied_voxels(self, shape):
@@ -124,33 +158,6 @@ class Mesh():
             vox_occupied = None
 
         return vox_occupied
-
-    def transform_vertices(self, transformation_matrix: Union[np.ndarray,
-                                                              torch.Tensor]):
-        """ Transform the vertices of the mesh using a given transformation
-        matrix. """
-        if (tuple(transformation_matrix.shape) !=
-            (self._ndims + 1, self._ndims + 1)):
-            raise ValueError("Wrong shape of transformation matrix.")
-        if isinstance(self.vertices, np.ndarray):
-            vertices = torch.from_numpy(self.vertices)
-        else:
-            vertices = self.vertices
-        if isinstance(transformation_matrix, np.ndarray):
-            transformation_matrix =\
-                torch.from_numpy(transformation_matrix).float()
-        vertices = vertices.view(-1, self._ndims)
-        coords = torch.cat(
-            (vertices.T, torch.ones(1, vertices.shape[0])), dim=0
-        )
-        # Transform
-        new_coords = (transformation_matrix @ coords)
-        new_coords = new_coords.T[:,:-1].view(self.vertices.shape)
-
-        # Correct data type
-        if isinstance(self.vertices, np.ndarray):
-            new_coords = new_coords.numpy()
-        self.vertices = new_coords
 
 class MeshesOfMeshes():
     """ Extending pytorch3d.structures.Meshes so that each mesh in a batch of

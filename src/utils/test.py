@@ -155,7 +155,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
             results = evaluator.evaluate(
                 model, epoch, save_meshes=len(test_set),
-                remove_previous_meshes=False
+                remove_previous_meshes=False,
+                store_in_orig_coords=True
             )
 
             write_test_results(results, mn, test_dir)

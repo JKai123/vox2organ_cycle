@@ -1,5 +1,7 @@
 
-""" Evaluation metrics """
+""" Evaluation metrics. Those metrics are typically computed directly from the
+model prediction, i.e., in normalized coordinate space unless specified
+otherwise."""
 
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
@@ -9,18 +11,26 @@ from enum import IntEnum
 import numpy as np
 import torch
 from pytorch3d.loss import chamfer_distance
+from pytorch3d.ops import (
+    knn_points,
+    knn_gather,
+    sample_points_from_meshes
+)
+from pytorch3d.structures import Meshes, Pointclouds
 from scipy.spatial.distance import directed_hausdorff
 from geomloss import SamplesLoss
 
-from utils.mesh import Mesh
 from utils.utils import (
-    sample_inner_volume_in_voxel,
     voxelize_mesh,
     voxelize_contour,
 )
 from utils.logging import (
     write_img_if_debug,
     measure_time)
+from utils.cortical_thickness import cortical_thickness
+from utils.coordinate_transform import transform_mesh_affine
+from utils.mesh import Mesh
+from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 
 class EvalMetrics(IntEnum):
     """ Supported evaluation metrics """
@@ -39,11 +49,117 @@ class EvalMetrics(IntEnum):
     # Wasserstein distance between point clouds
     Wasserstein = 5
 
+    # Difference in cortical thickness compared to ground truth
+    CorticalThicknessError = 6
+
+    # Average distance of predicted and groun truth mesh in terms of
+    # point-to-mesh distance
+    AverageDistance = 7
+
+def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
+                         padded_coordinates=(-1.0, -1.0, -1.0)):
+    """ Compute point-to-mesh distance between prediction and ground truth. """
+
+    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
+
+    # Ground truth
+    gt_mesh = data[2]
+    # Back to original coordinate space
+    gt_vertices, gt_faces= gt_mesh.vertices, gt_mesh.faces
+    ndims = gt_vertices.shape[-1]
+
+    # Prediction: Only consider mesh of last step
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+    pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
+
+    # Iterate over structures
+    assd_all = []
+    for pred_v, pred_f, gt_v, gt_f in zip(
+        pred_vertices,
+        pred_faces,
+        gt_vertices.cuda(),
+        gt_faces.cuda()
+    ):
+
+        # Prediction
+        pred_mesh = Meshes([pred_v], [pred_f])
+        pred_pcl = sample_points_from_meshes(pred_mesh, 100000)
+        pred_pcl = Pointclouds(pred_pcl)
+
+        # Remove padded vertices from gt
+        gt_v = gt_v[~torch.isclose(gt_v, padded_coordinates).all(axis=1)]
+        gt_mesh = Meshes([gt_v], [gt_f])
+        gt_pcl = sample_points_from_meshes(gt_mesh, 100000)
+        gt_pcl = Pointclouds(gt_pcl)
+
+        # Compute distance
+        P2G_dist = _point_mesh_face_distance_unidirectional(
+            gt_pcl, pred_mesh
+        ).cpu().numpy()
+        G2P_dist = _point_mesh_face_distance_unidirectional(
+            pred_pcl, gt_mesh
+        ).cpu().numpy()
+
+        assd2 = (P2G_dist.sum() + G2P_dist.sum()) / float(P2G_dist.shape[0] + G2P_dist.shape[0])
+
+        assd_all.append(assd2)
+
+    return assd_all
+
+def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
+    """ Compare cortical thickness to ground truth in terms of average absolute
+    difference per vertex. In order for this measure to be meaningful, predited
+    and ground truth meshes are transformed into the original coordinate space."""
+
+    if n_m_classes != 4:
+        raise ValueError("Cortical thickness score requires 4 surface meshes.")
+
+    gt_mesh = data[2]
+    trans_affine = data[3]
+    # Back to original coordinate space
+    new_vertices, new_faces = transform_mesh_affine(
+        gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)
+    )
+    gt_mesh_transformed = Mesh(new_vertices, new_faces, features=gt_mesh.features)
+    gt_thickness = gt_mesh_transformed.features.view(n_m_classes, -1).cuda()
+    ndims = gt_mesh_transformed.ndims
+    gt_vertices = gt_mesh_transformed.vertices.view(n_m_classes, -1, ndims).cuda()
+
+    # Prediction: Only consider mesh of last step
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+    pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
+    pred_vertices, pred_faces = transform_mesh_affine(
+        pred_vertices, pred_faces, np.linalg.inv(trans_affine)
+    )
+
+    # Thickness prediction
+    pred_meshes = cortical_thickness(pred_vertices, pred_faces)
+
+    # Compare white surface thickness prediction to thickness of nearest
+    # gt point
+    th_all = []
+    for p_mesh, gt_v, gt_th in zip(pred_meshes, gt_vertices, gt_thickness):
+        pred_v = p_mesh.vertices.view(1, -1, ndims)
+        pred_th = p_mesh.features.view(-1)
+        _, knn_idx, _ = knn_points(pred_v, gt_v.view(1, -1, ndims))
+        nearest_thickness = knn_gather(gt_th.view(1, -1, 1), knn_idx).squeeze()
+
+        thickness_score = torch.abs(pred_th - nearest_thickness).mean()
+
+        th_all.append(thickness_score.cpu().item())
+
+    return th_all
+
 @measure_time
-def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
-    """ Approximate Wasserstein distance with Sinkhorn iteration.
-    If multiple structures are present, the average is returned.
+def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class,
+                     padded_coordinates=(-1.0, -1.0, -1.0)):
+    """ Approximate Wasserstein distance between sets of vertices
+    with Sinkhorn iteration.
     """
+    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
+
     # Ground truth
     mesh_gt = data[2]
     ndims = mesh_gt.ndims
@@ -59,6 +175,8 @@ def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
     wds = []
 
     for p, gt in zip(pred_vertices, gt_vertices):
+        # Remove padded gt vertices
+        gt = gt[~torch.isclose(gt, padded_coordinates).all(axis=1)]
         # Select an equal number of points
         if len(p) < len(gt):
             p_ = p
@@ -76,10 +194,9 @@ def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class):
     return wds
 
 @measure_time
-def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
-    """ Symmetric Hausdorff distance between predicted point clouds. If
-    multiple structures are present, the maximum over the structures is
-    returned.
+def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class,
+                           padded_coordinates=(-1.0, -1.0, -1.0)):
+    """ Symmetric Hausdorff distance between predicted point clouds.
     """
     # Ground truth
     mesh_gt = data[2]
@@ -91,9 +208,11 @@ def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class):
     pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims).cpu().numpy()
 
     hds = []
-    for pred, gt in zip(pred_vertices, gt_vertices):
-        d = max(directed_hausdorff(pred, gt)[0],
-                directed_hausdorff(gt, pred)[0])
+    for p, gt_ in zip(pred_vertices, gt_vertices):
+        # Remove padded vertices from gt
+        gt = gt_[~np.isclose(gt_, padded_coordinates).all(axis=1)]
+        d = max(directed_hausdorff(p, gt)[0],
+                directed_hausdorff(gt, p)[0])
         hds.append(d)
 
     return hds
@@ -215,7 +334,8 @@ def Jaccard(pred, target, n_classes):
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
 
-def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
+def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
+                 padded_coordinates=(-1.0, -1.0, -1.0), **kwargs):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance may be computed
@@ -224,13 +344,17 @@ def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
     truth mesh. """
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
     gt_vertices = data[2].vertices.cuda()
+    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
     if gt_vertices.ndim == 2:
         gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
     for c in range(n_m_classes):
         pv = pred_vertices[-1][c] # only consider last mesh step
+        gt = gt_vertices[c][
+            ~torch.isclose(gt_vertices[c], padded_coordinates).all(dim=1)
+        ]
         chamfer_scores.append(
-            chamfer_distance(pv, gt_vertices[c][None])[0].cpu().item()
+            chamfer_distance(pv, gt[None])[0].cpu().item()
         )
 
     # Average over classes
@@ -241,5 +365,7 @@ EvalMetricHandler = {
     EvalMetrics.JaccardMesh.name: JaccardMeshScore,
     EvalMetrics.Chamfer.name: ChamferScore,
     EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
-    EvalMetrics.Wasserstein.name: WassersteinScore
+    EvalMetrics.Wasserstein.name: WassersteinScore,
+    EvalMetrics.CorticalThicknessError.name: CorticalThicknessScore,
+    EvalMetrics.AverageDistance.name: AverageDistanceScore
 }
