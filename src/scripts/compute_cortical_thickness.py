@@ -10,6 +10,7 @@ import torch
 import trimesh
 from matplotlib import cm
 from matplotlib.colors import Normalize
+from pytorch3d.structures import Meshes, Pointclouds
 
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 
