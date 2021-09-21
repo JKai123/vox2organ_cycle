@@ -36,11 +36,13 @@ hyper_ps = {
     'EXPERIMENT_NAME': None,  # Attention: "debug" overwrites previous dir"
                               # should be set with console argument
     #######################
+    # Dataset
+    'DATASET_SEED': 1532,
+    'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     # Learning
     'EVAL_EVERY': 100,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
-    'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     'MIXED_PRECISION': True,
     'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
@@ -54,7 +56,7 @@ hyper_ps = {
         'weight_decay': 0.0
     },
     'LR_DECAY_AFTER': 300,
-    'DATASET_SEED': 1532,
+    # Loss function
     'LOSS_AVERAGING': 'linear',
     # CE
     'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
@@ -110,19 +112,29 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
+    'FIXED_SPLIT': {
+        'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
+                  '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
+                  '1017_3', '1113_3', '1011_3', '1125_3', '1005_3', '1107_3',
+                  '1019_3', '1013_3', '1006_3', '1012_3'],
+        'validation': ['1036_3', '1110_3'],
+        'test': ['1004_3', '1119_3', '1116_3', '1009_3', '1101_3', '1002_3']
+    },
     'NDIMS': 3,
-    'N_EPOCHS': 3000,
+    'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
+    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
     'BATCH_SIZE': 1,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': [[0, 1], [2, 3]],
-        'GRAPH_CHANNELS': [256, 256, 128, 64, 32],
-        'UNPOOL_INDICES': [0,0,0,0],
+        'GRAPH_CHANNELS': [256, 256, 128, 64, 32, 16],
+        'UNPOOL_INDICES': [0,0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
                               [1,2,7,8],
+                              [0,1,7,8],
                               [0,1,7,8]], # 8 = last decoder skip
     },
     'PROJ_NAME': "cortex",
@@ -236,6 +248,15 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         [0.001] * 2 + [0.0015] * 2, # NormalConsistency
         [5.0] * 4 # Edge
     ]
+    hyper_ps_cortex['EVAL_METRICS'] = [
+        'Wasserstein',
+        'SymmetricHausdorff',
+        'JaccardVoxel',
+        'JaccardMesh',
+        'Chamfer',
+        'CorticalThicknessError',
+        'AverageDistance'
+    ]
     # No patch mode
     hyper_ps_cortex['N_M_CLASSES'] = 4
     hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
@@ -253,7 +274,7 @@ hyper_ps_overfit = {
     # Learning
     'BATCH_SIZE': 1,
     'AUGMENT_TRAIN': False,
-    'MIXED_PRECISION': True,
+    'FIXED_SPLIT': {'train': [], 'validation': [], 'test': []},
 }
 
 

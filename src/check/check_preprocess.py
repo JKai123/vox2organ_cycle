@@ -20,23 +20,25 @@ def run_preprocess_check(dataset):
 
     if dataset == 'Cortex':
         hps = {'RAW_DATA_DIR': '/mnt/nas/Data_Neuro/MALC_CSR/',
+               'PREPROCESSED_DATA_DIR': '/home/fabianb/data/preprocessed/MALC_CSR/',
                'DATASET_SEED': 1532,
                'DATASET_SPLIT_PROPORTIONS': (100, 0, 0),
-               # 'PATCH_SIZE': (192, 224, 192),
-               'SELECT_PATCH_SIZE': (96, 224, 192),
-               'PATCH_SIZE': (64, 144, 128),
+               'SELECT_PATCH_SIZE': (192, 224, 192),
+               # 'SELECT_PATCH_SIZE': (96, 224, 192),
+               # 'PATCH_SIZE': (64, 144, 128),
+               'PATCH_SIZE': (128, 144, 128),
                # 'PATCH_SIZE': (64, 64, 64),
                # 'PATCH_SIZE': (128, 128),
                'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
                'MESH_TARGET_TYPE': 'mesh',
                'MESH_TYPE': 'freesurfer',
                'REDUCED_FREESURFER': 0.3,
-               'STRUCTURE_TYPE': 'white_matter',
+               'STRUCTURE_TYPE': ('white_matter', 'cerebral_cortex'),
                # 'PATCH_ORIGIN': (0, 5, 0),
                # 'PATCH_ORIGIN': (30, 128, 60),
                # 'SELECT_PATCH_SIZE': (96, 208, 176),
                # 'SELECT_PATCH_SIZE': (64, 64, 64),
-               'PATCH_MODE': "single-patch",
+               'PATCH_MODE': "no",
                'OVERFIT': True
               }
     elif dataset == 'Hippocampus':
@@ -84,7 +86,10 @@ def run_preprocess_check(dataset):
     n_samples = np.min((6, len(training_set)))
     for iter_in_epoch in tqdm(range(n_samples), desc="Creating visuals...", position=0, leave=True):
         # w/o augmentation
-        img, label, mesh = training_set.get_item_and_mesh_from_index(iter_in_epoch)
+        data = training_set.get_item_and_mesh_from_index(iter_in_epoch)
+        img, label, mesh = data[0], data[1], data[2]
+        thickness = training_set.get_thickness_from_index(iter_in_epoch)
+        mesh.features = thickness
         img, label = img.squeeze().numpy(), label.squeeze().numpy()
         shape = img.shape
         assert shape == label.shape, "Shapes should be identical."
@@ -96,6 +101,9 @@ def run_preprocess_check(dataset):
                           label[:, shape[1]//2, :],
                           label[:, :, shape[2]//2]]
             mesh.store("../misc/mesh" + str(iter_in_epoch) + ".ply")
+            mesh.store_with_features(
+                "../misc/mesh" + str(iter_in_epoch) + "_+_thickness.ply"
+            )
             mc_mesh = create_mesh_from_voxels(label)
             mc_mesh.store("../misc/mesh" + str(iter_in_epoch) + "mc.ply")
             show_slices(img_slices, label_slices, "../misc/img" +\
@@ -116,7 +124,8 @@ def run_preprocess_check(dataset):
 
         # /w augmentation
         if training_set_augment is not None:
-            img, label, mesh = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
+            data = training_set_augment.get_item_and_mesh_from_index(iter_in_epoch)
+            img, label, mesh = data[0], data[1], data[2]
             img, label = img.squeeze().numpy(), label.squeeze().numpy()
             shape = img.shape
             assert shape == label.shape, "Shapes should be identical."

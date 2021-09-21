@@ -25,3 +25,9 @@ def combine_labels(labels, names):
         combined_labels = torch.from_numpy(combined_labels)
 
     return combined_labels
+
+def valid_MALC_ids(candidates: list):
+    """ Sort out non-valid ids of 'candidates' of samples in the MALC_CSR
+    dataset and return adjusted list. """
+    valid = [c for c in candidates if c[-1] == '3']
+    return valid

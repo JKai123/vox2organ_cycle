@@ -303,7 +303,9 @@ class DatasetHandler(torch.utils.data.Dataset):
         """ Check if voxel and mesh data is consistent """
         for i in tqdm(range(len(self)),
                       desc="Checking IoU of voxel and mesh labels"):
-            _, voxel_label, mesh = self.get_item_and_mesh_from_index(i)
+            data = self.get_item_and_mesh_from_index(i)
+            voxel_label = data[1]
+            mesh = data[2]
             shape = voxel_label.shape
             vertices, faces = mesh.vertices, mesh.faces
             faces = faces.view(self.n_m_classes, -1, 3)
