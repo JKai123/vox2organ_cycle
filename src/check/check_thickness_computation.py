@@ -28,11 +28,14 @@ RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
 RAW_FS_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/FS/FS/"
 PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/MALC_CSR/"
 
-files = valid_MALC_ids(os.listdir(RAW_FS_DIR))
+files = valid_MALC_ids(os.listdir(PREPROCESSED_DIR))
 
 # Compare thickness in stored files to thickness computed by orthogonal
 # projection
 for fn in files:
+    f_dir = os.path.join("../misc/", fn)
+    if not os.path.isdir(f_dir):
+        os.mkdir(f_dir)
     for struc in structures:
         # Filenames
         red_mesh_name = os.path.join(
@@ -91,8 +94,12 @@ for fn in files:
         m_full_comp = Mesh(full_vertices, full_faces, features=point_to_face)
         m_full = Mesh(full_vertices, full_faces, features=full_thickness)
 
-        m_red_stored.store_with_features("../misc/m_red_stored.ply")
-        m_full_comp.store_with_features("../misc/m_full_comp.ply")
-        m_full.store_with_features("../misc/m_full_gt.ply")
-
-        breakpoint()
+        m_red_stored.store_with_features(os.path.join(
+            f_dir, f"m_red_stored_{struc}.ply"
+        ))
+        m_full_comp.store_with_features(os.path.join(
+            f_dir, f"m_full_comp_{struc}.ply"
+        ))
+        m_full.store_with_features(os.path.join(
+            f_dir, f"m_full_gt_{struc}.ply"
+        ))

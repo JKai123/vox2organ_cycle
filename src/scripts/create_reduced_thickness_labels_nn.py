@@ -1,7 +1,12 @@
 
-""" Create per-vertex thickness labels for reduced FS meshes. For a bash script
+""" Create per-vertex thickness labels for reduced FS meshes on the basis of
+nearest-neighbor correspondences. For a bash script
 that processes all MALC_CSR ids one aftet another see
-scripts/create_reduced_thickness_labels.sh"""
+scripts/create_reduced_thickness_labels_nn.sh
+
+Attention: This is probably not optimal if the thickness of the nearest
+neighbors has not been computed in exactly the same coordinate space!
+"""
 
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
