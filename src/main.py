@@ -393,10 +393,6 @@ def main(hps):
             "Cannot tune and fine-tune parameters at the same time."
         )
 
-    if args.exp_name == "debug" and not args.overfit:
-        # Overfit when debugging
-        hps['OVERFIT'] = 1
-
     torch.cuda.set_device(args.device)
 
     # Fill hyperparameters with defaults
