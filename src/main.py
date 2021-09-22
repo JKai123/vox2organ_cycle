@@ -139,7 +139,7 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': ('white_matter', 'cerebral_cortex'),
+    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
     'PATCH_MODE': "no"
