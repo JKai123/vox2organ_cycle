@@ -29,7 +29,7 @@ def run_preprocess_check(dataset):
                'PATCH_SIZE': (128, 144, 128),
                # 'PATCH_SIZE': (64, 64, 64),
                # 'PATCH_SIZE': (128, 128),
-               'N_REF_POINTS_PER_STRUCTURE': 10000, # irrelevant for check
+               'N_REF_POINTS_PER_STRUCTURE': 44000, # irrelevant for check
                'MESH_TARGET_TYPE': 'mesh',
                'MESH_TYPE': 'freesurfer',
                'REDUCED_FREESURFER': 0.3,
@@ -39,6 +39,7 @@ def run_preprocess_check(dataset):
                # 'SELECT_PATCH_SIZE': (96, 208, 176),
                # 'SELECT_PATCH_SIZE': (64, 64, 64),
                'PATCH_MODE': "no",
+               'PROVIDE_CURVATURES': True,
                'OVERFIT': True
               }
     elif dataset == 'Hippocampus':
