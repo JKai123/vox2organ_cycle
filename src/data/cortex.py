@@ -352,15 +352,20 @@ class Cortex(DatasetHandler):
             processed_mesh_labels = deepcopy(raw_mesh_labels)
             for i, (m, t) in enumerate(zip(processed_mesh_labels,
                                            trans_affine)):
-                new_vertices, new_faces = transform_mesh_affine(m.vertices, m.faces, t)
+                new_vertices, new_faces = transform_mesh_affine(
+                    m.vertices, m.faces, t
+                )
                 new_vertices, norm_affine = normalize_vertices_per_max_dim(
                     new_vertices.view(-1, self.ndims),
                     self.patch_size,
                     return_affine=True
                 )
                 new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
+                new_normals = Meshes(
+                    new_vertices, new_faces
+                ).verts_normals_padded()
                 processed_mesh_labels[i] = Mesh(
-                    new_vertices, new_faces, m.normals, m.features
+                    new_vertices, new_faces, new_normals, m.features
                 )
 
                 # Store affine transformations
@@ -1050,7 +1055,6 @@ class Cortex(DatasetHandler):
             mesh_single = Mesh(
                 mesh_batch.verts_padded().float(),
                 mesh_batch.faces_padded().long(),
-                normals=mesh_batch.verts_normals_padded().float()
             )
             data.append(mesh_single)
 
@@ -1118,6 +1122,10 @@ class Cortex(DatasetHandler):
                     )[idx.unbind(1)].view(
                         self.n_m_classes, -1, 1
                     )
+                    # Sanity check
+                    assert torch.allclose(
+                        m_.verts_normals_padded(), m.normals
+                    ), "Inconsistent normals!"
                 else: # No curvatures
                     # Sample from mesh surface
                     p, n = sample_points_from_meshes(
