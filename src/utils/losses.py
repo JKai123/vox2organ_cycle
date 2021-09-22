@@ -85,8 +85,14 @@ def meshes_to_vertex_normals_2D_packed(meshes: Meshes):
     return normals_next + normals_prev
 
 class MeshLoss(ABC):
+    """ Abstract base class for all mesh losses. """
+
+    def __init__(self, ignore_coordinates=(-1.0, -1.0, -1.0)):
+        self.ignore_coordinates = torch.tensor(ignore_coordinates).cuda()
+
     def __str__(self):
         return self.__class__.__name__ + "()"
+
     def __call__(self, pred_meshes, target, weights=None):
         """ Mesh loss calculation
 
@@ -171,6 +177,7 @@ class ChamferLoss(MeshLoss):
     surface points or a reference mesh. """
 
     def __init__(self, curv_weight_max=None):
+        super().__init__()
         self.curv_weight_max = curv_weight_max
 
     def __str__(self):
@@ -213,8 +220,18 @@ class ChamferLoss(MeshLoss):
                 pred_meshes.verts_padded(), n_points
             )
 
+        pred_lengths = (~torch.isclose(
+            pred_points, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
+        target_lengths = (~torch.isclose(
+            target_, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
         return chamfer_distance(
-            pred_points, target_, point_weights=point_weights
+            pred_points,
+            target_,
+            point_weights=point_weights,
+            x_lengths=pred_lengths,
+            y_lengths=target_lengths
         )[0]
 
 class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
@@ -222,6 +239,7 @@ class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
     """
 
     def __init__(self, curv_weight_max=None):
+        super().__init__()
         self.curv_weight_max = curv_weight_max
 
     def __str__(self):
@@ -261,13 +279,21 @@ class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
         else: # 2D
             raise NotImplementedError()
 
+        pred_lengths = (~torch.isclose(
+            pred_points, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
+        target_lengths = (~torch.isclose(
+            target_points, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
         losses = chamfer_distance(
             pred_points,
             target_points,
             x_normals=pred_normals,
             y_normals=target_normals,
             x_curvatures=pred_curvs,
+            x_lengths=pred_lengths,
             y_curvatures=target_curvs,
+            y_lengths=target_lengths,
             point_weights=point_weights,
             oriented_cosine_similarity=True
         )
@@ -284,6 +310,7 @@ class ChamferAndNormalsLoss(MeshLoss):
     """
 
     def __init__(self, curv_weight_max=None):
+        super().__init__()
         self.curv_weight_max = curv_weight_max
 
     def __str__(self):
@@ -326,11 +353,19 @@ class ChamferAndNormalsLoss(MeshLoss):
             if self.curv_weight_max is not None:
                 raise RuntimeError("Cannot apply curvature weights in 2D.")
 
+        pred_lengths = (~torch.isclose(
+            pred_points, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
+        target_lengths = (~torch.isclose(
+            target_points, self.ignore_coordinates
+        ).all(dim=2)).sum(dim=1)
         losses = chamfer_distance(
             pred_points,
             target_points,
             x_normals=pred_normals,
+            x_lengths=pred_lengths,
             y_normals=target_normals,
+            y_lengths=target_lengths,
             point_weights=point_weights,
             oriented_cosine_similarity=True
         )
@@ -340,6 +375,8 @@ class ChamferAndNormalsLoss(MeshLoss):
         return torch.stack([d_chamfer, d_cosine])
 
 class LaplacianLoss(MeshLoss):
+    def __init(self):
+        super().__init__()
     # Method does not support autocast
     @autocast(enabled=False)
     def get_loss(self, pred_meshes, target=None):
@@ -363,6 +400,8 @@ class LaplacianLoss(MeshLoss):
         return loss
 
 class NormalConsistencyLoss(MeshLoss):
+    def __init(self):
+        super().__init__()
     def get_loss(self, pred_meshes, target=None):
         # 2D: assumes clock-wise ordering of vertex indices in each edge
         if pred_meshes.verts_padded().shape[-1] == 2:
@@ -376,6 +415,7 @@ class NormalConsistencyLoss(MeshLoss):
 
 class EdgeLoss(MeshLoss):
     def __init__(self, target_length):
+        super().__init__()
         self.target_length = target_length
 
     def __str__(self):

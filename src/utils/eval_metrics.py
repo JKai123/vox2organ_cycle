@@ -88,7 +88,7 @@ def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
         pred_pcl = Pointclouds(pred_pcl)
 
         # Remove padded vertices from gt
-        gt_v = gt_v[~torch.isclose(gt_v, padded_coordinates).all(axis=1)]
+        gt_v = gt_v[~torch.isclose(gt_v, padded_coordinates).all(dim=1)]
         gt_mesh = Meshes([gt_v], [gt_f])
         gt_pcl = sample_points_from_meshes(gt_mesh, 100000)
         gt_pcl = Pointclouds(gt_pcl)
