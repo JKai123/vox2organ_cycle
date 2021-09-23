@@ -88,7 +88,7 @@ class MeshLoss(ABC):
     """ Abstract base class for all mesh losses. """
 
     def __init__(self, ignore_coordinates=(-1.0, -1.0, -1.0)):
-        self.ignore_coordinates = torch.tensor(ignore_coordinates).cuda()
+        self.ignore_coordinates = torch.tensor(ignore_coordinates)
 
     def __str__(self):
         return self.__class__.__name__ + "()"
@@ -221,10 +221,10 @@ class ChamferLoss(MeshLoss):
             )
 
         pred_lengths = (~torch.isclose(
-            pred_points, self.ignore_coordinates
+            pred_points, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         target_lengths = (~torch.isclose(
-            target_, self.ignore_coordinates
+            target_, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         return chamfer_distance(
             pred_points,
@@ -280,10 +280,10 @@ class ChamferAndNormalsAndCurvatureLoss(MeshLoss):
             raise NotImplementedError()
 
         pred_lengths = (~torch.isclose(
-            pred_points, self.ignore_coordinates
+            pred_points, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         target_lengths = (~torch.isclose(
-            target_points, self.ignore_coordinates
+            target_points, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         losses = chamfer_distance(
             pred_points,
@@ -354,10 +354,10 @@ class ChamferAndNormalsLoss(MeshLoss):
                 raise RuntimeError("Cannot apply curvature weights in 2D.")
 
         pred_lengths = (~torch.isclose(
-            pred_points, self.ignore_coordinates
+            pred_points, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         target_lengths = (~torch.isclose(
-            target_points, self.ignore_coordinates
+            target_points, self.ignore_coordinates.to(pred_points.device)
         ).all(dim=2)).sum(dim=1)
         losses = chamfer_distance(
             pred_points,
