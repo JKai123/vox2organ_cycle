@@ -129,12 +129,11 @@ hyper_ps_cortex = {
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': [[0, 1], [2, 3]],
-        'GRAPH_CHANNELS': [256, 256, 128, 64, 32, 16],
-        'UNPOOL_INDICES': [0,0,0,0,0],
+        'GRAPH_CHANNELS': [256, 256, 128, 64, 32],
+        'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
                               [1,2,7,8],
-                              [0,1,7,8],
                               [0,1,7,8]], # 8 = last decoder skip
     },
     'PROJ_NAME': "cortex",
