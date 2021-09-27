@@ -78,6 +78,8 @@ class Solver():
     then new_lr = old_lr * lr_decay_rate
     :param str reduce_reg_loss_mode: The mode for reduction of regularization
     losses, either 'linear' or 'none'
+    :param penalize_displacement: Weight for penalizing large displacements,
+    can be seen as an additional regularization loss
 
     """
 
@@ -99,6 +101,7 @@ class Solver():
                  lr_decay_rate,
                  lr_decay_after,
                  reduce_reg_loss_mode,
+                 penalize_displacement,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -115,6 +118,7 @@ class Solver():
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
+        self.penalize_displacement = penalize_displacement
         if any([isinstance(lf, ChamferAndNormalsLoss)
                  for lf in self.mesh_loss_func]):
             assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
@@ -249,7 +253,7 @@ class Solver():
             else:
                 raise ValueError("Unknown loss averaging.")
 
-            losses['TotalLoss'] = loss_total + 0.1 * disps
+            losses['TotalLoss'] = loss_total + self.penalize_displacement * disps
 
         # log
         if iteration % self.log_every == 0:
