@@ -607,15 +607,17 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
 
     @staticmethod
     def pred_to_displacements(pred):
-        """ Get the vertex displacements of shape (S,C)
+        """ Get the magnitudes of vertex displacements of shape (S, B, C)
         """
         # No displacements for step 0
         displacements = pred[2][1:]
+        # Magnitude
+        d_norm = [d.norm(dim=-1) for d in displacements]
         # Mean over vertices since t|V| can vary among steps
-        displacements = [d.mean(dim=2, keepdim=True) for d in displacements]
-        displacements = torch.stack(displacements)
+        d_norm_mean = [d.mean(dim=-1) for d in d_norm]
+        d_norm_mean = torch.stack(d_norm_mean)
 
-        return displacements
+        return d_norm_mean
 
     @staticmethod
     def pred_to_voxel_pred(pred):
