@@ -249,7 +249,7 @@ class Solver():
             else:
                 raise ValueError("Unknown loss averaging.")
 
-            losses['TotalLoss'] = loss_total
+            losses['TotalLoss'] = loss_total + 0.1 * disps
 
         # log
         if iteration % self.log_every == 0:
