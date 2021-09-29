@@ -141,6 +141,7 @@ hyper_ps_cortex = {
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
+    'PENALIZE_DISPLACEMENT': 0.1,
     'PATCH_MODE': "no"
 }
 # Automatically set parameters
@@ -247,7 +248,6 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         [0.001] * 2 + [0.0015] * 2, # NormalConsistency
         [5.0] * 4 # Edge
     ]
-    hyper_ps_cortex['PENALIZE_DISPLACEMENT'] = 0.1
     hyper_ps_cortex['EVAL_METRICS'] = [
         'Wasserstein',
         'SymmetricHausdorff',
