@@ -220,13 +220,11 @@ class Solver():
         if model.__class__.pred_to_voxel_pred(pred) is not None:
             write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
                                "../misc/voxel_pred_img_train.nii.gz")
+
+        # Magnitude of displacement vectors: mean over steps, classes, and batch
+        disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
         if iteration % self.log_every == 0:
-            try:
-                # Mean over steps, classes, and batch
-                disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
-                log_deltaV(disps, iteration)
-            except NotImplementedError:
-                pass
+            log_deltaV(disps, iteration)
 
         losses = {}
         with autocast(self.mixed_precision):
