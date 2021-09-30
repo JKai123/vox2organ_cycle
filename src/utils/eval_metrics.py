@@ -112,8 +112,8 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
     difference per vertex. In order for this measure to be meaningful, predited
     and ground truth meshes are transformed into the original coordinate space."""
 
-    if n_m_classes != 4:
-        raise ValueError("Cortical thickness score requires 4 surface meshes.")
+    if n_m_classes not in (2, 4):
+        raise ValueError("Cortical thickness score requires 2 or 4 surface meshes.")
 
     gt_mesh = data[2]
     trans_affine = data[3]

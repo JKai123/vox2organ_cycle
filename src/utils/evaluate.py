@@ -158,7 +158,7 @@ class ModelEvaluator():
             gt_filename = filename + "_gt.ply"
             gt_filename = os.path.join(self._mesh_dir, gt_filename)
             if not os.path.isfile(gt_filename):
-                if self._n_m_classes == 4:
+                if self._n_m_classes in (2, 4):
                     gt_mesh_transformed.store_with_features(gt_filename)
                 else:
                     gt_mesh_transformed.store(gt_filename)
@@ -189,7 +189,7 @@ class ModelEvaluator():
                     v, f = transform_mesh_affine(
                         v, f, np.linalg.inv(trans_affine)
                     )
-                if self._n_m_classes == 4 and convert_to_orig_coords:
+                if self._n_m_classes in (2, 4) and convert_to_orig_coords:
                     # Meshes with thickness
                     pred_meshes = cortical_thickness(v, f)
                     # Store the mesh of each structure separately
@@ -235,7 +235,7 @@ class ModelEvaluator():
                 v, f = transform_mesh_affine(
                     v, f, np.linalg.inv(trans_affine)
                 )
-            if self._n_m_classes == 4 and convert_to_orig_coords:
+            if self._n_m_classes in (2, 4) and convert_to_orig_coords:
                 # Meshes with thickness
                 pred_meshes = cortical_thickness(v, f)
                 # Store the mesh of each structure separately
