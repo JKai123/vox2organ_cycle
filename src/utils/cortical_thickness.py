@@ -16,7 +16,8 @@ point_face_distance = _PointFaceDistance.apply
 # Mapping a surface index to its partner relevant for computation of cortical
 # thickness, order: lh_white, rh_white, lh_pial, rh_pial
 # Example: thickness_partner[1] = 3 since the partner of rh_white is rh_pial
-thickness_partner = (2, 3, 0, 1)
+thickness_partner_4 = (2, 3, 0, 1)
+thickness_partner_2 = (1, 0)
 
 def cortical_thickness(vertices: torch.Tensor, faces: torch.Tensor):
     """ Compute the cortical thickness from vertices and faces for each
@@ -30,12 +31,18 @@ def cortical_thickness(vertices: torch.Tensor, faces: torch.Tensor):
     """
     assert vertices.ndim == 3, "Vertices should be in padded representation. "
     assert faces.ndim == 3, "Faces should be in padded representation. "
-    assert vertices.shape[0] == 4, "4 surfaces required."
-    assert faces.shape[0] == 4, "4 surfaces required."
+    assert vertices.shape[0] in (2, 4), "2 or 4 surfaces required."
+    assert faces.shape[0] in (2, 4), "2 or 4 surfaces required."
 
     # Iterate over surfaces
     result = []
     n_surfaces = vertices.shape[0]
+
+    if n_surfaces == 4:
+        thickness_partner = thickness_partner_4
+    if n_surfaces == 2:
+        thickness_partner = thickness_partner_2
+
     for i in range(n_surfaces):
         # The surface for which the thickness is computed
         surface_vertices = vertices[i]

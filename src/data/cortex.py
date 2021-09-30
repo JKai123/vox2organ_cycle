@@ -83,18 +83,20 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
     elif ("cerebral_cortex" in structure_type
           and "white_matter" in structure_type):
         if patch_mode == "single-patch":
+            seg_label_names = ("right_white_matter", "right_cerebral_cortex")
+            mesh_label_names = ("rh_white", "rh_pial")
+        elif patch_mode == "multi-patch":
             raise NotImplementedError()
-        if patch_mode == "multi-patch":
-            raise NotImplementedError()
-        # Not patch mode
-        seg_label_names = ("left_white_matter",
-                           "right_white_matter",
-                           "left_cerebral_cortex",
-                           "right_cerebral_cortex")
-        mesh_label_names = ("lh_white",
-                            "rh_white",
-                            "lh_pial",
-                            "rh_pial")
+        else:
+            # Not patch mode
+            seg_label_names = ("left_white_matter",
+                               "right_white_matter",
+                               "left_cerebral_cortex",
+                               "right_cerebral_cortex")
+            mesh_label_names = ("lh_white",
+                                "rh_white",
+                                "lh_pial",
+                                "rh_pial")
     else:
         raise ValueError("Unknown structure type.")
 
@@ -269,9 +271,6 @@ class Cortex(DatasetHandler):
         """ Load 3D data """
 
         # Check constraints
-        assert (self.patch_mode != "single-patch"
-                or len(self.seg_label_names) == 1),\
-                "Can only use one segmentation class in single-patch mode."
         assert (self.mesh_type == 'freesurfer'
                 or 'voxelized_mesh' not in self.seg_label_names),\
                 "Voxelized mesh as voxel ground truth requires Freesurfer meshes."
