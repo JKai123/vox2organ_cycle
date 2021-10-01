@@ -27,6 +27,7 @@ from utils.logging import (
     finish_wandb_run,
     log_losses,
     log_epoch,
+    log_grad,
     log_lr,
     get_log_dir,
     measure_time,
@@ -169,6 +170,9 @@ class Solver():
             self.scaler.scale(loss_total).backward()
         else:
             loss_total.backward()
+
+        # Log gradient norm
+        log_grad(model.parameters(), iteration)
 
         # Accumulate gradients
         if iteration % self.accumulate_ngrad == 0:

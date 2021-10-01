@@ -51,6 +51,22 @@ def log_deltaV(coords, iteration):
     if use_wandb:
         wandb.log({"Avg_displacement": deltaV_avg}, step=iteration)
 
+def log_grad(model_parameters, iteration):
+    """ Track gradient norm, see
+    https://discuss.pytorch.org/t/check-the-norm-of-gradients/27961
+    """
+    total_norm = 0.
+    for p in model_parameters:
+        param_norm = p.grad.detach().data.norm(2)
+        total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** 0.5
+
+    trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    trainLogger.info("Gradient norm: %.5f", total_norm)
+
+    if use_wandb:
+        wandb.log({"Gradient_norm": total_norm}, step=iteration)
+
 def log_epoch(epoch: int, iteration: int):
     """ Logging with wandb and std logging """
 
