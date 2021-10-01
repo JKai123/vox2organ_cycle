@@ -62,7 +62,7 @@ def log_grad(model_parameters, iteration):
     total_norm = total_norm ** 0.5
 
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    trainLogger.info("Gradient norm: %.5f", total_norm)
+    trainLogger.debug("Gradient norm: %.5f", total_norm)
 
     if use_wandb:
         wandb.log({"Gradient_norm": total_norm}, step=iteration)
