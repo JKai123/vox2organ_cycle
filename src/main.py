@@ -112,14 +112,14 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    # 'FIXED_SPLIT': {
-        # 'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
-                  # '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
-                  # '1017_3', '1113_3', '1011_3', '1125_3', '1005_3', '1107_3',
-                  # '1019_3', '1013_3', '1006_3', '1012_3'],
-        # 'validation': ['1036_3', '1110_3'],
-        # 'test': ['1004_3', '1119_3', '1116_3', '1009_3', '1101_3', '1002_3']
-    # },
+    'FIXED_SPLIT': {
+        'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
+                  '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
+                  '1017_3', '1113_3', '1011_3', '1125_3', '1005_3', '1107_3',
+                  '1019_3', '1013_3', '1006_3', '1012_3'],
+        'validation': ['1036_3', '1110_3'],
+        'test': ['1004_3', '1119_3', '1116_3', '1009_3', '1101_3', '1002_3']
+    },
     'NDIMS': 3,
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': False,
@@ -291,7 +291,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 32000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/rh_white_pial/cortex_2_ellipsoid_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
