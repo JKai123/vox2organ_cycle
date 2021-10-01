@@ -129,7 +129,7 @@ hyper_ps_cortex = {
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': [[0], [1]],
-        'GRAPH_CHANNELS': [256, 256, 128, 64, 32],
+        'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
@@ -270,9 +270,9 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
         hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
             [1.0] * 2, # Chamfer
-            [0.01] + [0.025] , # Cosine,
+            [0.01] + [0.0125] , # Cosine,
             [0.1] + [0.25], # Laplace,
-            [0.001] + [0.0015], # NormalConsistency
+            [0.001] + [0.00225], # NormalConsistency
             [5.0] * 2 # Edge
         ]
         hyper_ps_cortex['EVAL_METRICS'] = [
