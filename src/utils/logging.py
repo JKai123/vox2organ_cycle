@@ -41,15 +41,15 @@ def log_losses(losses, iteration):
     if use_wandb:
         wandb.log(losses, step=iteration)
 
-def log_deltaV(coords, iteration):
+def log_deltaV(deltaV, iteration):
     """ Logging with wandb and std logging """
-    deltaV_avg = coords.norm(dim=1).mean().detach().cpu()
+    deltaV = deltaV.detach().cpu()
 
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    trainLogger.info("Average displacement: %.5f", deltaV_avg)
+    trainLogger.info("Average displacement: %.5f", deltaV)
 
     if use_wandb:
-        wandb.log({"Avg_displacement": deltaV_avg}, step=iteration)
+        wandb.log({"Avg_displacement": deltaV}, step=iteration)
 
 def log_grad(model_parameters, iteration):
     """ Track gradient norm, see

@@ -107,6 +107,10 @@ hyper_ps_default={
     # [0.3, 0.05, 0.46, 0.16]
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
 
+    # Penalize large vertex displacements, can be seen as a regularization loss
+    # function weight
+    'PENALIZE_DISPLACEMENT': 0.0,
+
     # The number of sample points for the mesh loss computation if done as by
     # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
     # of the voxel ground truth
