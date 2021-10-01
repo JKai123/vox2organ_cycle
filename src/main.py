@@ -42,7 +42,7 @@ hyper_ps = {
     # Learning
     'EVAL_EVERY': 100,
     'LOG_EVERY': 'epoch',
-    'ACCUMULATE_N_GRADIENTS': 8,
+    'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
     'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
