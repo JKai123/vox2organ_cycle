@@ -681,3 +681,12 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
 
         return pred_meshes
+
+    @staticmethod
+    def pred_to_pred_deltaV_meshes(pred):
+        """ Create valid prediction meshes of shape (S,C) with RELATIVE
+        coordinates, i.e., with vertices containing displacement vectors. """
+        deltaV, faces = Voxel2MeshPlusPlusGeneric.pred_to_deltaV_and_faces(pred)
+        pred_deltaV_meshes = verts_faces_to_Meshes(deltaV, faces, 2) # pytorch3d
+
+        return pred_deltaV_meshes

@@ -241,6 +241,7 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
+                    model.__class__.pred_to_pred_deltaV_meshes(pred),
                     mesh_target)
             elif self.loss_averaging == 'geometric':
                 losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
@@ -251,6 +252,7 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
+                    model.__class__.pred_to_pred_deltaV_meshes(pred),
                     mesh_target)
             else:
                 raise ValueError("Unknown loss averaging.")

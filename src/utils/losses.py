@@ -489,7 +489,7 @@ def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_target):
     """ Linear combination of all losses. In contrast to geometric averaging,
     this also allows for per-class mesh loss weights. """
     losses = {}
@@ -525,10 +525,18 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
             )
         else: # add single loss to dict
             if isinstance(weight, Sequence):
-                ml = lf(mesh_pred, mesh_target, weight)
+                if isinstance(lf, LaplacianLoss):
+                    # Use relative coordinates
+                    ml = lf(deltaV_mesh_pred, mesh_target, weight)
+                else:
+                    ml = lf(mesh_pred, mesh_target, weight)
                 losses[str(lf)] = ml
             else:
-                ml = lf(mesh_pred, mesh_target)
+                if isinstance(lf, LaplacianLoss):
+                    # Use relative coordinates
+                    ml = lf(deltaV_mesh_pred, mesh_target)
+                else:
+                    ml = lf(mesh_pred, mesh_target)
                 losses[str(lf)] = ml * weight
 
     loss_total = sum(losses.values())
@@ -538,10 +546,16 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
 def voxel_linear_mesh_geometric_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_target):
     """ Linear combination of voxel losses, geometric combination of mesh losses
     at each step and linear combination of steps and voxel and mesh losses.
     Reference: Kong et al. 2021 """
+
+    raise NotImplementedError("In this function, Laplacian smoothing w.r.t."
+                              " relative coordinates is not implemented. Remove"
+                              " this error message if relative Laplacian"
+                              " smoothing is not desired and implement it"
+                              " otherwise (see all_linear_loss_combine)")
 
     if any(map(lambda x: isinstance(x, Sequence), mesh_loss_func_weights)):
         raise ValueError("Per-class-weights not supported.")
