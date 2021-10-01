@@ -326,6 +326,7 @@ class GraphDecoder(nn.Module):
                 deltaV_packed = f2v(latent_features_packed, edges_packed)
                 deltaV_padded = deltaV_packed.view(batch_size, M, V_new,
                                                    self.ndims)
+                new_deltaV_mesh = MeshesOfMeshes(deltaV_padded, faces_padded)
                 new_meshes.move_verts(deltaV_padded)
 
                 # New latent features
@@ -341,6 +342,6 @@ class GraphDecoder(nn.Module):
                     # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, V_prev)
 
                 pred_meshes.append(new_meshes)
-                pred_deltaV.append(deltaV_padded)
+                pred_deltaV.append(new_deltaV_mesh)
 
         return pred_meshes, pred_deltaV

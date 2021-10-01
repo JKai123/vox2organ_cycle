@@ -654,6 +654,27 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
         return vertices, faces
 
     @staticmethod
+    def pred_to_deltaV_and_faces(pred):
+        """ Get the displacements and faces of shape (S,C)
+        """
+        C = pred[2][1].verts_padded().shape[1]
+        S = len(pred[2])
+
+        deltaV = []
+        faces = []
+        meshes = pred[2][1:] # Ignore step 0
+        for s, m in enumerate(meshes):
+            v_s = []
+            f_s = []
+            for c in range(C):
+                v_s.append(m.verts_padded()[:,c,:,:])
+                f_s.append(m.faces_padded()[:,c,:,:])
+            deltaV.append(torch.stack(v_s))
+            faces.append(torch.stack(f_s))
+
+        return deltaV, faces
+
+    @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
         vertices, faces = Voxel2MeshPlusPlusGeneric.pred_to_verts_and_faces(pred)
