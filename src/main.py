@@ -141,7 +141,7 @@ hyper_ps_cortex = {
     'STRUCTURE_TYPE': 'cerebral_cortex',
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PENALIZE_DISPLACEMENT': 0.1,
+    'PENALIZE_DISPLACEMENT': 1.0,
     'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
