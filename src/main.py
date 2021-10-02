@@ -201,7 +201,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
 
 ####### Cerebral cortex ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
-    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.0125, 0.375, 0.0015, 5.0] # Tuned on hemisphere (exp_533)
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.0125, 0.25, 0.00225, 5.0] # Tuned on hemisphere (exp_533)
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
