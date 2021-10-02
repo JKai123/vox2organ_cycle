@@ -129,7 +129,7 @@ hyper_ps_cortex = {
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': False, # False for single-surface reconstruction
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
+        'GRAPH_CHANNELS': [256, 64, 64, 64, 64,
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
