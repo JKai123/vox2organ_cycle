@@ -12,6 +12,7 @@ import json
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch3d.structures import Pointclouds, Meshes
@@ -81,6 +82,7 @@ class Solver():
     losses, either 'linear' or 'none'
     :param penalize_displacement: Weight for penalizing large displacements,
     can be seen as an additional regularization loss
+    :param clip_gradient: Clip gradient at this norm if specified (not False)
 
     """
 
@@ -103,6 +105,7 @@ class Solver():
                  lr_decay_after,
                  reduce_reg_loss_mode,
                  penalize_displacement,
+                 clip_gradient,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -120,6 +123,7 @@ class Solver():
         self.mesh_loss_func_weights = mesh_loss_func_weights
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
         self.penalize_displacement = penalize_displacement
+        self.clip_gradient = clip_gradient
         if any([isinstance(lf, ChamferAndNormalsLoss)
                  for lf in self.mesh_loss_func]):
             assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
@@ -175,8 +179,10 @@ class Solver():
         else:
             loss_total.backward()
 
-        # Log gradient norm
+        # Log gradient norm and optionally clip gradient
         log_grad(model.parameters(), iteration)
+        if self.clip_gradient:
+            clip_grad_norm_(model.parameters(), self.clip_gradient)
 
         # Accumulate gradients
         if iteration % self.accumulate_ngrad == 0:

@@ -59,6 +59,9 @@ hyper_ps_default={
     # The batch size used during training
     'BATCH_SIZE': 1,
 
+    # Optionally provide a norm for gradient clipping
+    'CLIP_GRADIENT': False,
+
     # Activate/deactivate patch mode for the cortex dataset. Possible values
     # are "no", "single-patch", "multi-patch"
     'PATCH_MODE': "no",
