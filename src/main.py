@@ -128,8 +128,8 @@ hyper_ps_cortex = {
     'BATCH_SIZE': 3,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
-        'GROUP_STRUCTS': False, # False for single-surface reconstruction
-        'GRAPH_CHANNELS': [256, 128, 64, 32, 16],
+        'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
+        'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
                               [2,3,6,7],
@@ -138,10 +138,11 @@ hyper_ps_cortex = {
     },
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': 'cerebral_cortex',
+    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
-    'PENALIZE_DISPLACEMENT': 1.0,
+    'PENALIZE_DISPLACEMENT': 0.0,
+    'CLIP_GRADIENT': 200000,
     'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
