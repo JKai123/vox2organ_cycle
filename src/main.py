@@ -128,7 +128,7 @@ hyper_ps_cortex = {
     'BATCH_SIZE': 3,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
-        'GROUP_STRUCTS': [[0], [1]],
+        'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
@@ -141,6 +141,8 @@ hyper_ps_cortex = {
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
+    'PENALIZE_DISPLACEMENT': 0.0,
+    'CLIP_GRADIENT': 200000,
     'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
@@ -200,7 +202,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
 
 ####### Cerebral cortex ######
 if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
-    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.025, 0.25, 0.0015, 5.0] # Tuned on hemisphere (exp_496)
+    hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [1.0, 0.0125, 0.25, 0.00225, 5.0] # Tuned on hemisphere (exp_533)
     if hyper_ps_cortex['NDIMS'] == 3:
         if hyper_ps_cortex['PATCH_MODE'] == "single-patch":
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'

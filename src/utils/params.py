@@ -59,6 +59,9 @@ hyper_ps_default={
     # The batch size used during training
     'BATCH_SIZE': 1,
 
+    # Optionally provide a norm for gradient clipping
+    'CLIP_GRADIENT': False,
+
     # Activate/deactivate patch mode for the cortex dataset. Possible values
     # are "no", "single-patch", "multi-patch"
     'PATCH_MODE': "no",
@@ -106,6 +109,10 @@ hyper_ps_default={
     # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
     # [0.3, 0.05, 0.46, 0.16]
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+
+    # Penalize large vertex displacements, can be seen as a regularization loss
+    # function weight
+    'PENALIZE_DISPLACEMENT': 0.0,
 
     # The number of sample points for the mesh loss computation if done as by
     # Wickramasinghe 2020, i.e. sampling n random points from the outer surface

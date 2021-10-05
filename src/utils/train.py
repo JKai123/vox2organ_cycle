@@ -12,6 +12,7 @@ import json
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch3d.structures import Pointclouds, Meshes
@@ -27,6 +28,7 @@ from utils.logging import (
     finish_wandb_run,
     log_losses,
     log_epoch,
+    log_grad,
     log_lr,
     get_log_dir,
     measure_time,
@@ -78,6 +80,9 @@ class Solver():
     then new_lr = old_lr * lr_decay_rate
     :param str reduce_reg_loss_mode: The mode for reduction of regularization
     losses, either 'linear' or 'none'
+    :param penalize_displacement: Weight for penalizing large displacements,
+    can be seen as an additional regularization loss
+    :param clip_gradient: Clip gradient at this norm if specified (not False)
 
     """
 
@@ -99,6 +104,8 @@ class Solver():
                  lr_decay_rate,
                  lr_decay_after,
                  reduce_reg_loss_mode,
+                 penalize_displacement,
+                 clip_gradient,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -115,6 +122,8 @@ class Solver():
         self.mesh_loss_func = mesh_loss_func
         self.mesh_loss_func_weights = mesh_loss_func_weights
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
+        self.penalize_displacement = penalize_displacement
+        self.clip_gradient = clip_gradient
         if any([isinstance(lf, ChamferAndNormalsLoss)
                  for lf in self.mesh_loss_func]):
             assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
@@ -170,6 +179,11 @@ class Solver():
         else:
             loss_total.backward()
 
+        # Log gradient norm and optionally clip gradient
+        log_grad(model.parameters(), iteration)
+        if self.clip_gradient:
+            clip_grad_norm_(model.parameters(), self.clip_gradient)
+
         # Accumulate gradients
         if iteration % self.accumulate_ngrad == 0:
             if self.mixed_precision:
@@ -216,13 +230,11 @@ class Solver():
         if model.__class__.pred_to_voxel_pred(pred) is not None:
             write_img_if_debug(model.__class__.pred_to_voxel_pred(pred).cpu().squeeze().numpy(),
                                "../misc/voxel_pred_img_train.nii.gz")
+
+        # Magnitude of displacement vectors: mean over steps, classes, and batch
+        disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
         if iteration % self.log_every == 0:
-            try:
-                # Mean over steps, classes, and batch
-                disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
-                log_deltaV(disps, iteration)
-            except NotImplementedError:
-                pass
+            log_deltaV(disps, iteration)
 
         losses = {}
         with autocast(self.mixed_precision):
@@ -235,6 +247,7 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
+                    model.__class__.pred_to_pred_deltaV_meshes(pred),
                     mesh_target)
             elif self.loss_averaging == 'geometric':
                 losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
@@ -245,11 +258,12 @@ class Solver():
                     self.mesh_loss_func,
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
+                    model.__class__.pred_to_pred_deltaV_meshes(pred),
                     mesh_target)
             else:
                 raise ValueError("Unknown loss averaging.")
 
-            losses['TotalLoss'] = loss_total
+            losses['TotalLoss'] = loss_total + self.penalize_displacement * disps
 
         # log
         if iteration % self.log_every == 0:
