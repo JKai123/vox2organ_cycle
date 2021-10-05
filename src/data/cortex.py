@@ -651,6 +651,13 @@ class Cortex(DatasetHandler):
     def __len__(self):
         return len(self._files)
 
+    def resample_surface_points(self):
+        """ Resample the surface points of the meshes. """
+        self.point_labels,\
+                self.normal_labels,\
+                self.curvatures = self._load_ref_points()
+
+
     @measure_time
     def get_item_from_index(self, index: int, mesh_target_type: str=None,
                             *args, **kwargs):
