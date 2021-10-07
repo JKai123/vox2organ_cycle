@@ -402,6 +402,11 @@ def main(hps):
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
+    argparser.add_argument('--n_test_vertices',
+                           type=int,
+                           default=-1,
+                           help="Set the number of template vertices during"
+                           " testing.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -428,6 +433,7 @@ def main(hps):
     hps['PARAMS_TO_TUNE'] = args.params_to_tune
     hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
     hps['TEST_MODEL_EPOCH'] = args.test
+    hps['N_TEMPLATE_VERTICES_TEST'] = args.n_test_vertices
 
     if args.params_to_tune and args.params_to_fine_tune:
         raise RuntimeError(
@@ -448,6 +454,10 @@ def main(hps):
     # Update again for overfitting
     if hps['OVERFIT']:
         hps = update_dict(hps, hyper_ps_overfit)
+
+    # Set the number of test vertices
+    if hps['N_TEMPLATE_VERTICES_TEST'] == -1:
+        hps['N_TEMPLATE_VERTICES_TEST'] = hps['N_TEMPLATE_VERTICES']
 
     if args.params_to_tune or args.params_to_fine_tune:
         mode = ExecModes.TUNE

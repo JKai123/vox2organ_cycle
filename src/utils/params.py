@@ -36,6 +36,11 @@ hyper_ps_default={
     # The number of vertices in a single template structure
     'N_TEMPLATE_VERTICES': 162,
 
+    # The number of vertices in a single template structure used during testing
+    # (may be different than 'N_TEMPLATE_VERTICES'; -1 means that
+    # 'N_TEMPLATE_VERTICES' is used)
+    'N_TEMPLATE_VERTICES_TEST': -1,
+
     # The number of reference points in a cortex structure
     'N_REF_POINTS_PER_STRUCTURE': 40962,
 

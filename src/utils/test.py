@@ -69,7 +69,9 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                            " parameter.")
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
     # Directoy where test results are written to
-    test_dir = os.path.join(experiment_dir, "test")
+    test_dir = os.path.join(
+        experiment_dir, "test_template_" + str(hps['N_TEMPLATE_VERTICES_TEST'])
+    )
     if not os.path.isdir(test_dir):
         os.mkdir(test_dir)
 
@@ -79,25 +81,32 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
+    # Choose template according to the number of template vertices specified
+    # (which may be different than during training)
+    if hps['N_TEMPLATE_VERTICES'] != hps['N_TEMPLATE_VERTICES_TEST']:
+        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
+            hps['MODEL_CONFIG']['MESH_TEMPLATE'].replace(
+                str(hps['N_TEMPLATE_VERTICES']), str(hps['N_TEMPLATE_VERTICES_TEST'])
+            )
+    testLogger.info("Using template %s", hps['MODEL_CONFIG']['MESH_TEMPLATE'])
+
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict_to_lower_dict(training_hps)
     hps_lower = dict_to_lower_dict(hps)
     model_config = hps_lower['model_config']
-    # Check if model configs are equal
+    # Check if model configs are equal (besides template)
     for k, v in string_dict(model_config).items():
         v_train = training_hps_lower['model_config'][k]
-        if v_train != v:
+        if v_train != v and k != 'mesh_template':
             raise RuntimeError(f"Hyperparameter {k.upper()} is not equal to the"\
                                " model that should be tested. Values are "\
                                f" {v_train} and {v}.")
 
-    # Get same split as defined during training for testset
+    # Get test-split as defined during training
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    training_set, _, test_set =\
+    _, _, test_set =\
             dataset_split_handler[training_hps['DATASET']](save_dir=test_dir,
                                                            **training_hps_lower)
-    ### TMP!!!
-    # test_set = training_set
     testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be
