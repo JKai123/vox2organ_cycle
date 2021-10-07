@@ -108,7 +108,7 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
 
         # Compute thickness measure using
         # trimesh.proximity.longest_ray
-        print("Computing ray distances...")
+        print(f"Computing ray distances for file {pred_mesh_path}...")
         gt_thickness = longest_ray(gt_mesh_partner, gt_pntcloud_sub, gt_normals_sub)
         pred_thickness = longest_ray(pred_mesh_partner, pred_pntcloud_sub, pred_normals_sub)
 
@@ -140,7 +140,7 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
         )
 
         # Compute thickness measure using nearest face distance
-        print("Computing nearest distances...")
+        print(f"Computing nearest distances for file {pred_mesh_path}...")
         gt_thickness = _point_mesh_face_distance_unidirectional(
             gt_pntcloud, gt_mesh_partner
         ).squeeze().cpu().numpy()
@@ -271,7 +271,7 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
     # compute point to mesh distances and metrics; not exactly the same as
     # trimesh, it's always a bit larger than the trimesh distances, but a
     # lot faster.
-    print("computing point to mesh distances...")
+    print(f"Computing point to mesh distances for file {pred_mesh_path}...")
     P2G_dist = _point_mesh_face_distance_unidirectional(
         Pointclouds(gt_pcl), pred_mesh
     ).cpu().numpy()
@@ -324,7 +324,7 @@ def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch, subfolder="meshes"
     print("Point cloud with {} dimensions sampled from predicted mesh".format(pred_pcl.shape))
 
     # compute point to mesh distances and metrics
-    print("computing point to mesh distances...")
+    print(f"Computing point to mesh distances for file {pred_mesh_path}...")
     _, P2G_dist, _ = trimesh.proximity.closest_point(pred_mesh, gt_pcl)
     _, G2P_dist, _ = trimesh.proximity.closest_point(gt_mesh, pred_pcl)
     print("point to mesh distances computed")
