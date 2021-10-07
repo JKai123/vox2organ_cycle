@@ -35,9 +35,9 @@ PARTNER = {"rh_white": "rh_pial",
 MODES = ('ad_hd', 'thickness')
 
 def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
-                       method="nearest"):
-    """ Cortical thickness biomarker computed with ray tracing distances.
-    :param method: 'nearest' or 'ray.
+                       method="ray"):
+    """ Cortical thickness biomarker.
+    :param method: 'nearest' or 'ray'.
     """
     pred_folder = os.path.join(eval_params['log_path'])
     thickness_folder = os.path.join(
@@ -93,7 +93,7 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     if method == "ray":
         # Choose subset of predicted vertices and closest vertices from gt
         pred_pntcloud_sub, pred_idx = choose_n_random_points(
-            pred_pntcloud, 5000, return_idx=True
+            pred_pntcloud, 10000, return_idx=True
         )
         pred_normals_sub = pred_normals[pred_idx]
         _, gt_idx, gt_pntcloud_sub = knn_points(
