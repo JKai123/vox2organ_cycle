@@ -99,7 +99,7 @@ def _point_mesh_face_distance_unidirectional(white_pntcloud: Pointclouds,
     point_to_face = point_face_distance(
         points, points_first_idx, tris, tris_first_idx, max_points
     )
-    # Take root as point_face_distance returns squared distances and unnormalize
+    # Take root as point_face_distance returns squared distances
     point_to_face = torch.sqrt(point_to_face)
 
     return point_to_face
