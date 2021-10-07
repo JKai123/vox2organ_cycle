@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-""" Evaluation script from DeepCSR. """
+""" Evaluation script that can be applied directly to predicted meshes (no need
+to load model etc.) """
 
 import os
 from argparse import ArgumentParser
@@ -18,6 +19,14 @@ RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
 EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
 # SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 SURF_NAMES = ("rh_white", "rh_pial")
+
+MODES = ('ad_hd', 'thickness')
+
+def eval_thickness():
+    pass
+
+def thickness_output():
+    pass
 
 def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch, device="cuda:1"):
     """ AD and HD computed with pytorch3d. """
@@ -132,12 +141,31 @@ def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch):
 
     return assd, hd
 
+def ad_hd_output(results, summary_file):
+    assd_all = results[:, 0]
+    hd_all = results[:, 1]
+    assd_mean = np.mean(assd_all)
+    assd_std = np.std(assd_all)
+    hd_mean = np.mean(hd_all)
+    hd_std = np.std(hd_all)
+
+    cols_str = ';'.join(['AD_MEAN', 'AD_STD', 'HD_MEAN', 'HD_STD'])
+    mets_str = ';'.join([str(assd_mean), str(assd_std), str(hd_mean), str(hd_std)])
+
+    with open(summary_file, 'w') as output_csv_file:
+        output_csv_file.write(cols_str+'\n')
+        output_csv_file.write(mets_str+'\n')
+
+mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
+                    "thickness": eval_thickness}
+mode_to_output_file = {"ad_hd": ad_hd_output,
+                       "thickness": thickness_output}
 if __name__ == '__main__':
-    argparser = ArgumentParser(description="DeepCSR evaluation procedure")
+    argparser = ArgumentParser(description="Mesh evaluation procedure")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
-                           default=None,
+                           required=True,
                            help="Name of experiment under evaluation.")
     argparser.add_argument('--epoch',
                            type=int,
@@ -148,9 +176,15 @@ if __name__ == '__main__':
                            required=True,
                            help="The number of template vertices for each"
                            " structure that was used during testing.")
+    argparser.add_argument('--mode',
+                           type=str,
+                           required=True,
+                           help="The evaluation to perform, possible values"
+                           " are " + str(MODES))
     args = argparser.parse_args()
     exp_name = args.exp_name
     epoch = args.epoch
+    mode = args.mode
 
     # Provide params
     eval_params = {}
@@ -159,33 +193,22 @@ if __name__ == '__main__':
     eval_params['log_path'] = os.path.join(
         EXPERIMENT_DIR, exp_name, "test_template_" + str(args.n_test_vertices)
     )
-    eval_params['metrics_csv_prefix'] = "eval_deepcsr"
+    eval_params['metrics_csv_prefix'] = "eval_" + mode
 
     dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
     ids = read_dataset_ids(dataset_file)
 
-    assd_all = []
-    hd_all = []
+    res_all = []
     for mri_id in ids:
         for surf_name in SURF_NAMES:
-            assd, hd = eval_ad_hd_pytorch3d(
+            result = mode_to_function[mode](
                 mri_id, surf_name, eval_params, epoch
             )
-            assd_all.append(assd)
-            hd_all.append(hd)
+            res_all.append(result)
 
-    assd_mean = np.mean(assd_all)
-    assd_std = np.std(assd_all)
-    hd_mean = np.mean(hd_all)
-    hd_std = np.std(hd_all)
+    summary_file = os.path.join(eval_params['log_path'], f"eval_{mode}_summary.csv")
 
-    summary_file = os.path.join(eval_params['log_path'], 'eval_deepcsr_summary.csv')
-    cols_str = ';'.join(['AD_MEAN', 'AD_STD', 'HD_MEAN', 'HD_STD'])
-    mets_str = ';'.join([str(assd_mean), str(assd_std), str(hd_mean), str(hd_std)])
-
-    with open(summary_file, 'w') as output_csv_file:
-        output_csv_file.write(cols_str+'\n')
-        output_csv_file.write(mets_str+'\n')
-
+    # Write output
+    mode_to_output_file[mode](np.array(res_all), summary_file)
 
     print("Done.")
