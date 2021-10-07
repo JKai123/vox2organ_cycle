@@ -16,7 +16,8 @@ from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
 EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
-SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+# SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+SURF_NAMES = ("rh_white", "rh_pial")
 
 def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch, device="cuda:1"):
     """ AD and HD computed with pytorch3d. """
@@ -140,8 +141,13 @@ if __name__ == '__main__':
                            help="Name of experiment under evaluation.")
     argparser.add_argument('--epoch',
                            type=int,
-                           default=3000,
+                           required=True,
                            help="The epoch to evaluate.")
+    argparser.add_argument('--n_test_vertices',
+                           type=int,
+                           required=True,
+                           help="The number of template vertices for each"
+                           " structure that was used during testing.")
     args = argparser.parse_args()
     exp_name = args.exp_name
     epoch = args.epoch
@@ -150,7 +156,9 @@ if __name__ == '__main__':
     eval_params = {}
     eval_params['gt_mesh_path'] = RAW_DATA_DIR
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
-    eval_params['log_path'] = os.path.join(EXPERIMENT_DIR, exp_name, "test")
+    eval_params['log_path'] = os.path.join(
+        EXPERIMENT_DIR, exp_name, "test_template_" + str(args.n_test_vertices)
+    )
     eval_params['metrics_csv_prefix'] = "eval_deepcsr"
 
     dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
