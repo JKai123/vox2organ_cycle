@@ -35,13 +35,13 @@ PARTNER = {"rh_white": "rh_pial",
 MODES = ('ad_hd', 'thickness')
 
 def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
-                       method="ray"):
+                       method="ray", subfolder="meshes"):
     """ Cortical thickness biomarker.
     :param method: 'nearest' or 'ray'.
     """
     pred_folder = os.path.join(eval_params['log_path'])
     thickness_folder = os.path.join(
-        eval_params['log_path'], 'thickness_evaluation'
+        eval_params['log_path'], 'thickness_evaluation_' + subfolder
     )
     if not os.path.isdir(thickness_folder):
         os.mkdir(thickness_folder)
@@ -70,7 +70,7 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     s_index = SURF_NAMES.index(surf_name)
     pred_mesh_path = os.path.join(
         pred_folder,
-        "meshes/",
+        subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
     )
     pred_mesh = trimesh.load(pred_mesh_path)
@@ -83,7 +83,7 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     s_index_partner = SURF_NAMES.index(PARTNER[surf_name])
     pred_mesh_path_partner = os.path.join(
         pred_folder,
-        "meshes/",
+        subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index_partner}_meshpred.ply"
     )
     pred_mesh_partner = trimesh.load(pred_mesh_path_partner)
@@ -234,7 +234,8 @@ def thickness_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
-def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch, device="cuda:1"):
+def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
+                         device="cuda:1", subfolder="meshes"):
     """ AD and HD computed with pytorch3d. """
     pred_folder = os.path.join(eval_params['log_path'])
 
@@ -253,7 +254,7 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch, device="cuda:1")
     s_index = SURF_NAMES.index(surf_name)
     pred_mesh_path = os.path.join(
         pred_folder,
-        "meshes/",
+        subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
     )
     pred_mesh = trimesh.load(pred_mesh_path)
@@ -287,7 +288,7 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch, device="cuda:1")
 
     return assd2, hd2
 
-def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch):
+def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch, subfolder="meshes"):
 
     print('>>' * 5 + " Evaluating mri {} and surface {}".format(mri_id, surf_name))
     pred_folder = os.path.join(eval_params['log_path'])
@@ -311,7 +312,7 @@ def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch):
     s_index = SURF_NAMES.index(surf_name)
     pred_mesh_path = os.path.join(
         pred_folder,
-        "meshes/",
+        subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
     )
     pred_mesh = trimesh.load(pred_mesh_path)
@@ -382,10 +383,15 @@ if __name__ == '__main__':
                            type=str,
                            help="The evaluation to perform, possible values"
                            " are " + str(MODES))
+    argparser.add_argument('--meshfixed',
+                           action='store_true',
+                           help="Use MeshFix'ed meshes for evaluation.")
+
     args = argparser.parse_args()
     exp_name = args.exp_name
     epoch = args.epoch
     mode = args.mode
+    meshfixed = args.meshfixed
 
     # Provide params
     eval_params = {}
@@ -396,6 +402,12 @@ if __name__ == '__main__':
     )
     eval_params['metrics_csv_prefix'] = "eval_" + mode
 
+    if meshfixed:
+        eval_params['metrics_csv_prefix'] += "_meshfixed"
+        subfolder = "meshfix"
+    else:
+        subfolder = "meshes"
+
     dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
     ids = read_dataset_ids(dataset_file)
 
@@ -403,11 +415,14 @@ if __name__ == '__main__':
     for mri_id in ids:
         for surf_name in SURF_NAMES:
             result = mode_to_function[mode](
-                mri_id, surf_name, eval_params, epoch
+                mri_id, surf_name, eval_params, epoch, subfolder=subfolder
             )
             res_all.append(result)
 
-    summary_file = os.path.join(eval_params['log_path'], f"eval_{mode}_summary.csv")
+    summary_file = os.path.join(
+        eval_params['log_path'],
+        f"{eval_params['metrics_csv_prefix']}_summary.csv"
+    )
 
     # Write output
     mode_to_output_file[mode](np.array(res_all), summary_file)
