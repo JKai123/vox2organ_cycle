@@ -312,9 +312,13 @@ def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
     d_verts = -1 * (plane_normal @ mesh.vertices.T - d)
     mirrored_verts = mesh.vertices + 2 * (plane_normal[:,None] * d_verts).T
 
+    # Flip faces to perserve normal convention
+    mirrored_faces = np.flip(mesh.faces, axis=1)
+
     # Preserve data type
-    mirrored_mesh = Trimesh(mirrored_verts, mesh.faces)\
-            if isinstance(mesh, Trimesh) else Mesh(mirrored_verts, mesh.faces)
+    mirrored_mesh = Trimesh(mirrored_verts, mirrored_faces)\
+            if isinstance(mesh, Trimesh)\
+            else Mesh(mirrored_verts, mirrored_faces)
 
     return mirrored_mesh
 
