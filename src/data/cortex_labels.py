@@ -29,5 +29,6 @@ def combine_labels(labels, names):
 def valid_MALC_ids(candidates: list):
     """ Sort out non-valid ids of 'candidates' of samples in the MALC_CSR
     dataset and return adjusted list. """
-    valid = [c for c in candidates if c[-1] == '3']
+    retest_ids = ('1023_3', '1024_3', '1025_3', '1038_3', '1039_3')
+    valid = [c for c in candidates if (c[-1] == '3' and c not in retest_ids)]
     return valid
