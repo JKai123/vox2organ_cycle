@@ -167,7 +167,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
-            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
             hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             ## Small
@@ -219,7 +219,7 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
             hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
-            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+            hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
             hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             hyper_ps_cortex['N_M_CLASSES'] = 1
@@ -299,7 +299,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['N_M_CLASSES'] = 2
         hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
         hyper_ps_cortex['PATCH_ORIGIN'] = [0, 0, 0]
-        hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 176]
+        hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
