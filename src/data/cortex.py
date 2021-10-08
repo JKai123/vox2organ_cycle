@@ -802,6 +802,10 @@ class Cortex(DatasetHandler):
     def _get_single_patches(self, raw_imgs, raw_labels):
         """ Extract a single patch from an image. """
 
+        assert (tuple(self._patch_origin) == (0,0,0)
+                or not self.patch_mode == "no"),\
+                "If patch mode is 'no', patch origin should be (0,0,0)"
+
         img_patches, label_patches, transformations = [], [], []
 
         # Limits for patch selection
