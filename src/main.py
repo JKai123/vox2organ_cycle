@@ -255,9 +255,9 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         # weights should respect this order!
         hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
             [1.0] * 4, # Chamfer
-            [0.01] * 2 + [0.025] * 2, # Cosine,
+            [0.01] * 2 + [0.0125] * 2, # Cosine,
             [0.1] * 2 + [0.25] * 2, # Laplace,
-            [0.001] * 2 + [0.0015] * 2, # NormalConsistency
+            [0.001] * 2 + [0.00225] * 2, # NormalConsistency
             [5.0] * 4 # Edge
         ]
         hyper_ps_cortex['EVAL_METRICS'] = [
