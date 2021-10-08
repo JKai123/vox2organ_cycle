@@ -13,14 +13,25 @@ patch_size = [64, 144, 128]
 select_patch_size = [96, 208, 176]
 patch_origin=[0, 0, 0]
 
-template_path = f"../supplementary_material/rh_white_pial/cortex_2_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}_po{patch_origin}.obj"
+template_path = f"../supplementary_material/rh_white_pial/cortex_4_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}.obj"
+
+split = {
+    'train': ['1000_3', '1001_3', '1002_3', '1006_3', '1007_3', '1008_3',
+              '1009_3', '1010_3', '1011_3', '1012_3', '1013_3', '1014_3',
+              '1015_3', '1036_3', '1017_3', '1107_3', '1128_3', '1101_3',
+              '1003_3', '1004_3', '1125_3', '1005_3', '1122_3', '1110_3',
+              '1119_3', '1113_3', '1018_3', '1019_3', '1104_3', '1116_3'],
+    'validation': [],
+    'test': []
+}
 
 print("Creating dataset...")
 dataset, _, _ = Cortex.split(raw_data_dir="/mnt/nas/Data_Neuro/MALC_CSR/",
                              augment_train=False,
                              save_dir="../misc",
                              dataset_seed=1532,
-                             dataset_split_proportions=(100, 0, 0),
+                             # dataset_split_proportions=(100, 0, 0),
+                             fixed_split=split,
                              patch_origin=patch_origin,
                              select_patch_size=select_patch_size,
                              patch_size=patch_size,
@@ -30,7 +41,7 @@ dataset, _, _ = Cortex.split(raw_data_dir="/mnt/nas/Data_Neuro/MALC_CSR/",
                              n_ref_points_per_structure=10000, # irrelevant
                              mesh_type='freesurfer',
                              preprocessed_data_dir="/home/fabianb/data/preprocessed/MALC_CSR/",
-                             patch_mode="single-patch")
+                             patch_mode="no")
 print("Dataset created.")
 print("Creating template...")
 
