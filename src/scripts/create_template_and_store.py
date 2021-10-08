@@ -9,11 +9,11 @@ from data.cortex import Cortex
 structure_type = ('white_matter', 'cerebral_cortex')
 
 # Important!!! (defines coordinate normalization in the template)
-patch_size = [64, 144, 128]
-select_patch_size = [96, 208, 176]
+patch_size = [128, 144, 128]
+select_patch_size = [192, 208, 192]
 patch_origin=[0, 0, 0]
 
-template_path = f"../supplementary_material/rh_white_pial/cortex_4_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}.obj"
+template_path = f"../supplementary_material/white_pial/cortex_4_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}.obj"
 
 split = {
     'train': ['1000_3', '1001_3', '1002_3', '1006_3', '1007_3', '1008_3',
