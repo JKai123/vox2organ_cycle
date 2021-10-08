@@ -528,6 +528,12 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
     trainLogger.info("%d test files.", len(test_set))
+    trainLogger.info("Minimum number of vertices in training set: %d.",
+                     training_set.n_min_vertices)
+    if training_set.n_min_vertices >= hps['N_REF_POINTS_PER_STRUCTURE']:
+        trainLogger.warning(
+            "Padded vertices will not be ignored during sampling."
+        )
 
     ###### Training ######
 
