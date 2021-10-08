@@ -135,10 +135,10 @@ hyper_ps_cortex = {
     'AUGMENT_TRAIN': False,
     'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
     'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
-    'BATCH_SIZE': 3,
+    'BATCH_SIZE': 1,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
-        'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
+        'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
@@ -153,7 +153,7 @@ hyper_ps_cortex = {
     'PROVIDE_CURVATURES': True,
     'PENALIZE_DISPLACEMENT': 0.0,
     'CLIP_GRADIENT': 200000,
-    'PATCH_MODE': "single-patch"
+    'PATCH_MODE': "no"
 }
 # Automatically set parameters
 
@@ -275,10 +275,10 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 42016
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 44000 # max. number of gt points in this case (batch size 1)
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/white_pial/cortex_4_ellipsoid_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
+            f"../supplementary_material/white_pial/cortex_4_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
         hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
             [1.0] * 2, # Chamfer
