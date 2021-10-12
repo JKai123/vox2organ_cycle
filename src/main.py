@@ -259,7 +259,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 42016
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 33000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 31000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/white_pial/cortex_4_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
@@ -286,7 +286,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 41602
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 33000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 31000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/rh_white_pial/cortex_2_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
