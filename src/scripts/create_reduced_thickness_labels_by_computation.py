@@ -22,7 +22,7 @@ suffix = "_reduced_0.3"
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
-files = valid_ids(os.listdir(RAW_DATA_DIR))
+files = valid_ids(RAW_DATA_DIR)
 
 # Iterate over all files
 for fn in files:

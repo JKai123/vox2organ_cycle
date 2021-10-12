@@ -8,6 +8,8 @@ import os
 import sys
 from enum import IntEnum
 
+from pandas import read_csv
+
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
     Hippocampus = 1
@@ -61,8 +63,22 @@ def valid_ids_MALC_CSR(candidates: list):
 
 def valid_ids_ADNI_CSR(candidates: list):
     """ Sort out non-valid ids of 'candidates' of samples in the ADNI_CSR
-    dataset and return adjusted list. """
-    valid = [c for c in candidates if (c.isdigit())]
+    dataset and return adjusted list.
+
+    !!!Note: This is a subset of ADNI at the moment!!!
+    """
+    raw_data_dir = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+    files_train = read_csv(os.path.join(
+        raw_data_dir, 'train_small.csv'
+    ), dtype=str)['IMAGEUID'].to_list()
+    files_val = read_csv(os.path.join(
+        raw_data_dir, 'val_small.csv'
+    ), dtype=str)['IMAGEUID'].to_list()
+    files_test = read_csv(os.path.join(
+        raw_data_dir, 'test_small.csv'
+    ), dtype=str)['IMAGEUID'].to_list()
+    adni_valid = files_train + files_val + files_test
+    valid = [c for c in candidates if c in adni_valid]
     return valid
 
 def valid_ids(raw_data_dir: str):
