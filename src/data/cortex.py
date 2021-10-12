@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
+from pandas import read_csv
 from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
@@ -50,7 +51,10 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
-from data.cortex_labels import combine_labels, valid_MALC_ids
+from data.cortex_labels import (
+    combine_labels,
+    valid_MALC_ids
+)
 
 def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
     """ Helper function to map the structure type and the patch mode to the
@@ -569,9 +573,14 @@ class Cortex(DatasetHandler):
         return path
 
     @staticmethod
-    def split(raw_data_dir, augment_train, save_dir, dataset_seed=0,
-              dataset_split_proportions=None, fixed_split: dict={},
-              overfit=False, **kwargs):
+    def split(raw_data_dir,
+              augment_train,
+              save_dir,
+              dataset_seed=0,
+              dataset_split_proportions=None,
+              fixed_split: Union[dict, bool]=False,
+              overfit=False,
+              **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -583,44 +592,59 @@ class Cortex(DatasetHandler):
         :param save_dir: A directory where the split ids can be saved.
         :param fixed_split: A dict containing file ids for 'train',
         'validation', and 'test'. If specified, values of dataset_seed,
-        overfit, and dataset_split_proportions will be ignored.
+        overfit, and dataset_split_proportions will be ignored. If only 'True',
+        the fixed split IDs are read from a file.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
         :param kwargs: Dataset parameters.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
 
-        # Available files
-        all_files = os.listdir(raw_data_dir)
-        all_files = valid_MALC_ids(all_files) # Remove invalid
-
         # Decide between fixed and random split
-        if any(len(s) > 0 for _, s in fixed_split.items()):
-            files_train = fixed_split['train']
-            files_val = fixed_split['validation']
-            files_test = fixed_split['test']
-        else:
+        if fixed_split:
+            if isinstance(fixed_split, dict):
+                files_train = fixed_split['train']
+                files_val = fixed_split['validation']
+                files_test = fixed_split['test']
+            elif isinstance(fixed_split, bool):
+                files_train = read_csv(os.path.join(
+                    raw_data_dir, 'train_small.csv'
+                ), dtype=str)['IMAGEUID'].to_list()
+                files_val = read_csv(os.path.join(
+                    raw_data_dir, 'val_small.csv'
+                ), dtype=str)['IMAGEUID'].to_list()
+                files_test = read_csv(os.path.join(
+                    raw_data_dir, 'test_small.csv'
+                ), dtype=str)['IMAGEUID'].to_list()
+            else:
+                raise TypeError("Wrong type of parameter 'fixed_split'."
+                                f" Got {type(fixed_split)} but should be"
+                                "'bool' or 'dict'")
+        else: # Random split
+            # Available files
+            all_files = os.listdir(raw_data_dir)
+            all_files = valid_MALC_ids(all_files) # Remove invalid
+
             # Shuffle with seed
             random.Random(dataset_seed).shuffle(all_files)
 
-            # Split
-            if overfit:
-                # Consider the same splits for train validation and test
-                indices_train = slice(0, overfit)
-                indices_val = slice(0, overfit)
-                indices_test = slice(0, overfit)
-            else:
-                # No overfit
-                assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
-                indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
-                indices_val = slice(indices_train.stop,
-                                    indices_train.stop +\
-                                        (dataset_split_proportions[1] * len(all_files) // 100))
-                indices_test = slice(indices_val.stop, len(all_files))
+            # Split according to proportions
+            assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
+            indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
+            indices_val = slice(indices_train.stop,
+                                indices_train.stop +\
+                                    (dataset_split_proportions[1] * len(all_files) // 100))
+            indices_test = slice(indices_val.stop, len(all_files))
 
             files_train = all_files[indices_train]
             files_val = all_files[indices_val]
             files_test = all_files[indices_test]
+
+        if overfit:
+            # Consider the same splits for train validation and test
+            files_train = files_train[:overfit]
+            files_val = files_train[:overfit]
+            files_test = files_train[:overfit]
 
         # Create datasets
         train_dataset = Cortex(files_train,
@@ -1041,9 +1065,14 @@ class Cortex(DatasetHandler):
             file_vertices = []
             file_faces = []
             for mn in meshnames:
-                mesh = trimesh.load_mesh(os.path.join(
-                    self._raw_data_dir, fn, mn + ".stl"
-                ))
+                try:
+                    mesh = trimesh.load_mesh(os.path.join(
+                        self._raw_data_dir, fn, mn + ".stl"
+                    ))
+                except ValueError:
+                    mesh = trimesh.load_mesh(os.path.join(
+                        self._raw_data_dir, fn, mn + ".ply"
+                    ))
                 # World --> voxel coordinates
                 voxel_verts, voxel_faces = transform_mesh_affine(
                     mesh.vertices, mesh.faces, world2vox_affine
