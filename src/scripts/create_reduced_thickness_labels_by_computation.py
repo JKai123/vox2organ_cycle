@@ -54,6 +54,7 @@ for fn in files:
             # Load meshes
             red_mesh = trimesh.load(red_mesh_name)
             red_mesh_partner = trimesh.load(red_partner_mesh_name)
+
         except ValueError:
             ignored += [fn]
 
