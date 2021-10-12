@@ -45,18 +45,20 @@ for fn in files:
             red_mesh_partner = trimesh.load(red_partner_mesh_name)
 
         except ValueError:
-            red_mesh_name = os.path.join(
-                RAW_DATA_DIR, fn, struc + suffix + ".ply"
-            )
-            red_partner_mesh_name = os.path.join(
-                RAW_DATA_DIR, fn, structures[partner[struc]] + suffix + ".ply"
-            )
-            # Load meshes
-            red_mesh = trimesh.load(red_mesh_name)
-            red_mesh_partner = trimesh.load(red_partner_mesh_name)
+            try:
+                red_mesh_name = os.path.join(
+                    RAW_DATA_DIR, fn, struc + suffix + ".ply"
+                )
+                red_partner_mesh_name = os.path.join(
+                    RAW_DATA_DIR, fn, structures[partner[struc]] + suffix + ".ply"
+                )
+                # Load meshes
+                red_mesh = trimesh.load(red_mesh_name)
+                red_mesh_partner = trimesh.load(red_partner_mesh_name)
 
-        except ValueError:
-            ignored += [fn]
+            except ValueError:
+                ignored += [fn]
+                continue
 
         # Compute thickness by nearest-neighbor distance for full meshes
         red_vertices = torch.from_numpy(red_mesh.vertices).float().cuda()
@@ -81,9 +83,11 @@ for fn in files:
 
         print("Created label for file ", fn + "/" + struc)
 
+ignored = set(ignored) # Unique ids
 ignored_file = os.path.join(PREPROCESSED_DIR, "ignored.txt")
 with open(ignored_file, 'w') as f:
     f.write(",".join(ignored))
+    f.write("\n")
 
 if len(ignored) > 0:
     print(f"{len(ignored)} files ignored, stored respective ids in ", ignored_file)
