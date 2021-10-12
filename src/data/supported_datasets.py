@@ -77,7 +77,10 @@ def valid_ids_ADNI_CSR(candidates: list):
     files_test = read_csv(os.path.join(
         raw_data_dir, 'test_small.csv'
     ), dtype=str)['IMAGEUID'].to_list()
-    adni_valid = files_train + files_val + files_test
+    adni_valid_orig = files_train + files_val + files_test
+    adni_valid_preprocessed =\
+        os.listdir("/home/fabianb/data/preprocessed/ADNI_CSR/")
+    adni_valid = set(adni_valid_orig).intersection(adni_valid_preprocessed)
     valid = [c for c in candidates if c in adni_valid]
     return valid
 
