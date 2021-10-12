@@ -53,6 +53,7 @@ from data.dataset import (
 )
 from data.supported_datasets import (
     valid_ids,
+    valid_ids_ADNI_CSR,
 )
 from data.cortex_labels import (
     combine_labels,
@@ -618,6 +619,12 @@ class Cortex(DatasetHandler):
                 files_test = read_csv(os.path.join(
                     raw_data_dir, 'test_small.csv'
                 ), dtype=str)['IMAGEUID'].to_list()
+                # Choose valid
+                if "ADNI" not in raw_data_dir:
+                    raise NotImplementedError()
+                files_train = valid_ids_ADNI_CSR(files_train)
+                files_val = valid_ids_ADNI_CSR(files_val)
+                files_test = valid_ids_ADNI_CSR(files_test)
             else:
                 raise TypeError("Wrong type of parameter 'fixed_split'."
                                 f" Got {type(fixed_split)} but should be"
