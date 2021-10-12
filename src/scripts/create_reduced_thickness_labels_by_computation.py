@@ -24,6 +24,8 @@ PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 files = valid_ids(RAW_DATA_DIR)
 
+ignored = []
+
 # Iterate over all files
 for fn in files:
     prep_dir = os.path.join(PREPROCESSED_DIR, fn)
@@ -52,6 +54,8 @@ for fn in files:
             # Load meshes
             red_mesh = trimesh.load(red_mesh_name)
             red_mesh_partner = trimesh.load(red_partner_mesh_name)
+        except ValueError:
+            ignored += [fn]
 
         # Compute thickness by nearest-neighbor distance for full meshes
         red_vertices = torch.from_numpy(red_mesh.vertices).float().cuda()
@@ -75,3 +79,10 @@ for fn in files:
         nib.freesurfer.io.write_morph_data(red_th_name, point_to_face)
 
         print("Created label for file ", fn + "/" + struc)
+
+ignored_file = os.path.join(PREPROCESSED_DIR, "ignored.txt")
+with open(ignored_file, 'w') as f:
+    f.write(",".join(ignored))
+
+if len(ignored) > 0:
+    print(f"{len(ignored)} files ignored, stored respective ids in ", ignored_file)
