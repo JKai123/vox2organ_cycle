@@ -52,8 +52,10 @@ from data.dataset import (
     img_with_patch_size,
 )
 from data.supported_datasets import (
+    valid_ids,
+)
+from data.cortex_labels import (
     combine_labels,
-    valid_ids
 )
 
 def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
