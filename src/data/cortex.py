@@ -51,9 +51,9 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
-from data.cortex_labels import (
+from data.supported_datasets import (
     combine_labels,
-    valid_MALC_ids
+    valid_ids
 )
 
 def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
@@ -622,8 +622,7 @@ class Cortex(DatasetHandler):
                                 "'bool' or 'dict'")
         else: # Random split
             # Available files
-            all_files = os.listdir(raw_data_dir)
-            all_files = valid_MALC_ids(all_files) # Remove invalid
+            all_files = valid_ids(raw_data_dir) # Remove invalid
 
             # Shuffle with seed
             random.Random(dataset_seed).shuffle(all_files)

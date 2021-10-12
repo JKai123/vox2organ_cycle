@@ -14,7 +14,7 @@ from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
-from data.supported_datasets import dataset_split_handler
+from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,

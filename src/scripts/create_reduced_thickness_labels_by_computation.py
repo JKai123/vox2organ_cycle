@@ -13,7 +13,7 @@ import torch
 import trimesh
 from pytorch3d.structures import Meshes, Pointclouds
 
-from data.cortex_labels import valid_MALC_ids, valid_ADNI_ids
+from data.supported_datasets import valid_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 
 structures = ("lh_white", "rh_white", "lh_pial", "rh_pial")
@@ -22,7 +22,7 @@ suffix = "_reduced_0.3"
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
-files = valid_ADNI_ids(os.listdir(RAW_DATA_DIR))
+files = valid_ids(os.listdir(RAW_DATA_DIR))
 
 # Iterate over all files
 for fn in files:

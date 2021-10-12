@@ -41,7 +41,7 @@ from utils.evaluate import ModelEvaluator
 from utils.losses import (
     all_linear_loss_combine,
     voxel_linear_mesh_geometric_loss_combine)
-from data.supported_datasets import dataset_split_handler
+from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,

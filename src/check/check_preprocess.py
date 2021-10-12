@@ -6,7 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 from tqdm import tqdm
 import numpy as np
 
-from data.supported_datasets import dataset_split_handler
+from data.dataset_split_handler import dataset_split_handler
 from utils.visualization import show_slices, show_img_with_contour
 from utils.utils import (
     create_mesh_from_voxels,

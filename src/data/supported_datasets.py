@@ -4,10 +4,9 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import os
+import sys
 from enum import IntEnum
-
-from data.hippocampus import Hippocampus
-from data.cortex import Cortex
 
 class SupportedDatasets(IntEnum):
     """ List supported datasets """
@@ -19,13 +18,6 @@ class CortexDatasets(IntEnum):
     """ List cortex datasets """
     MALC_CSR = SupportedDatasets.MALC_CSR.value
     ADNI_CSR = SupportedDatasets.ADNI_CSR.value
-
-# Mapping supported datasets to split functions
-dataset_split_handler = {
-    SupportedDatasets.Hippocampus.name: Hippocampus.split,
-    SupportedDatasets.MALC_CSR.name: Cortex.split,
-    SupportedDatasets.ADNI_CSR.name: Cortex.split
-}
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
@@ -59,3 +51,27 @@ dataset_paths = {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
     }
 }
+
+def valid_ids_MALC_CSR(candidates: list):
+    """ Sort out non-valid ids of 'candidates' of samples in the MALC_CSR
+    dataset and return adjusted list. """
+    retest_ids = ('1023_3', '1024_3', '1025_3', '1038_3', '1039_3')
+    valid = [c for c in candidates if (c[-1] == '3' and c not in retest_ids)]
+    return valid
+
+def valid_ids_ADNI_CSR(candidates: list):
+    """ Sort out non-valid ids of 'candidates' of samples in the ADNI_CSR
+    dataset and return adjusted list. """
+    valid = [c for c in candidates if (c.isdigit())]
+    return valid
+
+def valid_ids(raw_data_dir: str):
+    """ Get valid ids for supported datasets."""
+    all_files = os.listdir(raw_data_dir)
+    dataset = set(
+        SupportedDatasets.__members__.keys()
+    ).intersection(
+        raw_data_dir.split("/")
+    ).pop()
+    this_module = sys.modules[__name__]
+    return getattr(this_module, "valid_ids_" + dataset)(all_files)
