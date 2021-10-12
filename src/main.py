@@ -6,6 +6,10 @@ import torch
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
+from data.supported_datasets import (
+    dataset_paths,
+    CortexDatasets,
+)
 from utils.params import hyper_ps_default
 from utils.modes import ExecModes
 from utils.utils import update_dict
@@ -92,7 +96,6 @@ hyper_ps = {
 hyper_ps_hippocampus = {
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': True,
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PATCH_SIZE': [64, 64, 64],
     'BATCH_SIZE': 15,
     'N_M_CLASSES': 1,
@@ -133,12 +136,10 @@ hyper_ps_cortex = {
     'NDIMS': 3,
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': False,
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
     'BATCH_SIZE': 2,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
-        'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
+        'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [[3,4,5,6],
@@ -153,7 +154,7 @@ hyper_ps_cortex = {
     'PROVIDE_CURVATURES': True,
     'PENALIZE_DISPLACEMENT': 0.0,
     'CLIP_GRADIENT': 200000,
-    'PATCH_MODE': "no"
+    'PATCH_MODE': "single-patch"
 }
 # Automatically set parameters
 
@@ -302,10 +303,10 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 41602
         hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 33000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/rh_white_pial/cortex_2_ellipsoid_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
+            f"../supplementary_material/rh_white_pial/cortex_2_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
         raise NotImplementedError()
 
@@ -342,7 +343,7 @@ def main(hps):
                            "- voxel2meshplusplusgeneric")
     argparser.add_argument('--dataset',
                            type=str,
-                           default="Cortex",
+                           default="ADNI_CSR",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")
@@ -448,8 +449,11 @@ def main(hps):
     # Dataset specific params
     if args.dataset == 'Hippocampus':
         hps = update_dict(hps, hyper_ps_hippocampus)
-    if args.dataset == 'Cortex':
+    if args.dataset in CortexDatasets.__members__:
         hps = update_dict(hps, hyper_ps_cortex)
+
+    # Set dataset paths
+    update_dict(hps, dataset_paths[args.dataset])
 
     # Update again for overfitting
     if hps['OVERFIT']:
