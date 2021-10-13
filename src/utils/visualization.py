@@ -55,7 +55,7 @@ def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     return os.path.join(label_dir, label_name)
 
 
-def show_pointcloud(filenames: Union[str, list], backend='open3d'):
+def show_pointcloud(filenames: Union[str, list], backend='open3d', opacity=1.0):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d or pyvista.
 
@@ -76,7 +76,7 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d'):
         if backend == 'open3d':
             show_pointcloud_open3d(fn)
         elif backend == 'pyvista':
-            show_pointcloud_pyvista(fn)
+            show_pointcloud_pyvista(fn, opacity=opacity)
         else:
             raise ValueError("Unknown backend {}".format(backend))
 
@@ -93,18 +93,22 @@ def show_pointcloud_open3d(filename: str):
     print(mesh)
     o3d.visualization.draw_geometries([mesh])
 
-def show_pointcloud_pyvista(filename: str):
+def show_pointcloud_pyvista(filename: str, opacity=1.0):
     """
     Show a point cloud stored in a file (e.g. .ply) using pyvista.
 
     :param str filename: The file that should be visualized.
     """
     import pyvista as pv
+
+    # Custom theme
+    pv.set_plot_theme('doc')
+
     cloud = pv.read(filename)
     print(cloud)
 
     plotter = pv.Plotter()
-    plotter.add_mesh(cloud)
+    plotter.add_mesh(cloud, opacity=opacity)
 
     fn = '../misc/rendered_mesh.png'
     plotter.show(screenshot=fn)
