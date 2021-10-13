@@ -105,7 +105,10 @@ def show_pointcloud_pyvista(filename: str):
 
     plotter = pv.Plotter()
     plotter.add_mesh(cloud)
-    plotter.show()
+
+    fn = '../misc/rendered_mesh.png'
+    plotter.show(screenshot=fn)
+    print("Stored a screenshot at ", fn)
 
 def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
                        label_mode='contour', labels_from_mesh: str=None, 
