@@ -16,7 +16,7 @@ from pytorch3d.ops import (
     knn_gather,
 )
 
-from data.cortex_labels import valid_MALC_ids
+from data.supported_datasets import valid_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from nibabel.freesurfer.io import read_morph_data, read_geometry
 from utils.mesh import Mesh
@@ -28,7 +28,7 @@ RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
 RAW_FS_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/FS/FS/"
 PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/MALC_CSR/"
 
-files = valid_MALC_ids(os.listdir(PREPROCESSED_DIR))
+files = valid_ids(PREPROCESSED_DIR)
 
 # Compare thickness in stored files to thickness computed by orthogonal
 # projection

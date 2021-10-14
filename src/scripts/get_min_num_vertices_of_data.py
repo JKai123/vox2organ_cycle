@@ -8,11 +8,11 @@ import nibabel as nib
 import os
 import trimesh
 
-from data.cortex_labels import valid_MALC_ids
+from data.supported_datasets import valid_ids
 
 directory = "/mnt/nas/Data_Neuro/MALC_CSR/"
 
-files = valid_MALC_ids(os.listdir(directory))
+files = valid_ids(directory)
 files.sort()
 print(f"{len(files)} files")
 

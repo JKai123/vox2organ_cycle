@@ -13,37 +13,54 @@ import torch
 import trimesh
 from pytorch3d.structures import Meshes, Pointclouds
 
-from data.cortex_labels import valid_MALC_ids
+from data.supported_datasets import valid_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 
 structures = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 partner = {"lh_white": 2, "rh_white": 3, "lh_pial": 0, "rh_pial": 1}
 suffix = "_reduced_0.3"
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
-PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/MALC_CSR/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
-files = valid_MALC_ids(os.listdir(RAW_DATA_DIR))
+files = valid_ids(RAW_DATA_DIR)
 
-# Compare thickness in stored files to thickness computed by orthogonal
-# projection
+ignored = []
+
+# Iterate over all files
 for fn in files:
     prep_dir = os.path.join(PREPROCESSED_DIR, fn)
     if not os.path.isdir(prep_dir):
         os.mkdir(prep_dir)
     for struc in structures:
         # Filenames
-        red_mesh_name = os.path.join(
-            RAW_DATA_DIR, fn, struc + suffix + ".stl"
-        )
-        red_partner_mesh_name = os.path.join(
-            RAW_DATA_DIR, fn, structures[partner[struc]] + suffix + ".stl"
-        )
+        try:
+            red_mesh_name = os.path.join(
+                RAW_DATA_DIR, fn, struc + suffix + ".stl"
+            )
+            red_partner_mesh_name = os.path.join(
+                RAW_DATA_DIR, fn, structures[partner[struc]] + suffix + ".stl"
+            )
+            # Load meshes
+            red_mesh = trimesh.load(red_mesh_name)
+            red_mesh_partner = trimesh.load(red_partner_mesh_name)
 
-        # Load meshes
-        red_mesh = trimesh.load(red_mesh_name)
-        red_mesh_partner = trimesh.load(red_partner_mesh_name)
+        except ValueError:
+            try:
+                red_mesh_name = os.path.join(
+                    RAW_DATA_DIR, fn, struc + suffix + ".ply"
+                )
+                red_partner_mesh_name = os.path.join(
+                    RAW_DATA_DIR, fn, structures[partner[struc]] + suffix + ".ply"
+                )
+                # Load meshes
+                red_mesh = trimesh.load(red_mesh_name)
+                red_mesh_partner = trimesh.load(red_partner_mesh_name)
 
-        # Compute thickness by orthogonal projection for full meshes
+            except ValueError:
+                ignored += [fn]
+                continue
+
+        # Compute thickness by nearest-neighbor distance for full meshes
         red_vertices = torch.from_numpy(red_mesh.vertices).float().cuda()
         red_faces = torch.from_numpy(red_mesh.faces).int().cuda()
         partner_vertices = torch.from_numpy(
@@ -65,3 +82,12 @@ for fn in files:
         nib.freesurfer.io.write_morph_data(red_th_name, point_to_face)
 
         print("Created label for file ", fn + "/" + struc)
+
+ignored = set(ignored) # Unique ids
+ignored_file = os.path.join(PREPROCESSED_DIR, "ignored.txt")
+with open(ignored_file, 'w') as f:
+    f.write(",".join(ignored))
+    f.write("\n")
+
+if len(ignored) > 0:
+    print(f"{len(ignored)} files ignored, stored respective ids in ", ignored_file)

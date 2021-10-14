@@ -14,7 +14,7 @@ from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
-from data.supported_datasets import dataset_split_handler
+from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
@@ -104,9 +104,9 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
     # Get test-split as defined during training
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    _, _, test_set =\
-            dataset_split_handler[training_hps['DATASET']](save_dir=test_dir,
-                                                           **training_hps_lower)
+    test_set = dataset_split_handler[training_hps['DATASET']](
+        save_dir=test_dir, test_only=True, **training_hps_lower
+    )
     testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be

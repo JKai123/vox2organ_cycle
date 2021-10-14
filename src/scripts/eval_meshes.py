@@ -23,10 +23,10 @@ from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
 
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/MALC_CSR/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
-# SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
-SURF_NAMES = ("rh_white", "rh_pial")
+SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+# SURF_NAMES = ("rh_white", "rh_pial")
 PARTNER = {"rh_white": "rh_pial",
            "rh_pial": "rh_white",
            "lh_white": "lh_pial",
@@ -47,22 +47,36 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
         os.mkdir(thickness_folder)
 
     # load ground-truth meshes
-    gt_mesh_path = os.path.join(
-        eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
-    )
-    gt_mesh = trimesh.load(gt_mesh_path)
+    try:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path)
+    except ValueError:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path)
     gt_mesh.remove_duplicate_faces()
     gt_mesh.remove_unreferenced_vertices()
     gt_pntcloud = gt_mesh.vertices
     gt_normals = gt_mesh.vertex_normals
     if "pial" in surf_name: # point to inside
         gt_normals = - gt_normals
-    gt_mesh_path_partner = os.path.join(
-        eval_params['gt_mesh_path'],
-        mri_id,
-        '{}.stl'.format(PARTNER[surf_name])
-    )
-    gt_mesh_partner = trimesh.load(gt_mesh_path_partner)
+    try:
+        gt_mesh_path_partner = os.path.join(
+            eval_params['gt_mesh_path'],
+            mri_id,
+            '{}.stl'.format(PARTNER[surf_name])
+        )
+        gt_mesh_partner = trimesh.load(gt_mesh_path_partner)
+    except ValueError:
+        gt_mesh_path_partner = os.path.join(
+            eval_params['gt_mesh_path'],
+            mri_id,
+            '{}.ply'.format(PARTNER[surf_name])
+        )
+        gt_mesh_partner = trimesh.load(gt_mesh_path_partner)
     gt_mesh_partner.remove_duplicate_faces()
     gt_mesh_partner.remove_unreferenced_vertices()
 
@@ -240,8 +254,12 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
     pred_folder = os.path.join(eval_params['log_path'])
 
     # load ground-truth mesh
-    gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
-    gt_mesh = trimesh.load(gt_mesh_path)
+    try:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
+    except ValueError:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
     gt_mesh.remove_duplicate_faces(); gt_mesh.remove_unreferenced_vertices();
     gt_mesh = Meshes(
         [torch.from_numpy(gt_mesh.vertices).float().to(device)],
@@ -297,8 +315,12 @@ def eval_ad_hd_trimesh(mri_id, surf_name, eval_params, epoch, subfolder="meshes"
     gt_pcl, gt_pcl_path, gt_mesh_path = None, None, None
 
     # load ground-truth mesh
-    gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
-    gt_mesh = trimesh.load(gt_mesh_path)
+    try:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
+    except ValueError:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
     gt_mesh.remove_duplicate_faces(); gt_mesh.remove_unreferenced_vertices();
     print("GT mesh loaded from {} with {} vertices and {} faces".format(
         gt_mesh_path, gt_mesh.vertices.shape, gt_mesh.faces.shape))

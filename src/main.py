@@ -6,6 +6,10 @@ import torch
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 
+from data.supported_datasets import (
+    dataset_paths,
+    CortexDatasets,
+)
 from utils.params import hyper_ps_default
 from utils.modes import ExecModes
 from utils.utils import update_dict
@@ -40,7 +44,7 @@ hyper_ps = {
     'DATASET_SEED': 1532,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     # Learning
-    'EVAL_EVERY': 100,
+    'EVAL_EVERY': 10,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
@@ -55,7 +59,7 @@ hyper_ps = {
         'eps': 1e-8,
         'weight_decay': 0.0
     },
-    'LR_DECAY_AFTER': 300,
+    'LR_DECAY_AFTER': 30,
     # Loss function
     'LOSS_AVERAGING': 'linear',
     # CE
@@ -92,7 +96,6 @@ hyper_ps = {
 hyper_ps_hippocampus = {
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': True,
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/",
     'PATCH_SIZE': [64, 64, 64],
     'BATCH_SIZE': 15,
     'N_M_CLASSES': 1,
@@ -112,29 +115,9 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
     f"../supplementary_material/spheres/icosahedron_{hyper_ps_hippocampus['N_TEMPLATE_VERTICES']}.obj"
 
 hyper_ps_cortex = {
-    # 'FIXED_SPLIT': {
-        # 'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
-                  # '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
-                  # '1017_3', '1113_3', '1011_3', '1125_3', '1005_3', '1107_3',
-                  # '1019_3', '1013_3', '1006_3', '1012_3'],
-        # 'validation': ['1036_3', '1110_3'],
-        # 'test': ['1004_3', '1119_3', '1116_3', '1009_3', '1101_3', '1002_3']
-    # },
-    # split_challenge_mod
-    'FIXED_SPLIT': {
-        'train': ['1000_3', '1001_3', '1002_3', '1006_3', '1007_3', '1008_3',
-                  '1009_3', '1010_3', '1011_3', '1012_3', '1013_3', '1014_3',
-                  '1015_3', '1036_3', '1017_3'],
-        'validation': ['1107_3', '1128_3'],
-        'test': ['1101_3', '1003_3', '1004_3', '1125_3', '1005_3', '1122_3',
-                 '1110_3', '1119_3', '1113_3', '1018_3', '1019_3', '1104_3',
-                 '1116_3']
-    },
     'NDIMS': 3,
     'N_EPOCHS': 2000,
     'AUGMENT_TRAIN': False,
-    'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
-    'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
     'BATCH_SIZE': 2,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
@@ -276,7 +259,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 42016
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 33000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 30000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/white_pial/cortex_4_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
@@ -302,10 +285,10 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
-        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 33000
+        hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 41602
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 30000
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            f"../supplementary_material/rh_white_pial/cortex_2_ellipsoid_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
+            f"../supplementary_material/rh_white_pial/cortex_2_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
         raise NotImplementedError()
 
@@ -314,8 +297,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
 hyper_ps_overfit = {
     # Learning
     'BATCH_SIZE': 1,
-    'AUGMENT_TRAIN': False,
-    'FIXED_SPLIT': {'train': [], 'validation': [], 'test': []},
+    'AUGMENT_TRAIN': False
 }
 
 
@@ -342,7 +324,7 @@ def main(hps):
                            "- voxel2meshplusplusgeneric")
     argparser.add_argument('--dataset',
                            type=str,
-                           default="Cortex",
+                           default="ADNI_CSR",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")
@@ -448,8 +430,11 @@ def main(hps):
     # Dataset specific params
     if args.dataset == 'Hippocampus':
         hps = update_dict(hps, hyper_ps_hippocampus)
-    if args.dataset == 'Cortex':
+    if args.dataset in CortexDatasets.__members__:
         hps = update_dict(hps, hyper_ps_cortex)
+
+    # Set dataset paths
+    update_dict(hps, dataset_paths[args.dataset])
 
     # Update again for overfitting
     if hps['OVERFIT']:
