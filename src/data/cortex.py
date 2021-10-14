@@ -70,7 +70,12 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
         elif patch_mode == "multi-patch":
             raise NotImplementedError()
         else: # not patch mode
-            raise NotImplementedError()
+            if ndims == 3: # 3D
+                seg_label_names = ("left_cerebral_cortex",
+                                   "right_cerebral_cortex")
+                mesh_label_names = ("lh_pial", "rh_pial")
+            else:
+                raise NotImplementedError()
     elif structure_type == "white_matter":
         if patch_mode=="single-patch":
             seg_label_names = ("right_white_matter",)
@@ -854,6 +859,8 @@ class Cortex(DatasetHandler):
 
         # Iterate over images and labels
         for img, label in zip(raw_imgs, raw_labels):
+            assert img.shape == (182, 218, 182),\
+                    "Our mesh templates were created based on this shape."
             # Select patch from whole image
             img_patch, trans_affine_1 = img_with_patch_size(
                 img, self.select_patch_size, is_label=False, mode='crop',
