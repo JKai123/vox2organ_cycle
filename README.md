@@ -8,6 +8,13 @@ The long-living branches are structured as follows:
 - run: ready to run but maybe not tested extensively
 - dev: development in progress, potentially not runnable
 
+## Installation
+Installation using conda:
+```
+    conda install requirements.yml --name <conda-env-name>
+```
+In addition, clone and install our [pytorch3d fork](https://github.com/fabibo3/pytorch3d) as described therein (under 'Install from a local clone' in `INSTALL.md`).
+
 ## Usage
 A training with subsequent model testing can be started with
 ```
