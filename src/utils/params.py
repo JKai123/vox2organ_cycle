@@ -1,4 +1,4 @@
-""" Documentation of project-wide parameters and default values 
+""" Documentation of project-wide parameters and default values
 
 Ideally, all occurring parameters should be documented here.
 """
@@ -192,6 +192,8 @@ hyper_ps_default={
         # rh_pial have ids 2 and 3, then the groups should be specified as
         # ((0,1),(2,3))
         'GROUP_STRUCTS': None,
+        # Whether to exchange coordinates between groups
+        'EXCHANGE_COORDS': True,
         # The number of neighbors considered for feature aggregation from
         # vertices of different structures in the graph net
         'K_STRUCT_NEIGHBORS': 5,

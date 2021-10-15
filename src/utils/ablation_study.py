@@ -30,7 +30,12 @@ def _voxel2mesh_architecture_params(hps):
     """ Update params to match the voxel2mesh architecture. """
     # Only sample from decoder
     hps['MODEL_CONFIG']['AGGREGATE_INDICES'] = [[5], [6], [7], [8]]
+    # Learnt neighborhood sampling
     hps['MODEL_CONFIG']['AGGREGATE'] = 'lns'
+
+def _no_inter_mesh_exchange_params(hps):
+    """ Update params for ablation study 'no inter-mesh exchange'"""
+    hps['MODEL_CONFIG']['EXCHANGE_COORDS'] = False
 
 def set_ablation_params_(hps: dict, ablation_study_id: str):
     """ Update the parameters of 'hps' such that they fit the respective
@@ -52,6 +57,9 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
 
     elif ablation_study_id == 'voxel2mesh architecture':
         _voxel2mesh_architecture_params(hps)
+
+    elif ablation_study_id == 'no inter-mesh exchange':
+        _no_inter_mesh_exchange_params(hps)
 
     else:
         raise NotImplementedError()

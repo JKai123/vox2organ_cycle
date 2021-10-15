@@ -47,6 +47,7 @@ def aggregate_from_indices(voxel_features, vertices, skip_indices,
 
 def aggregate_structural_features(coords: torch.Tensor,
                                   group_idx: Tuple[Tuple[int]],
+                                  exchange_coords: bool,
                                   K: int=5):
     """ Aggregation of structural features. For a vertex v, this includes
     a structural encoding related to the structure group to which v belongs
@@ -69,18 +70,23 @@ def aggregate_structural_features(coords: torch.Tensor,
         # Get vertices of structure and treat as one pointcloud
         p1 = coords[:, idx, :, :].view(B, -1, D)
 
-        # Treat vertices of all other structures as one pointcloud
-        p2 = coords[:, tuple(set(range(M)) - set(idx)), :, :].view(B, -1, D)
-
-        # Get nearest neighbors
-        _, _, nn_features = knn_points(p1, p2, K=K, return_nn=True)
-        nn_features = nn_features.view(B, -1, K * D)
-
-        # Add structural encoding
+        # Add structural encoding, aka 'surface id'
         struct_encoding = torch.tensor(
             int_to_binlist(gi, n_digits)
         ).repeat(B, len(idx) * V, 1).to(device)
-        nn_features = torch.cat((nn_features, struct_encoding), dim = 2)
+
+        if exchange_coords:
+            # Treat vertices of all other structures as one pointcloud
+            p2 = coords[:, tuple(set(range(M)) - set(idx)), :, :].view(B, -1, D)
+
+            # Get nearest neighbors
+            _, _, nn_features = knn_points(p1, p2, K=K, return_nn=True)
+            nn_features = nn_features.view(B, -1, K * D)
+
+            nn_features = torch.cat((nn_features, struct_encoding), dim = 2)
+
+        else:
+            nn_features = struct_encoding
 
         features.append(nn_features.view(B, len(idx), V, -1))
 

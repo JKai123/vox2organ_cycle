@@ -47,6 +47,7 @@ class GraphDecoder(nn.Module):
                  propagate_coords: bool,
                  patch_size: Tuple[int, int, int],
                  aggregate_indices: Tuple[Tuple[int]],
+                 exchange_coords: bool,
                  group_structs: Tuple[Tuple[int]]=None,
                  k_struct_neighbors=5,
                  ndims: int=3,
@@ -78,6 +79,7 @@ class GraphDecoder(nn.Module):
         self.ndims = ndims
         self.group_structs = group_structs
         self.k_struct_neighbors = k_struct_neighbors
+        self.exchange_coords = exchange_coords
 
         # Aggregation of voxel features
         self.aggregate = aggregate
@@ -103,9 +105,13 @@ class GraphDecoder(nn.Module):
 
         # Additional structural information added
         if group_structs:
-            # Neighbor coordinates + pos. encoding
-            add_n += k_struct_neighbors * ndims +\
-                    int(np.ceil(np.log2(len(group_structs))))
+            if exchange_coords:
+                # Neighbor coordinates + surface id
+                add_n += k_struct_neighbors * ndims +\
+                        int(np.ceil(np.log2(len(group_structs))))
+            else:
+                # Surface id
+                add_n += int(np.ceil(np.log2(len(group_structs))))
 
         for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
@@ -311,6 +317,7 @@ class GraphDecoder(nn.Module):
                     struct_features = aggregate_structural_features(
                         vertices_padded,
                         self.group_structs,
+                        self.exchange_coords,
                         self.k_struct_neighbors
                     )
                     # Concatenate along feature dimension

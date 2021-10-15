@@ -514,7 +514,9 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     groups but not within a group. For example, white surface vertex positions
     can be provided to the pial vertices and vice versa.
     :param k_struct_neighbors: K for the KNN features of other structures, only
-    relevant if group_structs is specified.
+    relevant if group_structs is specified and exchange_coords is True.
+    :param exchange_coords: Whether to exchange coordinates between structure
+    groups.
     """
 
     def __init__(self,
@@ -541,6 +543,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  ndims: int,
                  group_structs: Tuple[Tuple[int]],
                  k_struct_neighbors: int,
+                 exchange_coords: bool,
                  **kwargs
                  ):
         super().__init__()
@@ -568,6 +571,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       aggregate_indices=aggregate_indices,
                                       aggregate=aggregate,
                                       k_struct_neighbors=k_struct_neighbors,
+                                      exchange_coords=exchange_coords,
                                       GC=gc,
                                       group_structs=group_structs,
                                       ndims=ndims)
