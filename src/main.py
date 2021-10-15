@@ -32,6 +32,10 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
     GINConvWrapped,
     GeoGraphConvNorm
 )
+from utils.ablation_study import (
+    AVAILABLE_ABLATIONS,
+    set_ablation_params_
+)
 
 # Overwrite default parameters for a common training procedure
 hyper_ps = {
@@ -389,6 +393,11 @@ def main(hps):
                            default=-1,
                            help="Set the number of template vertices during"
                            " testing.")
+    argparser.add_argument('--ablation_study',
+                           type=str,
+                           nargs=1,
+                           help="Perform an ablation study."
+                           f"Available options are: {AVAILABLE_ABLATIONS}")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -416,6 +425,10 @@ def main(hps):
     hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
     hps['TEST_MODEL_EPOCH'] = args.test
     hps['N_TEMPLATE_VERTICES_TEST'] = args.n_test_vertices
+    if args.ablation_study:
+        hps['ABLATION_STUDY'] = args.ablation_study[0]
+    else:
+        hps['ABLATION_STUDY'] = False
 
     if args.params_to_tune and args.params_to_fine_tune:
         raise RuntimeError(
@@ -469,6 +482,11 @@ def main(hps):
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
+
+    # Set params for ablation study
+    if args.ablation_study:
+        assert args.train, "Requires training."
+        set_ablation_params_(hps, args.ablation_study[0])
 
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
