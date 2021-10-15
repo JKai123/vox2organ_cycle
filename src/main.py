@@ -122,7 +122,7 @@ hyper_ps_cortex = {
     'NDIMS': 3,
     'N_EPOCHS': 100,
     'AUGMENT_TRAIN': False,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 2,
     'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
         'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
@@ -258,8 +258,8 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         ]
         # No patch mode
         hyper_ps_cortex['N_M_CLASSES'] = 4
-        # hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
-        hyper_ps_cortex['PATCH_SIZE'] = [192, 208, 192]
+        hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
+        # hyper_ps_cortex['PATCH_SIZE'] = [192, 208, 192]
         hyper_ps_cortex['SELECT_PATCH_SIZE'] = [192, 208, 192]
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
