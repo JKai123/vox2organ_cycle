@@ -40,5 +40,8 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
     if ablation_study_id == 'elliptic template':
         _elliptic_template_params(hps)
 
-    if ablation_study_id == 'standard chamfer loss':
+    elif ablation_study_id == 'standard chamfer loss':
         _standard_chamfer_loss_params(hps)
+
+    else:
+        raise NotImplementedError()
