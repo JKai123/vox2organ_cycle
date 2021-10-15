@@ -120,7 +120,7 @@ hyper_ps_hippocampus['MODEL_CONFIG']['MESH_TEMPLATE'] =\
 
 hyper_ps_cortex = {
     'NDIMS': 3,
-    'N_EPOCHS': 2000,
+    'N_EPOCHS': 100,
     'AUGMENT_TRAIN': False,
     'BATCH_SIZE': 1,
     'P_DROPOUT': 0.3,
