@@ -519,15 +519,14 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
 
     ###### Load data ######
     trainLogger.info("Loading dataset %s...", hps['DATASET'])
-    training_set,\
-            validation_set,\
-            test_set=\
-                dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
-                                                      **hps_lower)
+    training_set, validation_set, _ = dataset_split_handler[hps['DATASET']](
+        save_dir=experiment_dir,
+        load_only=('train', 'validation'),
+        **hps_lower
+    )
 
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
-    trainLogger.info("%d test files.", len(test_set))
     trainLogger.info("Minimum number of vertices in training set: %d.",
                      training_set.n_min_vertices)
     if training_set.n_min_vertices < hps['N_REF_POINTS_PER_STRUCTURE']:

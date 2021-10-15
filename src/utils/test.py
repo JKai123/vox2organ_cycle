@@ -104,8 +104,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
     # Get test-split as defined during training
     testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    test_set = dataset_split_handler[training_hps['DATASET']](
-        save_dir=test_dir, test_only=True, **training_hps_lower
+    _, _, test_set = dataset_split_handler[training_hps['DATASET']](
+        save_dir=test_dir, load_only='test', **training_hps_lower
     )
     testLogger.info("%d test files.", len(test_set))
 

@@ -82,14 +82,11 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     ###### Load data ######
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
     trainLogger.info("Loading dataset %s...", hps['DATASET'])
-    training_set,\
-            validation_set,\
-            test_set=\
-                dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
-                                                      **hps_lower)
+    training_set, validation_set, _ = dataset_split_handler[hps['DATASET']](
+        save_dir=experiment_dir, **hps_lower
+    )
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
-    trainLogger.info("%d test files.", len(test_set))
 
     # Evaluation during training on validation set
     evaluator = ModelEvaluator(eval_dataset=validation_set,

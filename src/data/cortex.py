@@ -588,7 +588,7 @@ class Cortex(DatasetHandler):
               dataset_split_proportions=None,
               fixed_split: Union[dict, bool]=False,
               overfit=False,
-              test_only=False,
+              load_only=('train', 'validation', 'test'),
               **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
@@ -605,8 +605,8 @@ class Cortex(DatasetHandler):
         the fixed split IDs are read from a file.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
-        :param test_only: Only return the test split. This reduces the test
-        time since train and validation splits are not loaded into memory.
+        :param load_only: Only return the splits specified (in the order train,
+        validation, test, while missing splits will be None)
         :param kwargs: Dataset parameters.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
@@ -662,13 +662,6 @@ class Cortex(DatasetHandler):
             files_val = files_train[:overfit]
             files_test = files_train[:overfit]
 
-        # First consider test dataset (parameter test_only)
-        test_dataset = Cortex(files_test,
-                              DataModes.TEST,
-                              raw_data_dir,
-                              augment=False,
-                              **kwargs)
-
         # Save ids to file
         DatasetHandler.save_ids(files_train, files_val, files_test, save_dir)
 
@@ -676,20 +669,32 @@ class Cortex(DatasetHandler):
                 or overfit),\
                 "Train, validation, and test set should not intersect!"
 
-        if test_only:
-            return test_dataset
+        # Create train, validation, and test datasets
+        if 'train' in load_only:
+            train_dataset = Cortex(files_train,
+                                   DataModes.TRAIN,
+                                   raw_data_dir,
+                                   augment=augment_train,
+                                   **kwargs)
+        else:
+            train_dataset = None
+        if 'validation' in load_only:
+            val_dataset = Cortex(files_val,
+                                 DataModes.VALIDATION,
+                                 raw_data_dir,
+                                 augment=False,
+                                 **kwargs)
+        else:
+            val_dataset = None
+        if 'test' in load_only:
+            test_dataset = Cortex(files_test,
+                                  DataModes.TEST,
+                                  raw_data_dir,
+                                  augment=False,
+                                  **kwargs)
+        else:
+            test_dataset = None
 
-        # Create train and validation datasets
-        train_dataset = Cortex(files_train,
-                               DataModes.TRAIN,
-                               raw_data_dir,
-                               augment=augment_train,
-                               **kwargs)
-        val_dataset = Cortex(files_val,
-                             DataModes.VALIDATION,
-                             raw_data_dir,
-                             augment=False,
-                             **kwargs)
         return train_dataset, val_dataset, test_dataset
 
     def __len__(self):
