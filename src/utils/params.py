@@ -195,6 +195,9 @@ hyper_ps_default={
         # The number of neighbors considered for feature aggregation from
         # vertices of different structures in the graph net
         'K_STRUCT_NEIGHBORS': 5,
+        # The mechanism for voxel feature aggregations, can be 'trilinear',
+        # 'bilinear', or 'lns'
+        'AGGREGATE': 'trilinear',
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]]
     },

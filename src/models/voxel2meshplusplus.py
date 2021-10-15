@@ -505,6 +505,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param propagate_coords: Whether to propagate coordinates in the graph conv
     :param patch_size: The used patch size of input images.
     :param aggregate_indices: Where to take the features from the UNet
+    :param aggregate: 'trilinear', 'bilinear', or 'lns'
     :param p_dropout: Dropout probability for UNet blocks
     :param ndims: Dimensionality of images
     :param group_structs: Group the structures in the graph network, e.g.,
@@ -534,6 +535,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  gc,
                  propagate_coords: bool,
                  patch_size: Tuple[int, int, int],
+                 aggregate: str,
                  aggregate_indices: Tuple[Tuple[int]],
                  p_dropout: float,
                  ndims: int,
@@ -554,7 +556,6 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       p_dropout=p_dropout,
                                       ndims=ndims)
         # Graph network
-        aggregate = 'trilinear' if ndims == 3 else 'bilinear'
         self.graph_net = GraphDecoder(norm=norm,
                                       mesh_template=mesh_template,
                                       unpool_indices=unpool_indices,

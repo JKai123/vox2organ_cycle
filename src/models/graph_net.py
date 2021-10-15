@@ -13,9 +13,8 @@ from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
+from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    Features2FeaturesSimpleResidual,
-    GraphIdLayer,
     Features2FeaturesResidual,
     zero_weight_init
 )
@@ -25,7 +24,6 @@ from utils.utils_voxel2meshplusplus.feature_aggregation import (
 )
 from utils.file_handle import read_obj
 from utils.logging import measure_time
-from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.mesh import MeshesOfMeshes
 from utils.coordinate_transform import (
     normalize_vertices,
@@ -93,6 +91,7 @@ class GraphDecoder(nn.Module):
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks
         f2v_layers = [] # Features to vertices
+        lns_layers = [] # Learnt neighborhood sampling (optional)
 
         # Whether or not to add the vertex coordinates to the features again
         # after each step
@@ -142,8 +141,15 @@ class GraphDecoder(nn.Module):
                 init='zero'
             ))
 
+            # Optionally create lns layers
+            if self.aggregate == 'lns':
+                lns_layers.append(LearntNeighbourhoodSampling(
+                    self.patch_size, self.num_steps, skip_features_count, i
+                ))
+
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
+        self.lns_layers = nn.ModuleList(lns_layers)
 
         # Init f2v layers to zero
         self.f2v_layers.apply(zero_weight_init)
@@ -264,6 +270,8 @@ class GraphDecoder(nn.Module):
                                                   faces_padded,
                                                   identical_face_batch=False)
                     faces_padded = faces_padded_new
+
+                # Number of vertices might have changed
                 V_new = latent_features_padded.shape[2]
 
                 # Mesh coordinates for F.grid_sample
@@ -279,12 +287,23 @@ class GraphDecoder(nn.Module):
                 # Avoid bug related to automatic mixed precision, see also
                 # https://github.com/pytorch/pytorch/issues/42218
                 with autocast(enabled=False):
-                    skipped_features = aggregate_from_indices(
-                        skips,
-                        verts_img_co,
-                        agg_indices,
-                        mode=self.aggregate
-                    ).view(batch_size, M, V_new, -1)
+                    if self.aggregate in ('trilinear', 'bilinear'):
+                        skipped_features = aggregate_from_indices(
+                            skips,
+                            verts_img_co,
+                            agg_indices,
+                            mode=self.aggregate
+                        ).view(batch_size, M, V_new, -1)
+                    elif self.aggregate == 'lns':
+                        # Learnt neighborhood sampling
+                        assert len(agg_indices) == 1,\
+                                "Does only work with single feature map."
+                        skipped_features = self.lns_layers[i](
+                            skips[agg_indices[0]], verts_img_co
+                        ).view(batch_size, M, V_new, -1)
+                    else:
+                        raise ValueError("Unknown aggregation scheme ",
+                                         self.aggregate)
 
                 # Latent features related to structural information (ID of
                 # structure, geometry of nearby structure)

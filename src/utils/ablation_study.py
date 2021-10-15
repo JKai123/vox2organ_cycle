@@ -26,6 +26,12 @@ def _standard_chamfer_loss_params(hps):
         if isinstance(lf, ChamferAndNormalsLoss):
             lf.curv_weight_max = 1.0
 
+def _voxel2mesh_architecture_params(hps):
+    """ Update params to match the voxel2mesh architecture. """
+    # Only sample from decoder
+    hps['MODEL_CONFIG']['AGGREGATE_INDICES'] = [[5], [6], [7], [8]]
+    hps['MODEL_CONFIG']['AGGREGATE'] = 'lns'
+
 def set_ablation_params_(hps: dict, ablation_study_id: str):
     """ Update the parameters of 'hps' such that they fit the respective
     ablation study. """
@@ -37,11 +43,15 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
             f" possible values are {AVAILABLE_ABLATIONS}"
         )
 
+    # Overwrite params
     if ablation_study_id == 'elliptic template':
         _elliptic_template_params(hps)
 
     elif ablation_study_id == 'standard chamfer loss':
         _standard_chamfer_loss_params(hps)
+
+    elif ablation_study_id == 'voxel2mesh architecture':
+        _voxel2mesh_architecture_params(hps)
 
     else:
         raise NotImplementedError()
