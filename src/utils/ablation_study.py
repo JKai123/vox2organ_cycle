@@ -32,6 +32,7 @@ def _voxel2mesh_architecture_params(hps):
     hps['MODEL_CONFIG']['AGGREGATE_INDICES'] = [[5], [6], [7], [8]]
     # Learnt neighborhood sampling
     hps['MODEL_CONFIG']['AGGREGATE'] = 'lns'
+    hps['MODEL_CONFIG']['DECODER_CHANNELS'] = [128, 64, 32, 16]
 
 def _no_inter_mesh_exchange_params(hps):
     """ Update params for ablation study 'no inter-mesh exchange'"""
