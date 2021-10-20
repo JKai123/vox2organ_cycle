@@ -1190,7 +1190,7 @@ class Cortex(DatasetHandler):
                     )
                     # Sanity check
                     assert torch.allclose(
-                        m_.verts_normals_padded(), m.normals
+                        m_.verts_normals_padded(), m.normals, atol=1e-05
                     ), "Inconsistent normals!"
                 else: # No curvatures
                     # Sample from mesh surface
