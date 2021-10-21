@@ -11,6 +11,9 @@ AVAILABLE_ABLATIONS = (
     "standard chamfer loss",
     "no inter-mesh exchange",
     "elliptic template",
+    "features from encoder",
+    "features from decoder",
+    "encoder only",
     "laplace on coordinates"
 )
 
@@ -25,6 +28,11 @@ def _standard_chamfer_loss_params(hps):
     for lf in hps['MESH_LOSS_FUNC']:
         if isinstance(lf, ChamferAndNormalsLoss):
             lf.curv_weight_max = 1.0
+
+def _features_from_encoder_params(hps):
+    """ Update params for ablation study 'features from encoder' """
+    # Only sample from encoder as done by Kong et al.
+    hps['MODEL_CONFIG']['AGGREGATE_INDICES'] = [[4, 3], [3, 2], [2, 1], [1, 0]]
 
 def _voxel2mesh_architecture_params(hps):
     """ Update params to match the voxel2mesh architecture. """
@@ -61,6 +69,9 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
 
     elif ablation_study_id == 'no inter-mesh exchange':
         _no_inter_mesh_exchange_params(hps)
+
+    elif ablation_study_id == 'features from encoder':
+        _features_from_encoder_params(hps)
 
     else:
         raise NotImplementedError()
