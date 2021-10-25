@@ -446,21 +446,21 @@ class Cortex(DatasetHandler):
 
         return torch.tensor(edge_lengths).mean()
 
-    def store_sphere_template(self, path):
+    def store_sphere_template(self, path, level):
         """ Template for dataset. This can be stored and later used during
         training.
         """
         if self.centers is not None and self.radii is not None:
             template = generate_sphere_template(self.centers,
                                                 self.radii,
-                                                level=6)
+                                                level=level)
             template.export(path)
         else:
             raise RuntimeError("Centers and/or radii are unknown, template"
                                " cannnot be created. ")
         return path
 
-    def store_ellipsoid_template(self, path):
+    def store_ellipsoid_template(self, path, level):
         """ Template for dataset. This can be stored and later used during
         training.
         """
@@ -469,7 +469,9 @@ class Cortex(DatasetHandler):
             self.radii_y is not None and
             self.radii_z is not None):
             template = generate_ellipsoid_template(
-                self.centers, self.radii_x, self.radii_y, self.radii_z, level=6
+                self.centers,
+                self.radii_x, self.radii_y, self.radii_z,
+                level=level
             )
             template.export(path)
         else:

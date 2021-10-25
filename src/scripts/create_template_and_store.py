@@ -11,9 +11,10 @@ structure_type = ('white_matter', 'cerebral_cortex')
 # Important!!! (defines coordinate normalization in the template)
 patch_size = [128, 144, 128]
 select_patch_size = [192, 208, 192]
-patch_origin=[0, 0, 0]
+patch_origin = [0, 0, 0]
+n_vertices = 40962
 
-template_path = f"../supplementary_material/white_pial/cortex_4_ellipsoid_40962_sps{select_patch_size}_ps{patch_size}.obj"
+template_path = f"../supplementary_material/white_pial/cortex_4_TYPE_{n_vertices}_sps{select_patch_size}_ps{patch_size}.obj"
 
 split = {
     'train': ['1000_3', '1001_3', '1002_3', '1006_3', '1007_3', '1008_3',
@@ -48,7 +49,7 @@ print("Creating template...")
 # path = dataset.store_convex_cortex_template(
     # template_path, n_min_points=40000, n_max_points=60000
 # )
-path = dataset.store_ellipsoid_template(template_path)
+path = dataset.store_ellipsoid_template(template_path, level=6)
 
 if path is not None:
     print("Template stored at " + path)
