@@ -477,16 +477,16 @@ def main(hps):
     if args.architecture == 'voxel2mesh' and hps['BATCH_SIZE'] != 1:
         raise ValueError("Original voxel2mesh only allows for batch size 1."\
                          " Try voxel2meshplusplus for larger batch size.")
+    # Set params for ablation study
+    if args.ablation_study:
+        set_ablation_params_(hps, args.ablation_study[0])
+
     # No voxel decoder --> set voxel loss weights to 0
     if not hps['MODEL_CONFIG']['VOXEL_DECODER']:
         hps['VOXEL_LOSS_FUNC_WEIGHTS'] = []
         hps['VOXEL_LOSS_FUNC'] = []
         if 'JaccardVoxel' in hps['EVAL_METRICS']:
             hps['EVAL_METRICS'].remove('JaccardVoxel')
-
-    # Set params for ablation study
-    if args.ablation_study:
-        set_ablation_params_(hps, args.ablation_study[0])
 
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']

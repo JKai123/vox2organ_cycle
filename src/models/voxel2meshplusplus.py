@@ -628,7 +628,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     @staticmethod
     def pred_to_voxel_pred(pred):
         """ Get the final voxel prediction with argmax over classes applied """
-        if pred[1] is not None:
+        if pred[1]:
             return pred[1][-1].argmax(dim=1).squeeze()
         return None
 

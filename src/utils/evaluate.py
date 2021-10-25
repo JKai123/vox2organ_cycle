@@ -274,45 +274,46 @@ class ModelEvaluator():
 
         # Voxel prediction
         voxel_pred = model_class.pred_to_voxel_pred(pred)
-        for c in range(1, self._n_v_classes):
-            voxel_pred_class = voxel_pred.squeeze()
-            voxel_pred_class[voxel_pred_class != c] = 0
-            if ndims == 3:
-                pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                    "_class" + str(c) + "_voxelpred.ply"
-                pred_voxel_filename = os.path.join(self._mesh_dir,
-                                                   pred_voxel_filename)
-                try:
-                    mc_pred_mesh = create_mesh_from_voxels(
-                        voxel_pred_class, self._mc_step_size
-                    ).to_trimesh(process=True)
-                    if convert_to_orig_coords:
-                        v, f = transform_mesh_affine(
-                            mc_pred_mesh.vertices,
-                            mc_pred_mesh.faces,
-                            np.linalg.inv(trans_affine)
-                        )
-                        mc_pred_mesh = Mesh(v, f).to_trimesh()
-                    mc_pred_mesh.export(pred_voxel_filename)
-                except ValueError as e:
-                    logging.getLogger(ExecModes.TEST.name).warning(
-                           "In voxel prediction for file: %s: %s."
-                           " This means usually that the prediction"
-                           " is all 1.", filename, e)
-                except RuntimeError as e:
-                    logging.getLogger(ExecModes.TEST.name).warning(
-                           "In voxel prediction for file: %s: %s ",
-                           filename, e)
-                except AttributeError:
-                    # No voxel prediction exists
-                    pass
-            else: # 2D
-                pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                    "_class" + str(c) + "_voxelpred.png"
-                pred_voxel_filename = os.path.join(self._mesh_dir,
-                                                   pred_voxel_filename)
-                show_slices(
-                    [img.cpu()],
-                    [voxel_pred_class.cpu()],
-                    pred_voxel_filename
-                )
+        if voxel_pred: # voxel_pred can be empty
+            for c in range(1, self._n_v_classes):
+                voxel_pred_class = voxel_pred.squeeze()
+                voxel_pred_class[voxel_pred_class != c] = 0
+                if ndims == 3:
+                    pred_voxel_filename = filename + "_epoch" + str(epoch) +\
+                        "_class" + str(c) + "_voxelpred.ply"
+                    pred_voxel_filename = os.path.join(self._mesh_dir,
+                                                       pred_voxel_filename)
+                    try:
+                        mc_pred_mesh = create_mesh_from_voxels(
+                            voxel_pred_class, self._mc_step_size
+                        ).to_trimesh(process=True)
+                        if convert_to_orig_coords:
+                            v, f = transform_mesh_affine(
+                                mc_pred_mesh.vertices,
+                                mc_pred_mesh.faces,
+                                np.linalg.inv(trans_affine)
+                            )
+                            mc_pred_mesh = Mesh(v, f).to_trimesh()
+                        mc_pred_mesh.export(pred_voxel_filename)
+                    except ValueError as e:
+                        logging.getLogger(ExecModes.TEST.name).warning(
+                               "In voxel prediction for file: %s: %s."
+                               " This means usually that the prediction"
+                               " is all 1.", filename, e)
+                    except RuntimeError as e:
+                        logging.getLogger(ExecModes.TEST.name).warning(
+                               "In voxel prediction for file: %s: %s ",
+                               filename, e)
+                    except AttributeError:
+                        # No voxel prediction exists
+                        pass
+                else: # 2D
+                    pred_voxel_filename = filename + "_epoch" + str(epoch) +\
+                        "_class" + str(c) + "_voxelpred.png"
+                    pred_voxel_filename = os.path.join(self._mesh_dir,
+                                                       pred_voxel_filename)
+                    show_slices(
+                        [img.cpu()],
+                        [voxel_pred_class.cpu()],
+                        pred_voxel_filename
+                    )

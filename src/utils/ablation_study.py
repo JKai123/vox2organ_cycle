@@ -14,8 +14,14 @@ AVAILABLE_ABLATIONS = (
     "features from encoder",
     "features from decoder",
     "encoder only",
-    "laplace on coordinates"
+    "laplace on coordinates" # see branch 'abs_lap'
 )
+
+def _encoder_only_params(hps):
+    """ Update params for ablation study 'encoder only' """
+    hps['MODEL_CONFIG']['VOXEL_DECODER'] = False
+    # Sample features from encoder only
+    hps['MODEL_CONFIG']['AGGREGATE_INDICES'] = [[4, 3], [3, 2], [2, 1], [1, 0]]
 
 def _elliptic_template_params(hps):
     """ Update params for ablation study 'elliptic template' """
@@ -72,6 +78,9 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
 
     elif ablation_study_id == 'features from encoder':
         _features_from_encoder_params(hps)
+
+    elif ablation_study_id == 'encoder only':
+        _encoder_only_params(hps)
 
     else:
         raise NotImplementedError()
