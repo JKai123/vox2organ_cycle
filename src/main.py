@@ -486,7 +486,6 @@ def main(hps):
 
     # Set params for ablation study
     if args.ablation_study:
-        assert args.train, "Requires training."
         set_ablation_params_(hps, args.ablation_study[0])
 
     # Add patch size to model config
