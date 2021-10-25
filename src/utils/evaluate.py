@@ -274,7 +274,7 @@ class ModelEvaluator():
 
         # Voxel prediction
         voxel_pred = model_class.pred_to_voxel_pred(pred)
-        if voxel_pred: # voxel_pred can be empty
+        if voxel_pred is not None: # voxel_pred can be empty
             for c in range(1, self._n_v_classes):
                 voxel_pred_class = voxel_pred.squeeze()
                 voxel_pred_class[voxel_pred_class != c] = 0
