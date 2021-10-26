@@ -10,11 +10,10 @@ import numpy as np
 import torch
 import trimesh
 import matplotlib.pyplot as plt
-from trimesh.proximity import longest_ray, closest_point
+from trimesh.proximity import longest_ray
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import (
     sample_points_from_meshes,
-    knn_gather,
     knn_points
 )
 
@@ -389,6 +388,8 @@ mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
                     "thickness": eval_thickness_ray}
 mode_to_output_file = {"ad_hd": ad_hd_output,
                        "thickness": thickness_output}
+
+
 if __name__ == '__main__':
     argparser = ArgumentParser(description="Mesh evaluation procedure")
     argparser.add_argument('exp_name',
@@ -434,19 +435,28 @@ if __name__ == '__main__':
     ids = read_dataset_ids(dataset_file)
 
     res_all = []
+    res_surfaces = {s: [] for s in SURF_NAMES}
     for mri_id in ids:
         for surf_name in SURF_NAMES:
             result = mode_to_function[mode](
                 mri_id, surf_name, eval_params, epoch, subfolder=subfolder
             )
             res_all.append(result)
+            res_surfaces[surf_name].append(result)
 
+    # Averaged over surfaces
     summary_file = os.path.join(
         eval_params['log_path'],
         f"{eval_params['metrics_csv_prefix']}_summary.csv"
     )
-
-    # Write output
     mode_to_output_file[mode](np.array(res_all), summary_file)
+
+    # Per-surface results
+    for surf_name in SURF_NAMES:
+        summary_file = os.path.join(
+            eval_params['log_path'],
+            f"{surf_name}_{eval_params['metrics_csv_prefix']}_summary.csv"
+        )
+        mode_to_output_file[mode](np.array(res_surfaces[surf_name]), summary_file)
 
     print("Done.")
