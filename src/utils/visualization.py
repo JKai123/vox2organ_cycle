@@ -144,7 +144,7 @@ def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
         assert img3D.ndim == 3, "Image dimension not equal to 3."
 
         img1 = img3D.get_fdata() # get np.ndarray
-        img1 = img1[int(img3D.shape[0]/2), :, :]
+        img1 = img1[int(img3D.shape[0]/4), :, :]
         img1 = np.flip(np.rot90(img1), axis=1)
         img2 = img3D.get_fdata() # get np.ndarray
         img2 = img2[:, int(img3D.shape[1]/2), :]
