@@ -25,6 +25,7 @@ DEBUG = True
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 
 # Output data
+# OUT_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 # Surfaces
@@ -70,7 +71,10 @@ for fn in tqdm(filenames[:1], position=0, leave=True,
         # Write
         out_img = nib.Nifti1Image(vox, vox2world_affine)
         out_file = os.path.join(OUT_DIR, fn, s + ".nii.gz")
-        nib.save(out_img, out_file)
+        if not os.path.exists(out_file):
+            nib.save(out_img, out_file)
+        else:
+            raise RuntimeError("File already exists!")
 
     if DEBUG:
         mri = orig.get_fdata()
