@@ -35,7 +35,7 @@ SURFACES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 filenames = valid_ids(RAW_DATA_DIR)
 
 # Iterate over file ids
-for fn in tqdm(filenames[:1], position=0, leave=True,
+for fn in tqdm(filenames, position=0, leave=True,
                desc="Creating voxel gt from meshes."):
 
     mesh_folder = os.path.join(RAW_DATA_DIR, fn)
@@ -55,6 +55,9 @@ for fn in tqdm(filenames[:1], position=0, leave=True,
         except ValueError:
             mesh_file = os.path.join(mesh_folder, s + ".stl")
             mesh = trimesh.load(mesh_file)
+        except:
+            print("Cannot load mesh {mesh_file}, skipping.")
+            continue
         # World --> voxel coordinates
         voxel_verts, voxel_faces = transform_mesh_affine(
             mesh.vertices, mesh.faces, world2vox_affine
@@ -74,7 +77,7 @@ for fn in tqdm(filenames[:1], position=0, leave=True,
         if not os.path.exists(out_file):
             nib.save(out_img, out_file)
         else:
-            raise RuntimeError("File already exists!")
+            print(f"File {out_file} already exists, skipping.")
 
     if DEBUG:
         mri = orig.get_fdata()
