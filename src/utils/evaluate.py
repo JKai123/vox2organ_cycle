@@ -116,6 +116,11 @@ class ModelEvaluator():
                      convert_to_orig_coords=False):
         """ Save predicted meshes and ground truth
         """
+        if "/" in filename:
+            subdir = os.path.join(self._mesh_dir, filename.split("/")[0])
+            if not os.path.isdir(subdir):
+                os.mkdir(subdir)
+
         # Remove previously stored files to avoid dumping storage
         if remove_previous:
             for suffix in ("*_meshpred.ply", "*_voxelpred.ply",

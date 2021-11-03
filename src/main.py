@@ -238,6 +238,8 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
 if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
     and 'white_matter' in hyper_ps_cortex['STRUCTURE_TYPE']):
     if hyper_ps_cortex['PATCH_MODE'] == "no":
+        # Save some memory
+        hyper_ps_cortex['SANITY_CHECK_DATA'] = False
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
         # weights should respect this order!
         hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
@@ -264,7 +266,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 42016
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 30000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26800
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/white_pial/cortex_4_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
@@ -291,7 +293,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 41602
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 30000
+        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26800
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/rh_white_pial/cortex_2_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
@@ -302,7 +304,8 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
 hyper_ps_overfit = {
     # Learning
     'BATCH_SIZE': 1,
-    'AUGMENT_TRAIN': False
+    'AUGMENT_TRAIN': False,
+    'SANITY_CHECK_DATA': True
 }
 
 
@@ -329,7 +332,7 @@ def main(hps):
                            "- voxel2meshplusplusgeneric")
     argparser.add_argument('--dataset',
                            type=str,
-                           default="ADNI_CSR",
+                           default="ADNI_CSR_large",
                            help="The name of the dataset. Supported:\n"
                            "- Hippocampus\n"
                            "- Cortex")

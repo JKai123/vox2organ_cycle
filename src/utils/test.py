@@ -11,16 +11,34 @@ import json
 import torch
 
 from utils.logging import init_logging, get_log_dir
-from utils.utils import string_dict, dict_to_lower_dict
+from utils.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
+from utils.params import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
     BEST_MODEL_NAME,
     FINAL_MODEL_NAME
 )
+
+def _get_test_dataset_params(hps, training_hps):
+    """ Get test split: All parameters equal to the training parameters but the
+    dataset can potentially be different
+    """
+    if (hps['DATASET'] == training_hps['DATASET'] and
+        (any(hps[k] != training_hps[k] for k in DATASET_SPLIT_PARAMS))):
+        raise RuntimeError(
+            "Cannot test on the same dataset but potentially different test"
+            " split than defined during training!"
+        )
+    test_dataset_params = {
+        k: hps[k] for k in (DATASET_PARAMS + DATASET_SPLIT_PARAMS)
+    }
+    test_dataset_params = update_dict(training_hps, test_dataset_params)
+
+    return test_dataset_params
 
 def write_test_results(results: dict, model_name: str, experiment_dir: str):
     res_file = os.path.join(experiment_dir, "test_results.txt")
@@ -70,7 +88,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     experiment_dir = os.path.join(experiment_base_dir, experiment_name)
     # Directoy where test results are written to
     test_dir = os.path.join(
-        experiment_dir, "test_template_" + str(hps['N_TEMPLATE_VERTICES_TEST'])
+        experiment_dir,
+        "test_template_"
+        + str(hps['N_TEMPLATE_VERTICES_TEST'])
+        + f"_{hps['DATASET']}"
     )
     if not os.path.isdir(test_dir):
         os.mkdir(test_dir)
@@ -102,10 +123,13 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
                                " model that should be tested. Values are "\
                                f" {v_train} and {v}.")
 
-    # Get test-split as defined during training
-    testLogger.info("Loading dataset %s...", training_hps['DATASET'])
-    _, _, test_set = dataset_split_handler[training_hps['DATASET']](
-        save_dir=test_dir, load_only='test', **training_hps_lower
+    # Load test dataset
+    test_dataset_params = _get_test_dataset_params(hps, training_hps)
+    testLogger.info("Loading dataset %s...", test_dataset_params['DATASET'])
+    _, _, test_set = dataset_split_handler[test_dataset_params['DATASET']](
+        save_dir=test_dir,
+        load_only='test',
+        **dict_to_lower_dict(test_dataset_params)
     )
     testLogger.info("%d test files.", len(test_set))
 

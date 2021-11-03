@@ -21,6 +21,7 @@ from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
+from tqdm import tqdm
 
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
@@ -209,6 +210,9 @@ class Cortex(DatasetHandler):
         # Vertex labels are combined into one class (and background)
         self.n_v_classes = 2
 
+        # Sanity checks to make sure data is transformed correctly
+        self.sanity_checks = kwargs.get("sanity_check_data", False)
+
         # Freesurfer meshes of desired resolution
         if reduced_freesurfer is not None:
             if reduced_freesurfer != 1.0:
@@ -282,31 +286,27 @@ class Cortex(DatasetHandler):
     def _prepare_data_3D(self):
         """ Load 3D data """
 
-        # Check constraints
-        assert (self.mesh_type == 'freesurfer'
-                or 'voxelized_mesh' not in self.seg_label_names),\
-                "Voxelized mesh as voxel ground truth requires Freesurfer meshes."
-
         # Raw data
-        raw_imgs = self._load_data3D_raw(self.img_filename)
-        raw_voxel_labels = self._load_data3D_raw(self.label_filename)
-        raw_mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
+        self.images = self._load_data3D_raw(self.img_filename)
+        if self.sanity_checks:
+            self.voxel_labels = self._load_data3D_raw(self.label_filename)
+        else:
+            self.voxel_labels = None # Will be voxelized meshes
+        self.mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
 
         # Select desired voxel labels
-        if self.seg_label_names == "all":
-            for vl in raw_voxel_labels:
-                vl[vl > 1] = 1
-        else:
-            raw_voxel_labels = [
-                combine_labels(l, self.seg_label_names) for l in raw_voxel_labels
-            ]
+        if self.voxel_labels is not None:
+            if self.seg_label_names == "all":
+                for vl in self.voxel_labels:
+                    vl[vl > 1] = 1
+            else:
+                self.voxel_labels = [
+                    combine_labels(l, self.seg_label_names) for l in
+                    self.voxel_labels
+                ]
 
         # Preprocess routine
-        self.images,\
-                self.voxel_labels,\
-                self.mesh_labels = self.preprocess_data_3D(
-                    raw_imgs, raw_voxel_labels, raw_mesh_labels
-                )
+        self.preprocess_data_3D()
 
         (self.centers,
          self.radii,
@@ -319,8 +319,7 @@ class Cortex(DatasetHandler):
         self.thickness_per_vertex = self._get_per_vertex_label("thickness",
                                                                subfolder="")
 
-    def preprocess_data_3D(self, raw_imgs: list, raw_voxel_labels: list,
-                           raw_mesh_labels: list):
+    def preprocess_data_3D(self):
         """ Preprocess routine according to dataset parameters. """
 
         ### Multi-patch mode
@@ -328,41 +327,36 @@ class Cortex(DatasetHandler):
         if self.patch_mode == "multi-patch":
             # Image data; attention: file names change in multi-patch mode
             # (each image leads to multiple patches)
-            processed_imgs,\
-                    processed_voxel_labels,\
-                    self._files = self._get_multi_patches(
-                        raw_imgs, raw_voxel_labels
+            self.images,\
+                    self.voxel_labels,\
+                    self.files = self._get_multi_patches(
+                        self.images, self.voxel_labels
                     )
             # Mesh data: marching cubes meshes (it's not straightforward to
             # extract patches from freesurfer meshes)
             assert self.mesh_type == 'marching cubes',\
                     "Multi-patch dataset requires marching cubes meshes."
-            processed_mesh_labels = self._load_mc_dataMesh(processed_voxel_labels)
+            self.mesh_labels = self._load_mc_dataMesh(self.voxel_labels)
 
             # In multi-patch mode, different mesh structures cannot be
             # distinguished anymore after creation of patches
             self.n_m_classes = 1
 
-            return (processed_imgs,
-                    processed_voxel_labels,
-                    processed_mesh_labels)
+            return
 
         ### Single-patch or no patch mode
 
         # Image data
-        processed_imgs,\
-                processed_voxel_labels,\
-                trans_affine = self._get_single_patches(
-                    raw_imgs, raw_voxel_labels
-                )
+        trans_affine = self._get_single_patches()
 
         # Mesh data
         if self.mesh_type == "freesurfer":
             # Transform meshes according to image transformations
             # (crops, resize) and normalize
-            processed_mesh_labels = deepcopy(raw_mesh_labels)
-            for i, (m, t) in enumerate(zip(processed_mesh_labels,
-                                           trans_affine)):
+            for i, (m, t) in tqdm(
+                enumerate(zip(self.mesh_labels, trans_affine)),
+                position=0, leave=True, desc="Transform meshes accordingly..."
+            ):
                 new_vertices, new_faces = transform_mesh_affine(
                     m.vertices, m.faces, t
                 )
@@ -375,7 +369,9 @@ class Cortex(DatasetHandler):
                 new_normals = Meshes(
                     new_vertices, new_faces
                 ).verts_normals_padded()
-                processed_mesh_labels[i] = Mesh(
+
+                # Replace mesh with transformed one
+                self.mesh_labels[i] = Mesh(
                     new_vertices, new_faces, new_normals, m.features
                 )
 
@@ -384,32 +380,33 @@ class Cortex(DatasetHandler):
 
             # Voxelize meshes
             voxelized_meshes = self._create_voxel_labels_from_meshes(
-                processed_mesh_labels
+                self.mesh_labels
             )
-            # Assert conformity of voxel labels and voxelized meshes
-            for i, (vl, vm) in enumerate(zip(processed_voxel_labels,
-                                             voxelized_meshes)):
-                iou = Jaccard(vl.cuda(), vm.cuda(), 2)
-                if iou < 0.85:
-                    show_difference(
-                        vl,  vm,
-                        f"../to_check/diff_mesh_voxel_label_{self._files[i]}.png"
-                    )
-                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                          " voxelized mesh label, check files at ../to_check/")
 
-            return (processed_imgs,
-                    voxelized_meshes,
-                    processed_mesh_labels)
+            # Assert conformity of voxel labels and voxelized meshes
+            if self.sanity_checks:
+                for i, (vl, vm) in enumerate(zip(self.voxel_labels,
+                                                 voxelized_meshes)):
+                    iou = Jaccard(vl.cuda(), vm.cuda(), 2)
+                    if iou < 0.85:
+                        show_difference(
+                            vl,  vm,
+                            f"../to_check/diff_mesh_voxel_label_{self._files[i]}.png"
+                        )
+                        print(f"[Warning] Small IoU ({iou}) of voxel label and"
+                              " voxelized mesh label, check files at ../to_check/")
+
+            # Use voxelized meshes as voxel ground truth
+            self.voxel_labels = voxelized_meshes
+
+            return
 
         # Marching cubes mesh labels
-        processed_mesh_labels = self._load_mc_dataMesh(
-            processed_voxel_labels
+        self.mesh_labels = self._load_mc_dataMesh(
+            self.voxel_labels
         )
 
-        return (processed_imgs,
-                processed_voxel_labels,
-                processed_mesh_labels)
+        return
 
     def mean_area(self):
         """ Average surface area of meshes. """
@@ -588,7 +585,7 @@ class Cortex(DatasetHandler):
               save_dir,
               dataset_seed=0,
               dataset_split_proportions=None,
-              fixed_split: Union[dict, bool]=False,
+              fixed_split: Union[dict, bool, Sequence]=False,
               overfit=False,
               load_only=('train', 'validation', 'test'),
               **kwargs):
@@ -619,16 +616,16 @@ class Cortex(DatasetHandler):
                 files_train = fixed_split['train']
                 files_val = fixed_split['validation']
                 files_test = fixed_split['test']
-            elif isinstance(fixed_split, bool):
-                files_train = read_csv(os.path.join(
-                    raw_data_dir, 'train_small.csv'
-                ), dtype=str)['IMAGEUID'].to_list()
-                files_val = read_csv(os.path.join(
-                    raw_data_dir, 'val_small.csv'
-                ), dtype=str)['IMAGEUID'].to_list()
-                files_test = read_csv(os.path.join(
-                    raw_data_dir, 'test_small.csv'
-                ), dtype=str)['IMAGEUID'].to_list()
+            elif isinstance(fixed_split, Sequence):
+                assert len(fixed_split) == 3,\
+                        "Should contain one file per split"
+                convert = lambda x: str(int(x)) # 'x\n' --> 'x'
+                train_split = os.path.join(raw_data_dir, fixed_split[0])
+                files_train = list(map(convert, open(train_split, 'r').readlines()))
+                val_split = os.path.join(raw_data_dir, fixed_split[1])
+                files_val = list(map(convert, open(val_split, 'r').readlines()))
+                test_split = os.path.join(raw_data_dir, fixed_split[2])
+                files_test = list(map(convert, open(test_split, 'r').readlines()))
                 # Choose valid
                 if "ADNI" not in raw_data_dir:
                     raise NotImplementedError()
@@ -638,7 +635,7 @@ class Cortex(DatasetHandler):
             else:
                 raise TypeError("Wrong type of parameter 'fixed_split'."
                                 f" Got {type(fixed_split)} but should be"
-                                "'bool' or 'dict'")
+                                "'Sequence' or 'dict'")
         else: # Random split
             # Available files
             all_files = valid_ids(raw_data_dir) # Remove invalid
@@ -820,7 +817,8 @@ class Cortex(DatasetHandler):
 
     def _load_data3D_raw(self, filename: str):
         data = []
-        for fn in self._files:
+        for fn in tqdm(self._files, position=0, leave=True,
+                       desc="Loading images..."):
             img = nib.load(os.path.join(self._raw_data_dir, fn, filename))
 
             d = img.get_fdata()
@@ -850,7 +848,7 @@ class Cortex(DatasetHandler):
 
         return data_2D
 
-    def _get_single_patches(self, raw_imgs, raw_labels):
+    def _get_single_patches(self):
         """ Extract a single patch from an image. """
 
         assert (tuple(self._patch_origin) == (0,0,0)
@@ -865,7 +863,10 @@ class Cortex(DatasetHandler):
                 np.array(self.select_patch_size, dtype=int)
 
         # Iterate over images and labels
-        for img, label in zip(raw_imgs, raw_labels):
+        for i, img in tqdm(enumerate(self.images), position=0, leave=True,
+                           desc=f"Extract patches of shape {self.patch_size}"):
+            if self.voxel_labels is not None:
+                label = self.voxel_labels[i]
             assert img.shape == (182, 218, 182),\
                     "Our mesh templates were created based on this shape."
             # Select patch from whole image
@@ -873,26 +874,31 @@ class Cortex(DatasetHandler):
                 img, self.select_patch_size, is_label=False, mode='crop',
                 crop_at=(lower_limit + upper_limit) // 2
             )
-            label_patch, _ = img_with_patch_size(
-                label, self.select_patch_size, is_label=True, mode='crop',
-                crop_at=(lower_limit + upper_limit) // 2
-            )
+            if self.voxel_labels is not None:
+                label_patch, _ = img_with_patch_size(
+                    label, self.select_patch_size, is_label=True, mode='crop',
+                    crop_at=(lower_limit + upper_limit) // 2
+                )
             # Zoom to certain size
             if self.patch_size != self.select_patch_size:
                 img_patch, trans_affine_2 = img_with_patch_size(
                     img_patch, self.patch_size, is_label=False, mode='interpolate'
                 )
-                label_patch, _ = img_with_patch_size(
-                    label_patch, self.patch_size, is_label=True, mode='interpolate'
-                )
+                if self.voxel_labels is not None:
+                    label_patch, _ = img_with_patch_size(
+                        label_patch, self.patch_size, is_label=True, mode='interpolate'
+                    )
             else:
                 trans_affine_2 = np.eye(self.ndims + 1) # Identity
 
-            img_patches.append(img_patch)
-            label_patches.append(label_patch)
+            # Replace raw images with processed ones. This way, it is avoided
+            # that a 'raw' and a 'processed' list needs to be stored.
+            self.images[i] = img_patch
+            if self.voxel_labels is not None:
+                self.voxel_labels[i] = label_patch
             transformations.append(trans_affine_2 @ trans_affine_1)
 
-        return img_patches, label_patches, transformations
+        return transformations
 
     def _get_multi_patches(self, raw_imgs: list, raw_labels: list):
         """ Load multiple patches from each raw image and corresponding voxel
@@ -1009,7 +1015,8 @@ class Cortex(DatasetHandler):
         """ Return the voxelized meshes as 3D voxel labels. Here, individual
         structures are not distinguished. """
         data = []
-        for m in mesh_labels:
+        for m in tqdm(mesh_labels, position=0, leave=True,
+                      desc="Voxelize meshes..."):
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
@@ -1084,7 +1091,8 @@ class Cortex(DatasetHandler):
         """
         data = []
         assert len(self.trans_affine) == 0, "Should be empty."
-        for fn in self._files:
+        for fn in tqdm(self._files, position=0, leave=True,
+                       desc="Loading meshes..."):
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
                                          self.img_filename))
