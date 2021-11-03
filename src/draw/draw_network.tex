@@ -126,51 +126,51 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Graph network
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\pic[shift={(0,-13,0)}] at (rb5-anchor) {LeftBandedCylinder={name=grb0,%
+\pic[shift={(0,-13,0)}] at (c1-south) {RightBandedCylinder={name=grb0,%
 	xlabel={{"256", "256","256"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={8,8,8},depth=25}};
 %% step 1
-\pic[shift={(-6,0,0)}] at (grb0-west) {LeftBandedCylinder={name=grb1,caption=x3,%
+\pic[shift={(6,0,0)}] at (grb0-east) {RightBandedCylinder={name=grb1,caption=x3,%
 	xlabel={{"256", "256","256"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
-%\pic[shift={(-2.5,0,0)}] at (grb1-west) {LeftBandedCylinder={name=gc1,%
+%\pic[shift={(-2.5,0,0)}] at (grb1-east) {RightBandedCylinder={name=gc1,%
 	%xlabel={{"128","dummy"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	%opacity=0.5,height=25,width={4},depth=25}};
 %%
-\pic[shift={(-1,-6,0)}] at (grb1-west) {Cylinder={name=fv1,%
+\pic[shift={(1,-6,0)}] at (grb1-east) {Cylinder={name=fv1,%
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 2
-\pic[shift={(-7.5,0,0)}] at (grb1-west) {LeftBandedCylinder={name=grb2,caption=x3,%
+\pic[shift={(6,0,0)}] at (grb1-east) {RightBandedCylinder={name=grb2,caption=x3,%
 	xlabel={{"128", "128","128"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
-	opacity=0.5,height=25,width={3,3,3},depth=25}};
+	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
-%\pic[shift={(-2.5,0,0)}] at (grb2-west) {LeftBandedCylinder={name=gc2,%
+%\pic[shift={(-2.5,0,0)}] at (grb2-east) {RightBandedCylinder={name=gc2,%
 	%xlabel={{"64","dummy"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	%opacity=0.5,height=25,width={3},depth=25}};
 %%
-\pic[shift={(-1,-6,0)}] at (grb2-west) {Cylinder={name=fv2,%
+\pic[shift={(1,-6,0)}] at (grb2-east) {Cylinder={name=fv2,%
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 3
-\pic[shift={(-6.5,0,0)}] at (grb2-west) {LeftBandedCylinder={name=grb3,caption=x3,%
+\pic[shift={(6,0,0)}] at (grb2-east) {RightBandedCylinder={name=grb3,caption=x3,%
 	xlabel={{"64", "64","64"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
-	opacity=0.5,height=25,width={2,2,2},depth=25}};
+	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
-%\pic[shift={(-2.5,0,0)}] at (grb3-west) {LeftBandedCylinder={name=gc3,%
+%\pic[shift={(-2.5,0,0)}] at (grb3-east) {RightBandedCylinder={name=gc3,%
 	%xlabel={{"32","dummy"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
 	%opacity=0.5,height=25,width={2},depth=25}};
 %%
-\pic[shift={(-1,-6,0)}] at (grb3-west) {Cylinder={name=fv3,%
+\pic[shift={(1,-6,0)}] at (grb3-east) {Cylinder={name=fv3,%
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 %% step 4
-\pic[shift={(-5.5,0,0)}] at (grb3-west) {LeftBandedCylinder={name=grb4,caption=x3,%
+\pic[shift={(6,0,0)}] at (grb3-east) {RightBandedCylinder={name=grb4,caption=x3,%
 	xlabel={{"32", "32","32"}},fill=\GraphConvColor,bandfill=\GraphReluColor,
-	opacity=0.5,height=25,width={1,1,1},depth=25}};
+	opacity=0.5,height=25,width={4,4,4},depth=25}};
 %%
-\pic[shift={(-1,-6,0)}] at (grb4-west) {Cylinder={name=fv4,%
+\pic[shift={(1,-6,0)}] at (grb4-east) {Cylinder={name=fv4,%
 	xlabel={{"3","dummy"}},fill=\GraphConvColor,
 	opacity=0.5,height=25,width={1},depth=25}};
 
@@ -249,66 +249,66 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw graph layer to layer connections
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\path (grb0-west) -- (grb1-east) coordinate[pos=0.5] (co-gcat01);
+\path (grb0-east) -- (grb1-west) coordinate[pos=0.5] (co-gcat01);
 \pic at (co-gcat01) {Ball={name=gcat01,%
         fill=\CatColor,opacity=0.6,%
         radius=2.5,logo=cat}};
-\draw [connection] (grb0-west) -- node{\midarrow} (gcat01-east);
-\draw [connection] (gcat01-west) -- node{\midarrow} (grb1-east);
-\path (grb1-west) -- (grb2-east) coordinate[pos=0.1] (co-split01);
+\draw [connection] (grb0-east) -- node{\midarrow} (gcat01-west);
+\draw [connection] (gcat01-east) -- node{\midarrow} (grb1-west);
+\path (grb1-east) -- (grb2-west) coordinate[pos=0.1] (co-split01);
 \draw [connection] (co-split01)
-	-- (fv1-east -| co-split01)
-	-- node {\midarrow} (fv1-east);
+	-- (fv1-west -| co-split01)
+	-- node {\midarrow} (fv1-west);
 %%
-\path (grb1-west) -- (grb2-east) coordinate[pos=0.5] (co-gcat02);
+\path (grb1-east) -- (grb2-west) coordinate[pos=0.5] (co-gcat02);
 \pic at (co-gcat02) {Ball={name=gcat02,%
         fill=\CatColor,opacity=0.6,%
         radius=2.5,logo=cat}};
-\draw [connection] (grb1-west) -- node{\midarrow} (gcat02-east);
-\draw [connection] (gcat02-west) -- node{\midarrow} (grb2-east);
-\path (grb2-west) -- (grb3-east) coordinate[pos=0.1] (co-split02);
+\draw [connection] (grb1-east) -- node{\midarrow} (gcat02-west);
+\draw [connection] (gcat02-east) -- node{\midarrow} (grb2-west);
+\path (grb2-east) -- (grb3-west) coordinate[pos=0.1] (co-split02);
 \draw [connection] (co-split02)
-	-- (fv2-east -| co-split02)
-	-- node {\midarrow} (fv2-east);
-\coordinate (co-split02a) at (gcat02-south |- fv1-west);
-\draw [connection] (fv1-west)
+	-- (fv2-west -| co-split02)
+	-- node {\midarrow} (fv2-west);
+\coordinate (co-split02a) at (gcat02-south |- fv1-east);
+\draw [connection] (fv1-east)
 	-- node {\midarrow} (co-split02a)
 	-- node {\midarrow} (gcat02-south);
 \draw [connection, -Stealth] (co-split02a) -- coordinate (mout-01) ([yshift=-20] co-split02a);
 %%
-\path (grb2-west) -- (grb3-east) coordinate[pos=0.5] (co-gcat03);
+\path (grb2-east) -- (grb3-west) coordinate[pos=0.5] (co-gcat03);
 \pic at (co-gcat03) {Ball={name=gcat03,%
         fill=\CatColor,opacity=0.6,%
         radius=2.5,logo=cat}};
-\draw [connection] (grb2-west) -- node{\midarrow} (gcat03-east);
-\draw [connection] (gcat03-west) -- node{\midarrow} (grb3-east);
-\path (grb3-west) -- (grb4-east) coordinate[pos=0.1] (co-split03);
+\draw [connection] (grb2-east) -- node{\midarrow} (gcat03-west);
+\draw [connection] (gcat03-east) -- node{\midarrow} (grb3-west);
+\path (grb3-east) -- (grb4-west) coordinate[pos=0.1] (co-split03);
 \draw [connection] (co-split03)
-	-- (fv3-east -| co-split03)
-	-- node {\midarrow} (fv3-east);
-\coordinate (co-split03a) at (gcat03-south |- fv2-west);
-\draw [connection] (fv2-west)
+	-- (fv3-west -| co-split03)
+	-- node {\midarrow} (fv3-west);
+\coordinate (co-split03a) at (gcat03-south |- fv2-east);
+\draw [connection] (fv2-east)
 	-- node {\midarrow} (co-split03a)
 	-- node {\midarrow} (gcat03-south);
 \draw [connection, -Stealth] (co-split03a) -- coordinate (mout-02) ([yshift=-20] co-split03a);
 %%
-\path (grb3-west) -- (grb4-east) coordinate[pos=0.5] (co-gcat04);
+\path (grb3-east) -- (grb4-west) coordinate[pos=0.5] (co-gcat04);
 \pic at (co-gcat04) {Ball={name=gcat04,%
         fill=\CatColor,opacity=0.6,%
         radius=2.5,logo=cat}};
-\draw [connection] (grb3-west) -- node{\midarrow} (gcat04-east);
-\draw [connection] (gcat04-west) -- node{\midarrow} (grb4-east);
-\coordinate (co-split04) at ([xshift=-10pt] grb4-west);
-\draw [connection] (grb4-west)
+\draw [connection] (grb3-east) -- node{\midarrow} (gcat04-west);
+\draw [connection] (gcat04-east) -- node{\midarrow} (grb4-west);
+\coordinate (co-split04) at ([xshift=-10pt] grb4-east);
+\draw [connection] (grb4-east)
 	-- (co-split04)
-	-- (fv4-east -| co-split04)
-	-- node {\midarrow} (fv4-east);
-\coordinate (co-split04a) at (gcat04-south |- fv3-west);
-\draw [connection] (fv3-west)
+	-- (fv4-west -| co-split04)
+	-- node {\midarrow} (fv4-west);
+\coordinate (co-split04a) at (gcat04-south |- fv3-east);
+\draw [connection] (fv3-east)
 	-- node {\midarrow} (co-split04a)
 	-- node {\midarrow} (gcat04-south);
 \draw [connection, -Stealth] (co-split04a) -- coordinate (mout-03) ([yshift=-20] co-split04a);
-\draw [connection, -Stealth] (fv4-west) -| coordinate (mout-04) ([xshift=-40, yshift=-20] fv4-west);
+\draw [connection, -Stealth] (fv4-east) -| coordinate (mout-04) ([xshift=-40, yshift=-20] fv4-east);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw features to graph cat
@@ -423,37 +423,26 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw skip connections
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\coordinate (grb0-topeast) at ([yshift=15pt] grb0-northeast) ;
-\coordinate (grb0-topwest) at ([yshift=15pt, xshift=12pt] grb0-northwest) ;
-\coordinate (grb0-northmiddlewest) at ([xshift=12pt] grb0-northwest);
+\coordinate (grb0-topeast) at ([yshift=15pt, xshift=-18pt] grb0-northeast) ;
+\coordinate (grb0-topwest) at ([yshift=15pt] grb0-northwest) ;
+\coordinate (grb0-northmiddleeast) at ([xshift=-18pt] grb0-northeast);
 %%
-\coordinate (grb1-topeast) at ([yshift=15pt] grb1-northeast) ;
-\coordinate (grb1-topwest) at ([yshift=15pt, xshift=5pt] grb1-northwest) ;
-\coordinate (grb1-northmiddlewest) at ([xshift=5pt] grb1-northwest);
+\coordinate (grb1-topeast) at ([yshift=15pt, xshift=-10pt] grb1-northeast) ;
+\coordinate (grb1-topwest) at ([yshift=15pt] grb1-northwest) ;
+\coordinate (grb1-northmiddleeast) at ([xshift=-10pt] grb1-northeast);
 %%
-%\coordinate (gc1-topeast) at ([yshift=15pt] gc1-northeast) ;
-%\coordinate (gc1-topwest) at ([yshift=15pt, xshift=5pt] gc1-northwest) ;
-%\coordinate (gc1-northmiddlewest) at ([xshift=5pt] gc1-northwest);
+\coordinate (grb2-topeast) at ([yshift=15pt, xshift=-10pt] grb2-northeast) ;
+\coordinate (grb2-topwest) at ([yshift=15pt] grb2-northwest) ;
+\coordinate (grb2-northmiddleeast) at ([xshift=-10pt] grb2-northeast);
 %%
-\coordinate (grb2-topeast) at ([yshift=15pt] grb2-northeast) ;
-\coordinate (grb2-topwest) at ([yshift=15pt, xshift=3pt] grb2-northwest) ;
-\coordinate (grb2-northmiddlewest) at ([xshift=3pt] grb2-northwest);
+\coordinate (grb3-topeast) at ([yshift=15pt, xshift=-10pt] grb3-northeast) ;
+\coordinate (grb3-topwest) at ([yshift=15pt] grb3-northwest) ;
+\coordinate (grb3-northmiddleeast) at ([xshift=-10pt] grb3-northeast);
 %%
-%\coordinate (gc2-topeast) at ([yshift=15pt] gc2-northeast) ;
-%\coordinate (gc2-topwest) at ([yshift=15pt, xshift=3pt] gc2-northwest) ;
-%\coordinate (gc2-northmiddlewest) at ([xshift=3pt] gc2-northwest);
+\coordinate (grb4-topeast) at ([yshift=15pt, xshift=-10pt] grb4-northeast) ;
+\coordinate (grb4-topwest) at ([yshift=15pt] grb4-northwest) ;
+\coordinate (grb4-northmiddleeast) at ([xshift=-10pt] grb4-northeast);
 %%
-\coordinate (grb3-topeast) at ([yshift=15pt] grb3-northeast) ;
-\coordinate (grb3-topwest) at ([yshift=15pt, xshift=3pt] grb3-northwest) ;
-\coordinate (grb3-northmiddlewest) at ([xshift=3pt] grb3-northwest);
-%%
-%\coordinate (gc3-topeast) at ([yshift=15pt] gc3-northeast) ;
-%\coordinate (gc3-topwest) at ([yshift=15pt, xshift=3pt] gc3-northwest) ;
-%\coordinate (gc3-northmiddlewest) at ([xshift=3pt] gc3-northwest);
-%%
-\coordinate (grb4-topeast) at ([yshift=15pt] grb4-northeast) ;
-\coordinate (grb4-topwest) at ([yshift=15pt, xshift=2pt] grb4-northwest) ;
-\coordinate (grb4-northmiddlewest) at ([xshift=2pt] grb4-northwest);
 %%
 \path (rb1-southwest) -- (rb1-north) coordinate[pos=1.25] (rb1-topeast) ;
 \path (rb1-southwest) -- (rb1-northwest) coordinate[pos=1.25] (rb1-topwest) ;
@@ -508,45 +497,35 @@
 \coordinate (urb4-northmiddleeast) at (intersection of urb4-topeast--urb4-bottomeast and urb4-northwest--urb4-northeast);
 \path (urb4-east) -- (urb4-northwest) coordinate[pos=1.5] (urb4-topwestwest);
 %% Residual layer skips
-\draw [copyconnection]  (grb0-northeast)  
--- node {\copymidarrow}(grb0-topeast)
+%
+% GNN
+%
+\draw [copyconnection]  (grb0-northwest)  
 -- node {\copymidarrow}(grb0-topwest)
--- node {\copymidarrow} (grb0-northmiddlewest);
+-- node {\copymidarrow}(grb0-topeast)
+-- node {\copymidarrow} (grb0-northmiddleeast);
 %%
-\draw [copyconnection]  (grb1-northeast)  
--- node {\copymidarrow}(grb1-topeast)
+\draw [copyconnection]  (grb1-northwest)  
 -- node {\copymidarrow}(grb1-topwest)
--- node {\copymidarrow} (grb1-northmiddlewest);
+-- node {\copymidarrow}(grb1-topeast)
+-- node {\copymidarrow} (grb1-northmiddleeast);
 %%
-%\draw [copyconnection]  (gc1-northeast)  
-%-- node {\copymidarrow}(gc1-topeast)
-%-- node {\copymidarrow}(gc1-topwest)
-%-- node {\copymidarrow} (gc1-northmiddlewest);
-%%
-\draw [copyconnection]  (grb2-northeast)  
--- node {\copymidarrow}(grb2-topeast)
+\draw [copyconnection]  (grb2-northwest)  
 -- node {\copymidarrow}(grb2-topwest)
--- node {\copymidarrow} (grb2-northmiddlewest);
+-- node {\copymidarrow}(grb2-topeast)
+-- node {\copymidarrow} (grb2-northmiddleeast);
 %%
-%\draw [copyconnection]  (gc2-northeast)  
-%-- node {\copymidarrow}(gc2-topeast)
-%-- node {\copymidarrow}(gc2-topwest)
-%-- node {\copymidarrow} (gc2-northmiddlewest);
-%%
-\draw [copyconnection]  (grb3-northeast)  
--- node {\copymidarrow}(grb3-topeast)
+\draw [copyconnection]  (grb3-northwest)  
 -- node {\copymidarrow}(grb3-topwest)
--- node {\copymidarrow} (grb3-northmiddlewest);
+-- node {\copymidarrow}(grb3-topeast)
+-- node {\copymidarrow} (grb3-northmiddleeast);
 %%
-%\draw [copyconnection]  (gc3-northeast)  
-%-- node {\copymidarrow}(gc3-topeast)
-%-- node {\copymidarrow}(gc3-topwest)
-%-- node {\copymidarrow} (gc3-northmiddlewest);
-%%
-\draw [copyconnection]  (grb4-northeast)  
--- node {\copymidarrow}(grb4-topeast)
+\draw [copyconnection]  (grb4-northwest)  
 -- node {\copymidarrow}(grb4-topwest)
--- node {\copymidarrow} (grb4-northmiddlewest);
+-- node {\copymidarrow}(grb4-topeast)
+-- node {\copymidarrow} (grb4-northmiddleeast);
+%
+% CNN
 %%
 \draw [copyconnection]  (rb1-northwest)  
 -- node {\copymidarrow}(rb1-topwest)
@@ -616,13 +595,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mesh template
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\pic[shift={(4,0,2)}] at (grb0-east) {Ball={name=template,%
+\pic[shift={(-4,0,2)}] at (grb0-west) {Ball={name=template,%
 	fill={rgb:black,5}, logo= ,%
         radius=10}};
-\pic[shift={(4,0,-2)}] at (grb0-east) {Ball={name=template-2,%
+\pic[shift={(-4,0,-2)}] at (grb0-west) {Ball={name=template-2,%
 	fill={rgb:black,5}, logo= ,%
         radius=10}};
-\draw [connection] ([xshift=100] grb0-east) -- node {\midarrow} (grb0-east);
+\draw [connection] ([xshift=-100] grb0-west) -- node {\midarrow} (grb0-west);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Output meshes and images
