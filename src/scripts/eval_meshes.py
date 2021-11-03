@@ -21,8 +21,9 @@ from utils.file_handle import read_dataset_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
+from data.supported_datasets import valid_ids
 
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/"
 EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
 SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 # SURF_NAMES = ("rh_white", "rh_pial")
@@ -32,6 +33,111 @@ PARTNER = {"rh_white": "rh_pial",
            "lh_pial": "lh_white"}
 
 MODES = ('ad_hd', 'thickness')
+
+def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
+             subfolder="meshes"):
+    pred_folder = os.path.join(eval_params['log_path'])
+    if "TRT" not in pred_folder:
+        raise ValueError("Test-Retest evaluation is meant for TRT dataset.")
+
+    # Skip every second scan (was already compared to its predecessor)
+    subject_id, scan_id = mri_id.split("/")
+    scan_id_int = int(scan_id.split("_")[1])
+    if scan_id_int % 2 == 0:
+        return None
+    scan_id_next = f"T1_{str(scan_id_int + 1).zfill(2)}"
+    mri_id_next = "/".join([subject_id, scan_id_next])
+
+    # Load predicted meshes
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path)
+    pred_mesh.remove_duplicate_faces(); pred_mesh.remove_unreferenced_vertices();
+    #
+    pred_mesh_partner_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id_next}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh_partner = trimesh.load(pred_mesh_partner_path)
+    pred_mesh_partner.remove_duplicate_faces(); pred_mesh_partner.remove_unreferenced_vertices();
+
+    # Register to each other with ICP as done by DeepCSR
+    # NOT NECESSARY IF INPUT IS REGISTERED ANYWAY?
+
+    # trans_affine, cost = pred_mesh.register(pred_mesh_partner)
+    # print("Average distance before registration for mesh"
+          # f" {mri_id}, {surf_name}: {cost}")
+    # v_pred_mesh_new = trimesh.transform_points(pred_mesh.vertices,
+                                               # trans_affine.T)
+    # pred_mesh.vertices = v_pred_mesh_new
+    # _, cost = pred_mesh.register(pred_mesh_partner)
+    # print("Average distance after registration for mesh"
+          # f" {mri_id}, {surf_name}: {cost}")
+
+    # Compute ad, hd, percentage > 1mm, percentage > 2mm with pytorch3d
+    pred_mesh = Meshes(
+        [torch.from_numpy(pred_mesh.vertices).float().to(device)],
+        [torch.from_numpy(pred_mesh.faces).long().to(device)]
+    )
+    pred_mesh_partner = Meshes(
+        [torch.from_numpy(pred_mesh_partner.vertices).float().to(device)],
+        [torch.from_numpy(pred_mesh_partner.faces).long().to(device)]
+    )
+
+    # compute with pytorch3d:
+    pred_pcl = sample_points_from_meshes(pred_mesh, 100000)
+    pred_pcl_partner = sample_points_from_meshes(pred_mesh_partner, 100000)
+
+    # compute point to mesh distances and metrics; not exactly the same as
+    # trimesh, it's always a bit larger than the trimesh distances, but a
+    # lot faster.
+    print(f"Computing point to mesh distances for files {pred_mesh_path} and"
+          f" {pred_mesh_partner_path}...")
+    P2G_dist = _point_mesh_face_distance_unidirectional(
+        Pointclouds(pred_pcl_partner), pred_mesh
+    ).cpu().numpy()
+    G2P_dist = _point_mesh_face_distance_unidirectional(
+        Pointclouds(pred_pcl), pred_mesh_partner
+    ).cpu().numpy()
+
+    assd2 = (P2G_dist.sum() + G2P_dist.sum()) / float(P2G_dist.shape[0] + G2P_dist.shape[0])
+    hd2 = max(np.percentile(P2G_dist, 90),
+              np.percentile(G2P_dist, 90))
+    greater_1 = ((P2G_dist > 1).sum() + (G2P_dist > 1).sum()) / float(P2G_dist.shape[0] + G2P_dist.shape[0])
+    greater_2 = ((P2G_dist > 2).sum() + (G2P_dist > 2).sum()) / float(P2G_dist.shape[0] + G2P_dist.shape[0])
+
+    print("\t > Average symmetric surface distance {:.4f}".format(assd2))
+    print("\t > Hausdorff surface distance {:.4f}".format(hd2))
+    print("\t > Greater 1 {:.4f}%".format(greater_1 * 100))
+    print("\t > Greater 2 {:.4f}%".format(greater_2 * 100))
+
+    return assd2, hd2, greater_1, greater_2
+
+def trt_output(results, summary_file):
+    ad = results[:, 0]
+    hd = results[:, 1]
+    greater_1 = results[:, 2]
+    greater_2 = results[:, 3]
+
+    cols_str = ';'.join(
+        ['MEAN_OF_AD', 'STD_OF_AD', 'MEAN_OF_HD', 'STD_OF_HD',
+         'MEAN_OF_>1', 'STD_OF_>1', 'MEAN_OF_>2', 'STD_OF_>2']
+    )
+    mets_str = ';'.join(
+        [str(np.mean(ad)), str(np.std(ad)),
+         str(np.mean(hd)), str(np.std(hd)),
+         str(np.mean(greater_1)), str(np.std(greater_1)),
+         str(np.mean(greater_2)), str(np.std(greater_2))]
+    )
+
+    with open(summary_file, 'w') as output_csv_file:
+        output_csv_file.write(cols_str+'\n')
+        output_csv_file.write(mets_str+'\n')
 
 def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
                        method="ray", subfolder="meshes"):
@@ -385,9 +491,11 @@ def ad_hd_output(results, summary_file):
         output_csv_file.write(mets_str+'\n')
 
 mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
-                    "thickness": eval_thickness_ray}
+                    "thickness": eval_thickness_ray,
+                    "trt": eval_trt}
 mode_to_output_file = {"ad_hd": ad_hd_output,
-                       "thickness": thickness_output}
+                       "thickness": thickness_output,
+                       "trt": trt_output}
 
 
 if __name__ == '__main__':
@@ -402,6 +510,9 @@ if __name__ == '__main__':
                            type=int,
                            help="The number of template vertices for each"
                            " structure that was used during testing.")
+    argparser.add_argument('dataset',
+                           type=str,
+                           help="The dataset.")
     argparser.add_argument('mode',
                            type=str,
                            help="The evaluation to perform, possible values"
@@ -414,14 +525,20 @@ if __name__ == '__main__':
     exp_name = args.exp_name
     epoch = args.epoch
     mode = args.mode
+    dataset = args.dataset
     meshfixed = args.meshfixed
 
     # Provide params
     eval_params = {}
-    eval_params['gt_mesh_path'] = RAW_DATA_DIR
+    eval_params['gt_mesh_path'] = os.path.join(
+        RAW_DATA_DIR, dataset.replace("_small", "").replace("_large", "")
+    )
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
     eval_params['log_path'] = os.path.join(
-        EXPERIMENT_DIR, exp_name, "test_template_" + str(args.n_test_vertices)
+        EXPERIMENT_DIR, exp_name,
+        "test_template_"
+        + str(args.n_test_vertices)
+        + f"_{dataset}"
     )
     eval_params['metrics_csv_prefix'] = "eval_" + mode
 
@@ -431,8 +548,15 @@ if __name__ == '__main__':
     else:
         subfolder = "meshes"
 
+    # Read dataset split
     dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
-    ids = read_dataset_ids(dataset_file)
+
+    # Use all valid ids in the case of test-retest (everything is 'test') and
+    # test split otherwise
+    if mode == 'trt':
+        ids = valid_ids(eval_params['gt_mesh_path'])
+    else:
+        ids = read_dataset_ids(dataset_file)
 
     res_all = []
     res_surfaces = {s: [] for s in SURF_NAMES}
@@ -441,8 +565,9 @@ if __name__ == '__main__':
             result = mode_to_function[mode](
                 mri_id, surf_name, eval_params, epoch, subfolder=subfolder
             )
-            res_all.append(result)
-            res_surfaces[surf_name].append(result)
+            if result is not None:
+                res_all.append(result)
+                res_surfaces[surf_name].append(result)
 
     # Averaged over surfaces
     summary_file = os.path.join(

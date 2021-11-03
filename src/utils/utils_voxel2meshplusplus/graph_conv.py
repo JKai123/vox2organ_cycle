@@ -31,7 +31,9 @@ class GraphConvNorm(GraphConv):
             )
 
     def forward(self, verts, edges):
-        D_inv = 1.0 / torch.unique(edges, return_counts=True)[1].unsqueeze(1)
+        # Normalize with 1 + N(i)
+        # Attention: This requires the edges to be unique!
+        D_inv = 1.0 / (1 + torch.unique(edges, return_counts=True)[1].unsqueeze(1))
         return D_inv * super().forward(verts, edges)
 
 class GeoGraphConvNorm(GeoGraphConv):

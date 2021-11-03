@@ -20,6 +20,19 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm
 )
 
+DATASET_SPLIT_PARAMS = (
+    'DATASET_SEED',
+    'DATASET_SPLIT_PROPORTIONS',
+    'FIXED_SPLIT',
+    'OVERFIT'
+)
+
+DATASET_PARAMS = (
+    'DATASET',
+    'RAW_DATA_DIR',
+    'PREPROCESSED_DATA_DIR'
+)
+
 hyper_ps_default={
 
     # >>> Note: Using tuples (...) instead of lists [...] may lead to problems
@@ -60,6 +73,11 @@ hyper_ps_default={
     # The structure type for cortex data, either 'cerebral_cortex' or
     # 'white_matter'
     'STRUCTURE_TYPE': "white_matter",
+
+    # Check if data has been transformed correctly. This leads potentially to a
+    # larger memory consumption since meshes are voxelized and voxel labels are
+    # loaded (even though only one of them is typically used)
+    'SANITY_CHECK_DATA': True,
 
     # The batch size used during training
     'BATCH_SIZE': 1,
@@ -225,7 +243,8 @@ hyper_ps_default={
     # splitting.
     # If specified, 'DATASET_SEED' and 'DATASET_SPLIT_PROPORTIONS' will be
     # ignored. The dict should contain values for keys 'train', 'validation',
-    # and 'test'.
+    # and 'test'. Alternatively, a list of files can be specified containing
+    # IDs for 'train', 'validation', and 'test'
     'FIXED_SPLIT': False,
 
     # The directory where experiments are stored

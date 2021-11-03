@@ -164,6 +164,10 @@ class MeshesOfMeshes():
     meshes can consist of several distinguishable meshes (often individual
     structures in a scene). Basically, a new dimension 'M' is introduced
     to tensors of vertices and faces.
+    Compared to pytorch3d.structures.Meshes, we do not sort out padded vertices
+    in packed representation but assume that every sub-mesh has the same number
+    of vertices and faces.
+    TODO: Maybe add this functionality in the future.
 
     Shapes of self.faces (analoguously for vertices and normals):
         - padded (N,M,F,3)
@@ -212,7 +216,8 @@ class MeshesOfMeshes():
         return self._faces_padded
 
     def edges_packed(self):
-        """ Based on pytorch3d.structures.Meshes.edges_packed()"""
+        """ Returns unique edges in packed representation.
+        Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
             if self.ndims == 3:
                 # Calculate edges from faces
@@ -222,10 +227,33 @@ class MeshesOfMeshes():
                 e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
                 e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
                 # All edges including duplicates.
-                self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+                edges = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
             else:
                 # 2D equality of faces and edges
-                self._edges_packed = self.faces_packed()
+                edges = self.faces_packed()
+
+            # Sort the edges in increasing vertex order to remove duplicates as
+            # the same edge may appear in different orientations in different
+            # faces.
+            # i.e. rows in edges after sorting will be of the form (v0, v1)
+            # where v1 > v0.
+            # This sorting does not change the order in dim=0.
+            edges, _ = edges.sort(dim=1)
+
+            # Remove duplicate edges: convert each edge (v0, v1) into an
+            # integer hash = V * v0 + v1; this allows us to use the
+            # scalar version of unique which is much faster than
+            # edges.unique(dim=1) which is very slow. After finding
+            # the unique elements reconstruct the vertex indices as:
+            # (v0, v1) = (hash/V, hash % V) The inverse maps from
+            # unique_edges back to edges: unique_edges[inverse_idxs] == edges
+            # i.e. inverse_idxs[i] == j means that edges[i] == unique_edges[j]
+
+            V = self.verts_packed().shape[0]
+            edges_hash = V * edges[:, 0] + edges[:, 1]
+            u, inverse_idxs = torch.unique(edges_hash, return_inverse=True)
+
+            self._edges_packed = torch.stack([u // V, u % V], dim=1)
 
         return self._edges_packed
 
