@@ -67,17 +67,15 @@ def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     pred_mesh_partner.remove_duplicate_faces(); pred_mesh_partner.remove_unreferenced_vertices();
 
     # Register to each other with ICP as done by DeepCSR
-    # NOT NECESSARY IF INPUT IS REGISTERED ANYWAY?
-
-    # trans_affine, cost = pred_mesh.register(pred_mesh_partner)
-    # print("Average distance before registration for mesh"
-          # f" {mri_id}, {surf_name}: {cost}")
-    # v_pred_mesh_new = trimesh.transform_points(pred_mesh.vertices,
-                                               # trans_affine.T)
-    # pred_mesh.vertices = v_pred_mesh_new
-    # _, cost = pred_mesh.register(pred_mesh_partner)
-    # print("Average distance after registration for mesh"
-          # f" {mri_id}, {surf_name}: {cost}")
+    trans_affine, cost = pred_mesh.register(pred_mesh_partner)
+    print("Average distance before registration for mesh"
+          f" {mri_id}, {surf_name}: {cost}")
+    v_pred_mesh_new = trimesh.transform_points(pred_mesh.vertices,
+                                               trans_affine)
+    pred_mesh.vertices = v_pred_mesh_new
+    _, cost = pred_mesh.register(pred_mesh_partner)
+    print("Average distance after registration for mesh"
+          f" {mri_id}, {surf_name}: {cost}")
 
     # Compute ad, hd, percentage > 1mm, percentage > 2mm with pytorch3d
     pred_mesh = Meshes(
