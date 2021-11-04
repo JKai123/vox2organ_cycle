@@ -19,8 +19,8 @@ from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 structures = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 partner = {"lh_white": 2, "rh_white": 3, "lh_pial": 0, "rh_pial": 1}
 suffix = "_reduced_0.3"
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/TRT_CSR_Data/"
-PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/TRT_CSR_Data/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
+PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/OASIS/CSR_data/"
 
 files = valid_ids(RAW_DATA_DIR)
 

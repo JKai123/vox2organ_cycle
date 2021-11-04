@@ -18,6 +18,7 @@ class SupportedDatasets(IntEnum):
     ADNI_CSR_small = 3
     ADNI_CSR_large = 4
     TRT_CSR_Data = 5
+    OASIS = 6
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -25,6 +26,7 @@ class CortexDatasets(IntEnum):
     ADNI_CSR_small = SupportedDatasets.ADNI_CSR_small.value
     ADNI_CSR_large = SupportedDatasets.ADNI_CSR_large.value
     TRT_CSR_Data = SupportedDatasets.TRT_CSR_Data.value
+    OASIS = SupportedDatasets.OASIS.value
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
@@ -60,6 +62,13 @@ dataset_paths = {
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
+    },
+    SupportedDatasets.OASIS.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/",
+        'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/OASIS/CSR_data/",
+        'FIXED_SPLIT': ["OASIS_train.txt",
+                        "OASIS_val.txt",
+                        "OASIS_test.txt"] # Read from files
     },
     SupportedDatasets.TRT_CSR_Data.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/TRT_CSR_Data/",
@@ -102,6 +111,13 @@ def valid_ids_TRT_CSR_Data(candidates: list):
     dataset and return adjusted list.
     """
     valid = [c for c in candidates if re.match(".*subject_.*/T1_.*", c)]
+    return valid
+
+def valid_ids_OASIS(candidates: list):
+    """ Sort out non-valid ids of 'candidates' of samples in the OASIS
+    dataset and return adjusted list.
+    """
+    valid = [c for c in candidates if re.match("OAS1_.*_MR.*", c)]
     return valid
 
 def valid_ids(raw_data_dir: str):

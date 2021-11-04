@@ -22,11 +22,11 @@ from utils.visualization import show_slices
 DEBUG = True
 
 # Input data
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
 
 # Output data
-# OUT_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
-OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
+OUT_DIR = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
+# OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 # Surfaces
 SURFACES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
