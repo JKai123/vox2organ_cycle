@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import trimesh
 import torch
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyntcloud import PyntCloud
 from skimage.measure import find_contours
 
@@ -349,15 +350,20 @@ def show_difference(img_1, img_2, save_path=None):
                     img_2[:, :, shape_2[2]//2]]
     diff = [(i1 != i2).long() for i1, i2 in zip(img_1_slices, img_2_slices)]
 
-    _, axs = plt.subplots(1, len(img_1_slices))
+    fig, axs = plt.subplots(1, len(img_1_slices))
     if len(img_1_slices) == 1:
         axs = [axs]
 
     for i, s in enumerate(img_1_slices):
         axs[i].imshow(s, cmap="gray")
 
-    for i, l in enumerate(diff):
-        axs[i].imshow(l, cmap="OrRd", alpha=0.6)
+    for i, (l, ax) in enumerate(zip(diff, axs)):
+        im = ax.imshow(l, cmap="OrRd", alpha=0.6)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+
+    fig.tight_layout()
 
     plt.suptitle("Difference")
     if save_path is None:
