@@ -54,6 +54,7 @@ from data.dataset import (
 from data.supported_datasets import (
     valid_ids,
     valid_ids_ADNI_CSR,
+    valid_ids_OASIS,
 )
 from data.cortex_labels import (
     combine_labels,
@@ -647,7 +648,7 @@ class Cortex(DatasetHandler):
             elif isinstance(fixed_split, Sequence):
                 assert len(fixed_split) == 3,\
                         "Should contain one file per split"
-                convert = lambda x: str(int(x)) # 'x\n' --> 'x'
+                convert = lambda x: x[:-1] # 'x\n' --> 'x'
                 train_split = os.path.join(raw_data_dir, fixed_split[0])
                 files_train = list(map(convert, open(train_split, 'r').readlines()))
                 val_split = os.path.join(raw_data_dir, fixed_split[1])
@@ -655,11 +656,16 @@ class Cortex(DatasetHandler):
                 test_split = os.path.join(raw_data_dir, fixed_split[2])
                 files_test = list(map(convert, open(test_split, 'r').readlines()))
                 # Choose valid
-                if "ADNI" not in raw_data_dir:
+                if "ADNI" in raw_data_dir:
+                    files_train = valid_ids_ADNI_CSR(files_train)
+                    files_val = valid_ids_ADNI_CSR(files_val)
+                    files_test = valid_ids_ADNI_CSR(files_test)
+                elif "OASIS" in raw_data_dir:
+                    files_train = valid_ids_OASIS(files_train)
+                    files_val = valid_ids_OASIS(files_val)
+                    files_test = valid_ids_OASIS(files_test)
+                else:
                     raise NotImplementedError()
-                files_train = valid_ids_ADNI_CSR(files_train)
-                files_val = valid_ids_ADNI_CSR(files_val)
-                files_test = valid_ids_ADNI_CSR(files_test)
             else:
                 raise TypeError("Wrong type of parameter 'fixed_split'."
                                 f" Got {type(fixed_split)} but should be"
