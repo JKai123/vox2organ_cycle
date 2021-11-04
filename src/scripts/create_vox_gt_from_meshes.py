@@ -49,15 +49,21 @@ for fn in tqdm(filenames, position=0, leave=True,
     # Read meshes
     voxelized_meshes = []
     for s in SURFACES:
+        out_file = os.path.join(OUT_DIR, fn, s + ".nii.gz")
+        if os.path.exists(out_file):
+            print(f"File {out_file} already exists, skipping.")
+            continue
         try:
             mesh_file = os.path.join(mesh_folder, s + ".ply")
             mesh = trimesh.load(mesh_file)
         except ValueError:
-            mesh_file = os.path.join(mesh_folder, s + ".stl")
-            mesh = trimesh.load(mesh_file)
-        except:
-            print("Cannot load mesh {mesh_file}, skipping.")
-            continue
+            try:
+                mesh_file = os.path.join(mesh_folder, s + ".stl")
+                mesh = trimesh.load(mesh_file)
+            except:
+                print(f"Cannot load mesh {mesh_file}, skipping.")
+                continue
+
         # World --> voxel coordinates
         voxel_verts, voxel_faces = transform_mesh_affine(
             mesh.vertices, mesh.faces, world2vox_affine
@@ -73,13 +79,9 @@ for fn in tqdm(filenames, position=0, leave=True,
 
         # Write
         out_img = nib.Nifti1Image(vox, vox2world_affine)
-        out_file = os.path.join(OUT_DIR, fn, s + ".nii.gz")
-        if not os.path.exists(out_file):
-            nib.save(out_img, out_file)
-        else:
-            print(f"File {out_file} already exists, skipping.")
+        nib.save(out_img, out_file)
 
-    if DEBUG:
+    if DEBUG and len(voxelized_meshes) > 0:
         mri = orig.get_fdata()
         shape = mri.shape
         mri_slice1 = mri[int(shape[0]/4), :, :]
