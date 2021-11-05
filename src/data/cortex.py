@@ -402,11 +402,10 @@ class Cortex(DatasetHandler):
                 # Store affine transformations
                 self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
 
-            # Voxelize meshes if voxel labels have not been created so far or
-            # if sanity checks should be performed and voxelized meshes do not
-            # yet exist
-            if (self.voxel_labels is None or
-                (self.voxelized_meshes is None and self.sanity_checks)):
+            # Voxelize meshes if voxelized meshes have not been created so far
+            # and they are required (for sanity checks or as labels)
+            if (self.voxelized_meshes is None and (
+                sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
                 self.voxelized_meshes = self._create_voxel_labels_from_meshes(
                     self.mesh_labels
                 )
@@ -425,7 +424,7 @@ class Cortex(DatasetHandler):
                               " voxelized mesh label, check files at ../to_check/")
 
             # Use voxelized meshes as voxel ground truth
-            if self.voxel_labels == 'voxelized_meshes':
+            if self.seg_ground_truth == 'voxelized_meshes':
                 self.voxel_labels = self.voxelized_meshes
 
             return
@@ -650,11 +649,24 @@ class Cortex(DatasetHandler):
                         "Should contain one file per split"
                 convert = lambda x: x[:-1] # 'x\n' --> 'x'
                 train_split = os.path.join(raw_data_dir, fixed_split[0])
-                files_train = list(map(convert, open(train_split, 'r').readlines()))
+                try:
+                    files_train = list(map(convert, open(train_split, 'r').readlines()))
+                except:
+                    files_train = []
+                    print("[Warning] No training files.")
                 val_split = os.path.join(raw_data_dir, fixed_split[1])
-                files_val = list(map(convert, open(val_split, 'r').readlines()))
+                try:
+                    files_val = list(map(convert, open(val_split, 'r').readlines()))
+                except:
+                    files_val = []
+                    print("[Warning] No validation files.")
                 test_split = os.path.join(raw_data_dir, fixed_split[2])
-                files_test = list(map(convert, open(test_split, 'r').readlines()))
+                try:
+                    files_test = list(map(convert, open(test_split, 'r').readlines()))
+                except:
+                    files_test = []
+                    print("[Warning] No test files.")
+
                 # Choose valid
                 if "ADNI" in raw_data_dir:
                     files_train = valid_ids_ADNI_CSR(files_train)
