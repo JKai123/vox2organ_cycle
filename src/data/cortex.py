@@ -1369,10 +1369,8 @@ class Cortex(DatasetHandler):
                 try:
                     morph_label = nib.freesurfer.io.read_morph_data(morph_fn)
                 except Exception as e:
-                    # If dataset is test split, insert dummy if file could not
+                    # Insert dummy if file could not
                     # be found
-                    if self._mode != DataModes.TEST:
-                        raise e
                     morph_label = np.zeros(self.mesh_labels[
                         self._files.index(fn)
                     ].vertices[self.mesh_label_names.index(mn)].shape[0])
