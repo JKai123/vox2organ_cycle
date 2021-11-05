@@ -19,6 +19,7 @@ class SupportedDatasets(IntEnum):
     ADNI_CSR_large = 4
     TRT_CSR_Data = 5
     OASIS = 6
+    ADNI_CSR_fail = 7
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -27,6 +28,7 @@ class CortexDatasets(IntEnum):
     ADNI_CSR_large = SupportedDatasets.ADNI_CSR_large.value
     TRT_CSR_Data = SupportedDatasets.TRT_CSR_Data.value
     OASIS = SupportedDatasets.OASIS.value
+    ADNI_CSR_fail = SupportedDatasets.ADNI_CSR_fail.value
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
@@ -62,6 +64,11 @@ dataset_paths = {
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
+    },
+    SupportedDatasets.ADNI_CSR_fail.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'FIXED_SPLIT': ["", "", "fail_scans.txt"] # Read from files
     },
     SupportedDatasets.OASIS.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/",
