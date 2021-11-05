@@ -263,6 +263,11 @@
 \draw [connection] (co-split01)
 	-- (fv1-west -| co-split01)
 	-- node {\midarrow} (fv1-west);
+\node (rec01) [draw=black, anchor=north]  at ([yshift=-20] gcat01-south) {\huge NNs, ID};
+\draw [connection] ([xshift=10] grb0-east)
+	-- ([xshift=10] grb0-east |- rec01.west)
+	-- node {\midarrow} (rec01.west);
+\draw [connection] (rec01.north) -- node {\midarrow} (gcat01-south);
 %%
 \path (grb1-east) -- (grb2-west) coordinate[pos=0.5] (co-gcat02);
 \pic at (co-gcat02) {Ball={name=gcat02,%
@@ -279,6 +284,11 @@
 	-- node {\midarrow} (co-split02a)
 	-- node {\midarrow} (gcat02-south);
 \draw [connection, -Stealth] (co-split02a) -- coordinate (mout-01) ([yshift=-20] co-split02a);
+\node (rec02) [draw=black, anchor=south west]  at ([xshift=20, yshift=20] co-split02a) {\huge NNs, ID};
+\draw [connection] (co-split02a)
+	-- node {\midarrow} (co-split02a -| rec02.south)
+	-- (rec02.south);
+\draw [connection] (rec02.north) -- node {\midarrow} (gcat02-south);
 %%
 \path (grb2-east) -- (grb3-west) coordinate[pos=0.5] (co-gcat03);
 \pic at (co-gcat03) {Ball={name=gcat03,%
@@ -295,6 +305,11 @@
 	-- node {\midarrow} (co-split03a)
 	-- node {\midarrow} (gcat03-south);
 \draw [connection, -Stealth] (co-split03a) -- coordinate (mout-02) ([yshift=-20] co-split03a);
+\node (rec03) [draw=black, anchor=south west]  at ([xshift=20, yshift=20] co-split03a) {\huge NNs, ID};
+\draw [connection] (co-split03a)
+	-- node {\midarrow} (co-split03a -| rec03.south)
+	-- (rec03.south);
+\draw [connection] (rec03.north) -- node {\midarrow} (gcat03-south);
 %%
 \path (grb3-east) -- (grb4-west) coordinate[pos=0.5] (co-gcat04);
 \pic at (co-gcat04) {Ball={name=gcat04,%
@@ -309,6 +324,11 @@
 	-- node {\midarrow} (co-split04a)
 	-- node {\midarrow} (gcat04-south);
 \draw [connection, -Stealth] (co-split04a) -- coordinate (mout-03) ([yshift=-20] co-split04a);
+\node (rec04) [draw=black, anchor=south west]  at ([xshift=20, yshift=20] co-split04a) {\huge NNs, ID};
+\draw [connection] (co-split04a)
+	-- node {\midarrow} (co-split04a -| rec04.south)
+	-- (rec04.south);
+\draw [connection] (rec04.north) -- node {\midarrow} (gcat04-south);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Draw features to graph cat
