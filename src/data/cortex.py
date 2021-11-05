@@ -134,6 +134,8 @@ class Cortex(DatasetHandler):
 
     It loads all data specified by 'ids' directly into memory.
 
+    ATTENTION: 2D and patch behavior is deprecated!!!
+
     :param list ids: The ids of the files the dataset split should contain, example:
         ['1000_3', '1001_3',...]
     :param DataModes datamode: TRAIN, VALIDATION, or TEST
