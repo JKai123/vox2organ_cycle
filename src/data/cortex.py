@@ -231,7 +231,7 @@ class Cortex(DatasetHandler):
         ) else len(self.voxelized_mesh_label_names) + 1
 
         # Sanity checks to make sure data is transformed correctly
-        self.sanity_checks = kwargs.get("sanity_check_data", False)
+        self.sanity_checks = kwargs.get("sanity_check_data", True)
 
         # Freesurfer meshes of desired resolution
         if reduced_freesurfer is not None:
