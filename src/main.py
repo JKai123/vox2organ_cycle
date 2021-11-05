@@ -48,7 +48,7 @@ hyper_ps = {
     'DATASET_SEED': 1532,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     # Learning
-    'EVAL_EVERY': 10,
+    'EVAL_EVERY': 5,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
