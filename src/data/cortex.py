@@ -407,7 +407,7 @@ class Cortex(DatasetHandler):
             # Voxelize meshes if voxelized meshes have not been created so far
             # and they are required (for sanity checks or as labels)
             if (self.voxelized_meshes is None and (
-                sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
+                self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
                 self.voxelized_meshes = self._create_voxel_labels_from_meshes(
                     self.mesh_labels
                 )
@@ -1176,7 +1176,8 @@ class Cortex(DatasetHandler):
         return centroids, radii, radii_x, radii_y, radii_z
 
     def _load_dataMesh_raw(self, meshnames):
-        """ Load mesh such that it's registered to the respective 3D image
+        """ Load mesh such that it's registered to the respective 3D image. If
+        a mesh cannot be found, a dummy is inserted if it is a test split.
         """
         data = []
         assert len(self.trans_affine) == 0, "Should be empty."
@@ -1196,9 +1197,17 @@ class Cortex(DatasetHandler):
                         self._raw_data_dir, fn, mn + ".stl"
                     ))
                 except ValueError:
-                    mesh = trimesh.load_mesh(os.path.join(
-                        self._raw_data_dir, fn, mn + ".ply"
-                    ))
+                    try:
+                        mesh = trimesh.load_mesh(os.path.join(
+                            self._raw_data_dir, fn, mn + ".ply"
+                        ))
+                    except Exception as e:
+                        # Insert a dummy if dataset is test split
+                        if self._mode != DataModes.TEST:
+                            raise e
+                        print(f"[Warning] No mesh for file {fn}/{mn},"
+                              " inserting dummy.")
+                        mesh = trimesh.creation.icosahedron()
                 # World --> voxel coordinates
                 voxel_verts, voxel_faces = transform_mesh_affine(
                     mesh.vertices, mesh.faces, world2vox_affine
@@ -1357,7 +1366,17 @@ class Cortex(DatasetHandler):
                 # Filenames have form 'lh_white_reduced_0.x.thickness'
                 morph_fn = mn + "." + morphology
                 morph_fn = os.path.join(file_dir, morph_fn)
-                morph_label = nib.freesurfer.io.read_morph_data(morph_fn)
+                try:
+                    morph_label = nib.freesurfer.io.read_morph_data(morph_fn)
+                except Exception as e:
+                    # If dataset is test split, insert dummy if file could not
+                    # be found
+                    if self._mode != DataModes.TEST:
+                        raise e
+                    morph_label = np.zeros(self.mesh_labels[
+                        self._files.index(fn)
+                    ].vertices[self.mesh_label_names.index(mn)].shape[0])
+
                 file_labels.append(
                     torch.from_numpy(morph_label.astype(np.float32))
                 )

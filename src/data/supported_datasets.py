@@ -98,19 +98,7 @@ def valid_ids_ADNI_CSR(candidates: list):
     """ Sort out non-valid ids of 'candidates' of samples in the ADNI_CSR
     dataset and return adjusted list.
     """
-    raw_data_dir = "/mnt/nas/Data_Neuro/ADNI_CSR/"
-    convert = lambda x: str(int(x)) # 'x\n' --> 'x'
-    train_split = os.path.join(raw_data_dir, 'train_large.txt')
-    files_train = list(map(convert, list(open(train_split, 'r').readlines())))
-    val_split = os.path.join(raw_data_dir, 'val_large.txt')
-    files_val = list(map(convert, list(open(val_split, 'r').readlines())))
-    test_split = os.path.join(raw_data_dir, 'test_large.txt')
-    files_test = list(map(convert, list(open(test_split, 'r').readlines())))
-    adni_valid_orig = files_train + files_val + files_test
-    adni_valid_preprocessed =\
-        os.listdir("/home/fabianb/data/preprocessed/ADNI_CSR/")
-    adni_valid = set(adni_valid_orig).intersection(adni_valid_preprocessed)
-    valid = [c for c in candidates if c in adni_valid]
+    valid = [c for c in candidates if c.isdigit()]
     return valid
 
 def valid_ids_TRT_CSR_Data(candidates: list):
