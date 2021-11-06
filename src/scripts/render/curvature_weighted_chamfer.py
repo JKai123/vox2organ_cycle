@@ -27,7 +27,9 @@ curv = curv_from_cotcurv_laplacian(
     torch.from_numpy(verts),
     torch.from_numpy(faces)
 )
-weights = torch.minimum(1 + curv, torch.tensor(5.0))
+# weights = torch.minimum(1 + curv, torch.tensor(5.0))
+max_weight = 5.
+weights = torch.minimum(curv, torch.tensor(max_weight))
 np.save("../misc/weights.npz", weights)
 
 # Extract patch
@@ -35,7 +37,8 @@ np.save("../misc/weights.npz", weights)
 # Display
 pv.set_plot_theme('doc')
 plotter = pv.Plotter()
-plotter.add_mesh(mesh, scalars=weights, cmap='hot')
+plotter.add_mesh(mesh, scalars=weights, cmap='plasma', clim=[0, max_weight],
+                 smooth_shading=True)
 
 fn = "../misc/curv_weighted_chamfer.png"
 plotter.show(screenshot=fn)
