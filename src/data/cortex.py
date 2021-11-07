@@ -418,9 +418,10 @@ class Cortex(DatasetHandler):
                                                  self.voxelized_meshes)):
                     iou = Jaccard(vl.cuda(), vm.cuda(), 2)
                     if iou < 0.85:
+                        out_fn = self._files[i].replace("/", "_")
                         show_difference(
                             vl,  vm,
-                            f"../to_check/diff_mesh_voxel_label_{self._files[i]}.png"
+                            f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
                         )
                         print(f"[Warning] Small IoU ({iou}) of voxel label and"
                               " voxelized mesh label, check files at ../to_check/")
