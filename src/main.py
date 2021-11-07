@@ -123,8 +123,8 @@ hyper_ps_cortex = {
     'N_EPOCHS': 100,
     'AUGMENT_TRAIN': False,
     'BATCH_SIZE': 2,
-    'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
+        # 'P_DROPOUT': 0.3,
         'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
