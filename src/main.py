@@ -239,7 +239,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
     and 'white_matter' in hyper_ps_cortex['STRUCTURE_TYPE']):
     if hyper_ps_cortex['PATCH_MODE'] == "no":
         # Save some memory
-        # hyper_ps_cortex['SANITY_CHECK_DATA'] = False
+        hyper_ps_cortex['SANITY_CHECK_DATA'] = False
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
         # weights should respect this order!
         hyper_ps_cortex['MESH_LOSS_FUNC_WEIGHTS'] = [
