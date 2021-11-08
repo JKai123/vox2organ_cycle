@@ -36,6 +36,7 @@ dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 28000,
         # 'FIXED_SPLIT': {
             # 'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
                       # '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
@@ -58,11 +59,13 @@ dataset_paths = {
     SupportedDatasets.ADNI_CSR_small.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["train_small.txt", "val_small.txt", "test_small.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_large.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
@@ -70,6 +73,7 @@ dataset_paths = {
     SupportedDatasets.ADNI_CSR_orig.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 27000,
         'FIXED_SPLIT': ["orig_split_train.txt",
                         "orig_split_val.txt",
                         "orig_split_test.txt"] # Read from files
@@ -82,6 +86,7 @@ dataset_paths = {
     SupportedDatasets.OASIS.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/OASIS/CSR_data/",
+        'N_REF_POINTS_PER_STRUCTURE': 26100,
         'FIXED_SPLIT': ["OASIS_train.txt",
                         "OASIS_val.txt",
                         "OASIS_test.txt"] # Read from files
