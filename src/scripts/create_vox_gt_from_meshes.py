@@ -22,10 +22,10 @@ from utils.visualization import show_slices
 DEBUG = True
 
 # Input data
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 
 # Output data
-OUT_DIR = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
+OUT_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 # OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 # Surfaces
@@ -69,7 +69,7 @@ for fn in tqdm(filenames, position=0, leave=True,
             mesh.vertices, mesh.faces, world2vox_affine
         )
         # Voxelize
-        vox = np.zeros_like(orig.get_fdata(), dtype=int)
+        vox = np.zeros_like(orig.get_fdata(), dtype=np.uint8)
         occ = Mesh(voxel_verts, voxel_faces).get_occupied_voxels(
             orig.get_fdata().shape
         )
