@@ -255,10 +255,12 @@ class Cortex(DatasetHandler):
         for i, img in enumerate(self.images):
             self.images[i] = normalize_min_max(img)
 
+        # Do not store meshes in train split
+        remove_meshes = self._mode == DataModes.TRAIN
         # Point, normal, and potentially curvature labels
         self.point_labels,\
                 self.normal_labels,\
-                self.curvatures = self._load_ref_points()
+                self.curvatures = self._load_ref_points_all(remove_meshes)
 
         assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
@@ -892,11 +894,8 @@ class Cortex(DatasetHandler):
             faces = np.array([]) # Empty, not used
             curvs = np.array([]) # Empty, not used
         elif target_type == 'mesh':
-            points = self.point_labels[index]
-            normals = self.normal_labels[index]
+            points, normals, curvs = self._get_ref_points_from_index(index)
             faces = np.array([]) # Empty, not used
-            curvs = self.curvatures[index]\
-                    if self.provide_curvatures else np.array([])
         elif target_type == 'full_mesh':
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
@@ -1318,43 +1317,65 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_ref_points(self):
-        """ Sample surface points from meshes """
+    def _get_ref_points_from_index(self, index):
+        """ Choose n reference points together with their normals and
+        curvature. """
+        # Points/vertices
+        p, idx = choose_n_random_points(
+            self.point_labels[index],
+            self.n_ref_points_per_structure,
+            return_idx=True,
+            # Ignoring padded vertices is only possible if the
+            # number of required vertices is smaller than the
+            # minimum number of vertices in the dataset
+            ignore_padded=(self.n_ref_points_per_structure <
+                           self.n_min_vertices)
+        )
+        # Normals
+        n = self.normal_labels[index][idx.unbind(1)].view(
+            self.n_m_classes, -1, 3
+        )
+        # Curvature
+        if self.provide_curvatures:
+            c = self.curvatures[index][idx.unbind(1)].view(
+                self.n_m_classes, -1, 1
+            )
+        else:
+            c = np.array([])
+
+        return p, n, c
+
+
+    def _load_ref_points_all(self, remove_meshes=False):
+        """ Sample surface points from meshes and optionally remove them (to
+        save memory)"""
         points, normals = [], []
         curvs = [] if self.provide_curvatures else None
-        for m in self.mesh_labels:
+        for i, m in tqdm(enumerate(self.mesh_labels), leave=True, position=0,
+                      desc="Get point labels from meshes..."):
             if self.ndims == 3:
                 if self.provide_curvatures:
                     # Choose a certain number of vertices
                     m_ = m.to_pytorch3d_Meshes()
-                    p, idx = choose_n_random_points(
-                        m_.verts_padded(),
-                        self.n_ref_points_per_structure,
-                        return_idx=True,
-                        # Ignoring padded vertices is only possible if the
-                        # number of required vertices is smaller than the
-                        # minimum number of vertices in the dataset
-                        ignore_padded=(self.n_ref_points_per_structure <
-                                       self.n_min_vertices)
-                    )
+                    p = m_.verts_padded()
                     # Choose normals with the same indices as vertices
-                    n = m_.verts_normals_padded()[idx.unbind(1)].view(
-                        self.n_m_classes, -1, 3
-                    )
+                    n = m_.verts_normals_padded()
                     # Choose curvatures with the same indices as vertices
                     c = curv_from_cotcurv_laplacian(
                         m_.verts_packed(), m_.faces_packed()
-                    ).view(
-                        self.n_m_classes, -1, 1
-                    )[idx.unbind(1)].view(
-                        self.n_m_classes, -1, 1
-                    )
+                    ).view(self.n_m_classes, -1, 1)
                     # Sanity check
                     assert torch.allclose(
                         m_.verts_normals_padded(), m.normals, atol=1e-05
                     ), "Inconsistent normals!"
+
+                    # Remove to save memory
+                    if remove_meshes:
+                        self.mesh_labels[i] = None
+
                 else: # No curvatures
-                    # Sample from mesh surface
+                    # Sample from mesh surface, probably less memory efficient
+                    # than with curvatures
                     p, n = sample_points_from_meshes(
                         m.to_pytorch3d_Meshes(),
                         self.n_ref_points_per_structure,
