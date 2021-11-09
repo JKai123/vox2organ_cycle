@@ -99,7 +99,10 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool,
             center_z, center_y, center_x = crop_at
         img = crop(img, (D_new, H_new, W_new), (center_z, center_y, center_x))
         if isinstance(img, np.ndarray):
-            img = torch.from_numpy(img).float()
+            if is_label:
+                img = torch.from_numpy(img).long()
+            else:
+                img = torch.from_numpy(img).float()
         transform_affine[:-1,-1] = offset_due_to_padding_and_shift(
             (center_z, center_y, center_x), patch_size
         )
