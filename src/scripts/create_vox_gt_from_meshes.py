@@ -25,8 +25,8 @@ DEBUG = True
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
 
 # Output data
-# OUT_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
-OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
+OUT_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+# OUT_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 # Surfaces
 SURFACES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
@@ -69,7 +69,7 @@ for fn in tqdm(filenames, position=0, leave=True,
             mesh.vertices, mesh.faces, world2vox_affine
         )
         # Voxelize
-        vox = np.zeros_like(orig.get_fdata(), dtype=int)
+        vox = np.zeros_like(orig.get_fdata(), dtype=np.uint8)
         occ = Mesh(voxel_verts, voxel_faces).get_occupied_voxels(
             orig.get_fdata().shape
         )

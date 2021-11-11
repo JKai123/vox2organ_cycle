@@ -99,6 +99,10 @@ hyper_ps_default={
     # resolution (in terms of number of vertices)
     'REDUCED_FREESURFER': 1.0,
 
+    # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
+    # labels
+    'SEG_GROUND_TRUTH': 'voxelized_meshes',
+
     # Whether to use curvatures of the meshes. If set to True, the ground truth
     # points are vertices and not sampled surface points
     'PROVIDE_CURVATURES': False,

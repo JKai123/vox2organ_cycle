@@ -18,6 +18,9 @@ class SupportedDatasets(IntEnum):
     ADNI_CSR_small = 3
     ADNI_CSR_large = 4
     TRT_CSR_Data = 5
+    OASIS = 6
+    ADNI_CSR_fail = 7
+    ADNI_CSR_orig = 8
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -25,11 +28,15 @@ class CortexDatasets(IntEnum):
     ADNI_CSR_small = SupportedDatasets.ADNI_CSR_small.value
     ADNI_CSR_large = SupportedDatasets.ADNI_CSR_large.value
     TRT_CSR_Data = SupportedDatasets.TRT_CSR_Data.value
+    OASIS = SupportedDatasets.OASIS.value
+    ADNI_CSR_fail = SupportedDatasets.ADNI_CSR_fail.value
+    ADNI_CSR_orig = SupportedDatasets.ADNI_CSR_orig.value
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 28000,
         # 'FIXED_SPLIT': {
             # 'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
                       # '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
@@ -52,14 +59,37 @@ dataset_paths = {
     SupportedDatasets.ADNI_CSR_small.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["train_small.txt", "val_small.txt", "test_small.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_large.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
+    },
+    SupportedDatasets.ADNI_CSR_orig.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'N_REF_POINTS_PER_STRUCTURE': 27000,
+        'FIXED_SPLIT': ["orig_split_train.txt",
+                        "orig_split_val.txt",
+                        "orig_split_test.txt"] # Read from files
+    },
+    SupportedDatasets.ADNI_CSR_fail.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
+        'FIXED_SPLIT': ["", "", "fail_scans.txt"] # Read from files
+    },
+    SupportedDatasets.OASIS.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/",
+        'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/OASIS/CSR_data/",
+        'N_REF_POINTS_PER_STRUCTURE': 26100,
+        'FIXED_SPLIT': ["OASIS_train.txt",
+                        "OASIS_val.txt",
+                        "OASIS_test.txt"] # Read from files
     },
     SupportedDatasets.TRT_CSR_Data.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/TRT_CSR_Data/",
@@ -82,19 +112,7 @@ def valid_ids_ADNI_CSR(candidates: list):
     """ Sort out non-valid ids of 'candidates' of samples in the ADNI_CSR
     dataset and return adjusted list.
     """
-    raw_data_dir = "/mnt/nas/Data_Neuro/ADNI_CSR/"
-    convert = lambda x: str(int(x)) # 'x\n' --> 'x'
-    train_split = os.path.join(raw_data_dir, 'train_large.txt')
-    files_train = list(map(convert, list(open(train_split, 'r').readlines())))
-    val_split = os.path.join(raw_data_dir, 'val_large.txt')
-    files_val = list(map(convert, list(open(val_split, 'r').readlines())))
-    test_split = os.path.join(raw_data_dir, 'test_large.txt')
-    files_test = list(map(convert, list(open(test_split, 'r').readlines())))
-    adni_valid_orig = files_train + files_val + files_test
-    adni_valid_preprocessed =\
-        os.listdir("/home/fabianb/data/preprocessed/ADNI_CSR/")
-    adni_valid = set(adni_valid_orig).intersection(adni_valid_preprocessed)
-    valid = [c for c in candidates if c in adni_valid]
+    valid = [c for c in candidates if c.isdigit()]
     return valid
 
 def valid_ids_TRT_CSR_Data(candidates: list):
@@ -102,6 +120,13 @@ def valid_ids_TRT_CSR_Data(candidates: list):
     dataset and return adjusted list.
     """
     valid = [c for c in candidates if re.match(".*subject_.*/T1_.*", c)]
+    return valid
+
+def valid_ids_OASIS(candidates: list):
+    """ Sort out non-valid ids of 'candidates' of samples in the OASIS
+    dataset and return adjusted list.
+    """
+    valid = [c for c in candidates if re.match("OAS1_.*_MR.*", c)]
     return valid
 
 def valid_ids(raw_data_dir: str):

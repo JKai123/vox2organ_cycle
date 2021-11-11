@@ -528,8 +528,14 @@ if __name__ == '__main__':
 
     # Provide params
     eval_params = {}
+    if "OASIS" in dataset:
+        subdir = "CSR_data"
+    else:
+        subdir = ""
     eval_params['gt_mesh_path'] = os.path.join(
-        RAW_DATA_DIR, dataset.replace("_small", "").replace("_large", "")
+        RAW_DATA_DIR,
+        dataset.replace("_small", "").replace("_large", ""),
+        subdir
     )
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
     eval_params['log_path'] = os.path.join(

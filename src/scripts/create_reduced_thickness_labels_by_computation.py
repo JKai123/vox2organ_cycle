@@ -19,8 +19,8 @@ from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 structures = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 partner = {"lh_white": 2, "rh_white": 3, "lh_pial": 0, "rh_pial": 1}
 suffix = "_reduced_0.3"
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/TRT_CSR_Data/"
-PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/TRT_CSR_Data/"
+RAW_DATA_DIR = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+PREPROCESSED_DIR = "/home/fabianb/data/preprocessed/ADNI_CSR/"
 
 files = valid_ids(RAW_DATA_DIR)
 
@@ -32,6 +32,14 @@ for fn in files:
     if not os.path.isdir(prep_dir):
         os.makedirs(prep_dir)
     for struc in structures:
+        red_th_name = os.path.join(
+            PREPROCESSED_DIR, fn, struc + suffix + ".thickness"
+        )
+        # Do not overwrite
+        if os.path.isfile(red_th_name):
+            print(f"File {red_th_name} exists, skipping.")
+            continue
+
         # Filenames
         try:
             red_mesh_name = os.path.join(
@@ -76,9 +84,6 @@ for fn in files:
         ).cpu().squeeze().numpy()
 
         # Write
-        red_th_name = os.path.join(
-            PREPROCESSED_DIR, fn, struc + suffix + ".thickness"
-        )
         nib.freesurfer.io.write_morph_data(red_th_name, point_to_face)
 
         print("Created label for file ", fn + "/" + struc)

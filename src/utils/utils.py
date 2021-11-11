@@ -151,11 +151,13 @@ def update_dict(d, u):
     :returns: The updated dict.
     """
 
-    for k, v in u.items():
-        if isinstance(v, collections.abc.Mapping):
-            d[k] = update_dict(d.get(k, {}), v)
+    for k, v_u in u.items():
+        if isinstance(v_u, collections.abc.Mapping):
+            v_d = d.get(k, {})
+            v_d = v_d if isinstance(v_d, collections.abc.Mapping) else {}
+            d[k] = update_dict(v_d, v_u)
         else:
-            d[k] = v
+            d[k] = v_u
     return d
 
 def string_dict(d: dict):

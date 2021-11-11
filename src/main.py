@@ -48,7 +48,7 @@ hyper_ps = {
     'DATASET_SEED': 1532,
     'DATASET_SPLIT_PROPORTIONS': [50, 25, 25],
     # Learning
-    'EVAL_EVERY': 10,
+    'EVAL_EVERY': 3,
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
@@ -123,8 +123,8 @@ hyper_ps_cortex = {
     'N_EPOCHS': 100,
     'AUGMENT_TRAIN': False,
     'BATCH_SIZE': 2,
-    'P_DROPOUT': 0.3,
     'MODEL_CONFIG': {
+        # 'P_DROPOUT': 0.3,
         'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
@@ -156,7 +156,6 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
             hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             ## Small
             # hyper_ps_cortex['PATCH_ORIGIN'] = [30, 128, 60]
             # hyper_ps_cortex['PATCH_SIZE'] = [64, 64, 64]
@@ -186,7 +185,6 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'white_matter':
             hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
             hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/white_matter/cortex_white_matter_icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else: # 2D
@@ -208,14 +206,12 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
             hyper_ps_cortex['PATCH_SIZE'] = [64, 144, 128]
             hyper_ps_cortex['SELECT_PATCH_SIZE'] = [96, 208, 192]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             hyper_ps_cortex['N_M_CLASSES'] = 1
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
         elif hyper_ps_cortex['PATCH_MODE'] == "multi-patch":
             hyper_ps_cortex['PATCH_SIZE'] = [48, 48, 48]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 10242
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 11000
             hyper_ps_cortex['N_M_CLASSES'] = 1
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/spheres/icosahedron_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
@@ -223,7 +219,6 @@ if hyper_ps_cortex['STRUCTURE_TYPE'] == 'cerebral_cortex':
             hyper_ps_cortex['N_M_CLASSES'] = 2
             hyper_ps_cortex['PATCH_SIZE'] = [128, 144, 128]
             hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 40962
-            hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 28000
             hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
                 f"../supplementary_material/white_matter/cortex_white_matter_convex_both_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}.obj"
     else: # 2D
@@ -266,7 +261,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 42016
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26800
+        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26100 # see data.supported_datasets
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/white_pial/cortex_4_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}.obj"
     elif hyper_ps_cortex['PATCH_MODE'] == "single-patch":
@@ -293,7 +288,7 @@ if ('cerebral_cortex' in hyper_ps_cortex['STRUCTURE_TYPE']
         hyper_ps_cortex['MESH_TYPE'] = 'freesurfer'
         hyper_ps_cortex['REDUCED_FREESURFER'] = 0.3
         hyper_ps_cortex['N_TEMPLATE_VERTICES'] = 41602
-        hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26800
+        # hyper_ps_cortex['N_REF_POINTS_PER_STRUCTURE'] = 26100 # see data.supported_datasets
         hyper_ps_cortex['MODEL_CONFIG']['MESH_TEMPLATE'] =\
             f"../supplementary_material/rh_white_pial/cortex_2_1000_3_smoothed_{hyper_ps_cortex['N_TEMPLATE_VERTICES']}_sps{hyper_ps_cortex['SELECT_PATCH_SIZE']}_ps{hyper_ps_cortex['PATCH_SIZE']}_po{hyper_ps_cortex['PATCH_ORIGIN']}.obj"
     else:
