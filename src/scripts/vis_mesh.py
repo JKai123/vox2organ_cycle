@@ -16,6 +16,10 @@ def vis_mesh():
                         nargs='+',
                         type=str,
                         help="The filenames or the name of one folder to visualize.")
+    parser.add_argument('--values',
+                        nargs='*',
+                        type=str,
+                        help="Values to map on vertices.")
     parser.add_argument('--opacity',
                         type=float,
                         default=1.0,
@@ -31,7 +35,8 @@ def vis_mesh():
         filenames = args.filenames[0]
     else:
         filenames = args.filenames
-    show_pointcloud(filenames, backend=args.backend, opacity=args.opacity)
+    show_pointcloud(filenames, backend=args.backend, opacity=args.opacity,
+                    values=args.values)
 
 
 if __name__ == "__main__":
