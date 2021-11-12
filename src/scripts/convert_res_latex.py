@@ -23,12 +23,16 @@ if __name__ == '__main__':
                            type=int,
                            help="The number of template vertices for each"
                            " structure that was used during testing.")
+    argparser.add_argument('dataset',
+                           type=str,
+                           help="The dataset.")
 
     args = argparser.parse_args()
     exp_name = args.exp_name
     n_test_vertices = args.n_test_vertices
+    dataset = args.dataset
 
-    exp_dir = f"../experiments/{exp_name}/test_template_{n_test_vertices}"
+    exp_dir = f"../experiments/{exp_name}/test_template_{n_test_vertices}_{dataset}"
 
     out_file = os.path.join(exp_dir, "latex_out.txt")
     out_str = ""
