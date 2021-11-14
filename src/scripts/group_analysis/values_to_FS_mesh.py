@@ -62,6 +62,6 @@ moved_values = moving_values[:, :, None].expand(-1, -1, K, -1).gather(
     1, idx_expanded
 ).squeeze().cpu().numpy()
 
-np.save(args.out, moved_values)
+nib.freesurfer.io.write_morph_data(args.out, moved_values)
 
 print("Wrote transferred values to  ", args.out)
