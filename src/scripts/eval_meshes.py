@@ -32,7 +32,7 @@ PARTNER = {"rh_white": "rh_pial",
            "lh_white": "lh_pial",
            "lh_pial": "lh_white"}
 
-MODES = ('ad_hd', 'thickness')
+MODES = ('ad_hd', 'thickness', 'trt')
 
 def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
              subfolder="meshes"):
