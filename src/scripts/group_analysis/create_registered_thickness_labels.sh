@@ -46,7 +46,10 @@ fi
 
 ### Iterate over files ###
 echo "Start registering thickness of ${TEST_DIR}"
-for PRED_MESH_FILE in $PRED_MESH_DIR/999565_epoch38_struc0_meshpred.ply; do
+for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
+	# Clean tmp dir
+	rm $TMP_DIR/*
+
 	PRED_MESH_FN=$(basename $PRED_MESH_FILE)
 	if [[ $PRED_MESH_FN != *"meshpred"* ]]; then
 		continue
@@ -59,7 +62,9 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/999565_epoch38_struc0_meshpred.ply; do
 	HEMI=${HEMI%_pial}
 	STRUC_GROUP=${STRUC#${HEMI}_}
 	OUT_DIR=$TEST_DIR/thickness
-	echo "Process file ${ID} and structure ${STRUC}"
+    echo ""
+    echo ""
+	echo "### Process file ${ID} and structure ${STRUC} ###"
 
 	# To FreeSurfer
 	ORIG_MGZ=$FS_BASE_DIR/$ID$ID_SUFFIX/mri/orig.mgz
@@ -71,7 +76,7 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/999565_epoch38_struc0_meshpred.ply; do
 	if [ $? -eq 0 ]; then
 		echo "Generated ${OUT_MESH}"
     else
-        exit 1
+        continue
 	fi
 
 	# Transfer values to FS mesh
@@ -84,7 +89,7 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/999565_epoch38_struc0_meshpred.ply; do
 	if [ $? -eq 0 ]; then
 		echo "Generated ${TRANSFERRED_VALUES}"
     else
-        exit 1
+        continue
 	fi
 
 	# Transfer values to template sphere
@@ -96,11 +101,8 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/999565_epoch38_struc0_meshpred.ply; do
 	if [ $? -eq 0 ]; then
 		echo "Wrote ${OUT_FILE}"
     else
-        exit 1
+        continue
 	fi
-
-	# Clean tmp dir
-	rm $TMP_DIR/*
 done
 
 echo "Finished."
