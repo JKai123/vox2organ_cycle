@@ -8,11 +8,11 @@ import os
 import csv
 from argparse import ArgumentParser
 
-FILE_NAMES = ("lh_white_eval_ad_hd_summary.csv",
-              "rh_white_eval_ad_hd_summary.csv",
-              "lh_pial_eval_ad_hd_summary.csv",
-              "rh_pial_eval_ad_hd_summary.csv",
-              "eval_ad_hd_summary.csv")
+FILE_NAMES = ("lh_white_eval_ad_hd_summary_corrected.csv",
+              "rh_white_eval_ad_hd_summary_corrected.csv",
+              "lh_pial_eval_ad_hd_summary_corrected.csv",
+              "rh_pial_eval_ad_hd_summary_corrected.csv",
+              "eval_ad_hd_summary_corrected.csv")
 
 if __name__ == '__main__':
     argparser = ArgumentParser(description="Mesh evaluation procedure")
