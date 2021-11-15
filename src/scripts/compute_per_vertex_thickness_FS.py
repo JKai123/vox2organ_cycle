@@ -35,8 +35,8 @@ ids = set(map(get_id, os.listdir(IDS_FROM)))
 print("Using {} ids.".format(len(ids)))
 
 # Iterate over ids
-for i in list(ids)[:1]:
-    for struc_id, struc in enumerate(structures[:1]):
+for i in list(ids):
+    for struc_id, struc in enumerate(structures):
         mesh_fn = os.path.join(FS_BASE_DIR, get_mesh_fn(i, struc))
         partner_mesh_fn = os.path.join(
             FS_BASE_DIR, get_mesh_fn(i, structures[partner[struc_id]])
