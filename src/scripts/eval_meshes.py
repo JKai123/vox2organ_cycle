@@ -73,9 +73,9 @@ def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     v_pred_mesh_new = trimesh.transform_points(pred_mesh.vertices,
                                                trans_affine)
     pred_mesh.vertices = v_pred_mesh_new
-    _, cost = pred_mesh.register(pred_mesh_partner)
-    print("Average distance after registration for mesh"
-          f" {mri_id}, {surf_name}: {cost}")
+    # _, cost = pred_mesh.register(pred_mesh_partner)
+    # print("Average distance after registration for mesh"
+          # f" {mri_id}, {surf_name}: {cost}")
 
     # Compute ad, hd, percentage > 1mm, percentage > 2mm with pytorch3d
     pred_mesh = Meshes(
@@ -290,6 +290,10 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     print("\t > Thickness error median {:.4f}".format(error_median))
 
     # Store
+    th_gt_file = os.path.join(
+        thickness_folder, f"{mri_id}_struc{s_index}_gt.thickness"
+    )
+    np.save(th_gt_file, gt_thickness)
     th_pred_file = os.path.join(
         thickness_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.thickness"
     )
@@ -328,6 +332,11 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
                          device="cuda:1", subfolder="meshes"):
     """ AD and HD computed with pytorch3d. """
     pred_folder = os.path.join(eval_params['log_path'])
+    ad_hd_folder = os.path.join(
+        eval_params['log_path'], 'ad_hd'
+    )
+    if not os.path.isdir(ad_hd_folder):
+        os.mkdir(ad_hd_folder)
 
     # load ground-truth mesh
     try:
@@ -379,6 +388,15 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
 
     print("\t > Average symmetric surface distance {:.4f}".format(assd2))
     print("\t > Hausdorff surface distance {:.4f}".format(hd2))
+
+    ad_pred_file = os.path.join(
+        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ad.npy"
+    )
+    np.save(ad_pred_file, assd2)
+    hd_pred_file = os.path.join(
+        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.hd.npy"
+    )
+    np.save(hd_pred_file, hd2)
 
     return assd2, hd2
 
@@ -507,7 +525,7 @@ if __name__ == '__main__':
         subdir = ""
     eval_params['gt_mesh_path'] = os.path.join(
         RAW_DATA_DIR,
-        dataset.replace("_small", "").replace("_large", ""),
+        dataset.replace("_small", "").replace("_large", "").replace("_orig", ""),
         subdir
     )
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
