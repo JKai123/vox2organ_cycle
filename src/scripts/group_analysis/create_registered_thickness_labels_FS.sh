@@ -62,6 +62,13 @@ for THICKNESS_FN in $THICKNESS_DIR/*; do
     PRED_MESH_FN=${HEMI}_${STRUC_GROUP}.ply
     PRED_MESH_FILE=$PRED_MESH_DIR/$PRED_MESH_FN
 	OUT_DIR=$TEST_DIR/thickness
+
+    # Main output file registered to fsaverage sphere
+	OUT_FILE=$OUT_DIR/${ID}_${PRED_MESH_FN%.ply}.thickness.reg.npy
+    if [ -f "$OUT_FILE" ]; then
+        echo "${OUT_FILE} exists, skipping"
+        continue
+    fi
     echo ""
     echo ""
 	echo "### Process file ${ID} and structure ${STRUC} ###"
@@ -76,7 +83,7 @@ for THICKNESS_FN in $THICKNESS_DIR/*; do
 	if [ $? -eq 0 ]; then
 		echo "Generated ${OUT_MESH}"
     else
-        exit
+        continue
 	fi
 
 	# Transfer values to FS mesh
@@ -89,19 +96,18 @@ for THICKNESS_FN in $THICKNESS_DIR/*; do
 	if [ $? -eq 0 ]; then
 		echo "Generated ${TRANSFERRED_VALUES}"
     else
-        exit
+        continue
 	fi
 
 	# Transfer values to template sphere
 	echo ""
 	echo "### Values to template ###"
 	SPHERE_REG=$FS_BASE_DIR/$ID$ID_SUFFIX/surf/$HEMI.sphere.reg
-	OUT_FILE=$OUT_DIR/${ID}_${PRED_MESH_FN%.ply}.thickness.reg.npy
 	python3 values_to_fsaverage.py $HEMI $SPHERE_REG $TRANSFERRED_VALUES $OUT_FILE
 	if [ $? -eq 0 ]; then
 		echo "Wrote ${OUT_FILE}"
     else
-        exit
+        continue
 	fi
 done
 
