@@ -56,7 +56,10 @@ trans_affine = np.loadtxt(os.environ['TRANS_AFFINE_FILE'])
 norig_inv = np.loadtxt(os.environ['norig_inv_file'])
 torig = np.loadtxt(os.environ['torig_file'])
 
-mesh = trimesh.load(os.environ['IN_MESH'], process=False)
+##### !!!! THIS SOMETIMES LEADS TO PROBLEMS;
+##### !!!! TRY WITH AND WITHOUT PROCESSING IF UNSURE
+#mesh = trimesh.load(os.environ['IN_MESH'], process=False)
+mesh = trimesh.load(os.environ['IN_MESH'])
 verts = mesh.vertices
 verts_affine = np.concatenate(
     (verts.T, np.ones((1, verts.shape[0]))),

@@ -1,5 +1,10 @@
 How to create the a per-vertex group study from predicted surface meshes:
 
+0. First check if in file `scripts/group_analysi/mesht_to_FreeSurfer.sh` you need
+to load the image with or without preprocessing (see comment therein).
+Currently it seems like you need process=True for predicted and process=False
+for FreeSurfer meshes.
+
 1. Per-vertex thickness mapped to fsaverage template.
 ```
 cd scripts/group_analysis

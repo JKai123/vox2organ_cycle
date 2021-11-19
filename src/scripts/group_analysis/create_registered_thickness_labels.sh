@@ -23,12 +23,15 @@ EXPERIMENT_DIR=$EXPERIMENT_BASE_DIR/$EXP_NAME
 # UPDATE FOR NEWER EXPERIMENTS
 TEST_DIR=$EXPERIMENT_DIR/test_template_${N_TEST_VERTICES}_${DATASET}
 #TEST_DIR=$EXPERIMENT_DIR/test_template_${N_TEST_VERTICES}
-TMP_DIR=$TEST_DIR/reg_tmp
 PRED_MESH_DIR=$TEST_DIR/meshes
 DATASET_SHORT=${DATASET%_large}
 DATASET_SHORT=${DATASET_SHORT%_small}
 DATASET_SHORT=${DATASET_SHORT%_orig}
 DATA_BASE_DIR=/mnt/nas/Data_Neuro/$DATASET_SHORT
+THICKNESS_DIR=$TEST_DIR/thickness_new
+OUT_DIR=$TEST_DIR/thickness_new
+TMP_DIR=$THICKNESS_DIR/reg_tmp
+
 # Only for ADNI_large:
 FS_BASE_DIR=/mnt/nas/Data_Neuro/$DATASET_SHORT/ADNI_large_files/ADNI_large_files
 ID_SUFFIX=_orig
@@ -51,20 +54,23 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
 	rm $TMP_DIR/*
 
 	PRED_MESH_FN=$(basename $PRED_MESH_FILE)
+	# Only for debug
+	#if [[ $PRED_MESH_FN != *"1003363"* ]]; then
+		#exit
+	#fi
 	if [[ $PRED_MESH_FN != *"meshpred"* ]]; then
 		continue
 	fi
 	ID=${PRED_MESH_FN%_epoch*}
 	STRUC_NR=${PRED_MESH_FN%%_meshpred*}
-	STRUC_NR=${STRUC#*_epoch*_}
+	STRUC_NR=${STRUC_NR##*_struc}
 	STRUC=${STRUCTURES[$STRUC_NR]}
 	HEMI=${STRUC%_white}
 	HEMI=${HEMI%_pial}
 	STRUC_GROUP=${STRUC#${HEMI}_}
-	OUT_DIR=$TEST_DIR/thickness
-    echo ""
-    echo ""
-	echo "### Process file ${ID} and structure ${STRUC} ###"
+	echo ""
+	echo ""
+	echo "### Process file ${ID} and structure ${STRUC} in hemisphere ${HEMI} ###"
 
 	# To FreeSurfer
 	ORIG_MGZ=$FS_BASE_DIR/$ID$ID_SUFFIX/mri/orig.mgz
@@ -75,21 +81,21 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
 	bash mesh_to_FreeSurfer.sh $PRED_MESH_FILE $ORIG_MGZ $TRANS_AFFINE_FILE $TMP_DIR $OUT_MESH
 	if [ $? -eq 0 ]; then
 		echo "Generated ${OUT_MESH}"
-    else
-        continue
+	else
+		continue
 	fi
 
 	# Transfer values to FS mesh
 	echo ""
 	echo "### Values to FS mesh ###"
-	PRED_VALUES=$TEST_DIR/thickness/${PRED_MESH_FN%.ply}.thickness.npy
+	PRED_VALUES=$THICKNESS_DIR/${PRED_MESH_FN%.ply}.thickness.npy
 	TRANSFERRED_VALUES=$OUT_DIR/${PRED_MESH_FN%.ply}_transferred.thickness
 	FIXED_MESH=$FS_BASE_DIR/$ID$ID_SUFFIX/surf/$HEMI.$STRUC_GROUP
 	python3 values_to_FS_mesh.py $OUT_MESH $PRED_VALUES $FIXED_MESH $TRANSFERRED_VALUES
 	if [ $? -eq 0 ]; then
 		echo "Generated ${TRANSFERRED_VALUES}"
-    else
-        continue
+	else
+		continue
 	fi
 
 	# Transfer values to template sphere
@@ -100,8 +106,8 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
 	python3 values_to_fsaverage.py $HEMI $SPHERE_REG $TRANSFERRED_VALUES $OUT_FILE
 	if [ $? -eq 0 ]; then
 		echo "Wrote ${OUT_FILE}"
-    else
-        continue
+	else
+		continue
 	fi
 done
 
