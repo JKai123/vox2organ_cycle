@@ -61,6 +61,15 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
 	if [[ $PRED_MESH_FN != *"meshpred"* ]]; then
 		continue
 	fi
+	if [[ $PRED_MESH_FN != *"epoch$EPOCH"* ]]; then
+		continue
+	fi
+	# Check if main output already exists
+	OUT_FILE=$OUT_DIR/${PRED_MESH_FN%.ply}.thickness.reg.npy
+	if [ -f "$OUT_FILE" ]; then
+		continue
+	fi
+
 	ID=${PRED_MESH_FN%_epoch*}
 	STRUC_NR=${PRED_MESH_FN%%_meshpred*}
 	STRUC_NR=${STRUC_NR##*_struc}
@@ -102,7 +111,6 @@ for PRED_MESH_FILE in $PRED_MESH_DIR/*; do
 	echo ""
 	echo "### Values to template ###"
 	SPHERE_REG=$FS_BASE_DIR/$ID$ID_SUFFIX/surf/$HEMI.sphere.reg
-	OUT_FILE=$OUT_DIR/${PRED_MESH_FN%.ply}.thickness.reg.npy
 	python3 values_to_fsaverage.py $HEMI $SPHERE_REG $TRANSFERRED_VALUES $OUT_FILE
 	if [ $? -eq 0 ]; then
 		echo "Wrote ${OUT_FILE}"
