@@ -14,13 +14,12 @@ from tqdm import tqdm
 from statsmodels.stats.multitest import multipletests
 from scipy.stats import ttest_ind
 
-from scripts.group_analysis.smooth_thickness import smooth_values
-
-SURFACE = "rh_white"
+SURFACE = "rh_pial"
 HEMI = SURFACE.split("_")[0]
 SURFACES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 EPOCH = 38
-THICKNESS_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/exp_576_v2/test_template_168058_ADNI_CSR_large/thickness/"
+# Correct directory is 'thickness_new'
+THICKNESS_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/exp_576_v2/test_template_168058_ADNI_CSR_large/thickness_new/"
 OUT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/exp_576_v2/test_template_168058_ADNI_CSR_large/group_analysis/"
 DATA_SPEC = "/mnt/nas/Data_Neuro/ADNI_CSR/ADNI_large_test_qc_pass.csv"
 
@@ -98,16 +97,6 @@ def ttest(specs):
     # Load thickness values
     thickness_CN = load_thickness_values(ids_CN)
     thickness_Dem = load_thickness_values(ids_Dem)
-
-    # Smooth
-    n_smooth = 0
-    thickness_CN = np.stack(
-        [smooth_values(th_CN, n_smooth, HEMI) for th_CN in tqdm(thickness_CN)]
-    )
-    np.stack(
-        [smooth_values(th_Dem, n_smooth, HEMI) for th_Dem in
-                         tqdm(thickness_Dem)]
-    )
 
     # Per-vertex t-test
     stat, p = ttest_ind(thickness_CN, thickness_Dem, axis=0,
