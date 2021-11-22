@@ -319,7 +319,6 @@ class Solver():
 
         for epoch in range(start_epoch, n_epochs+1):
             model.train()
-            training_set.resample_surface_points()
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)

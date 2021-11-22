@@ -10,6 +10,7 @@ import logging
 from copy import deepcopy
 from collections.abc import Sequence
 from typing import Union
+from deprecated import deprecated
 
 import torch
 import torch.nn.functional as F
@@ -241,10 +242,12 @@ class Cortex(DatasetHandler):
         for i, img in enumerate(self.images):
             self.images[i] = normalize_min_max(img)
 
+        # Do not store meshes in train split
+        remove_meshes = self._mode == DataModes.TRAIN
         # Point, normal, and potentially curvature labels
         self.point_labels,\
                 self.normal_labels,\
-                self.curvatures = self._load_ref_points()
+                self.curvatures = self._load_ref_points_all(remove_meshes)
 
         assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
@@ -262,30 +265,64 @@ class Cortex(DatasetHandler):
     def _prepare_data_3D(self):
         """ Load 3D data """
 
-        # Raw data
-        self.images = self._load_data3D_raw(self.img_filename)
+        # Image data
+        self.images, img_transforms = self._load_data3D_and_transform(
+            self.img_filename, is_label=False
+        )
         self.voxel_labels = None
         self.voxelized_meshes = None
+
+        # Voxel labels
         if self.sanity_checks or self.seg_ground_truth == 'aseg':
             # Load 'aseg' segmentation maps from FreeSurfer
-            self.voxel_labels = self._load_data3D_raw(self.label_filename)
+            self.voxel_labels, _ = self._load_data3D_and_transform(
+                self.label_filename, is_label=True
+            )
             # Combine labels as specified by groups (see
             # _get_seg_and_mesh_label_names)
-            combine = lambda x: np.sum(
-                np.stack([combine_labels(x, group, val) for val, group in
+            combine = lambda x: torch.sum(
+                torch.stack([combine_labels(x, group, val) for val, group in
                 enumerate(self.seg_label_names, 1)]),
-                axis=0
+                dim=0
             )
             self.voxel_labels = list(map(combine, self.voxel_labels))
+
+        # Voxelized meshes
         if self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes':
             try:
                 self.voxelized_meshes = self._read_voxelized_meshes()
             except FileNotFoundError:
                 self.voxelized_meshes = None # Compute later
-        self.mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
 
-        # Preprocess routine
-        self.preprocess_data_3D()
+        # Meshes
+        self.mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
+        self._transform_meshes_as_images(img_transforms)
+
+        # Voxelize meshes if voxelized meshes have not been created so far
+        # and they are required (for sanity checks or as labels)
+        if (self.voxelized_meshes is None and (
+            self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
+            self.voxelized_meshes = self._create_voxel_labels_from_meshes(
+                self.mesh_labels
+            )
+
+        # Assert conformity of voxel labels and voxelized meshes
+        if self.sanity_checks:
+            for i, (vl, vm) in enumerate(zip(self.voxel_labels,
+                                             self.voxelized_meshes)):
+                iou = Jaccard(vl.cuda(), vm.cuda(), 2)
+                if iou < 0.85:
+                    out_fn = self._files[i].replace("/", "_")
+                    show_difference(
+                        vl,  vm,
+                        f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
+                    )
+                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
+                          " voxelized mesh label, check files at ../to_check/")
+
+        # Use voxelized meshes as voxel ground truth
+        if self.seg_ground_truth == 'voxelized_meshes':
+            self.voxel_labels = self.voxelized_meshes
 
         (self.centers,
          self.radii,
@@ -298,6 +335,38 @@ class Cortex(DatasetHandler):
         self.thickness_per_vertex = self._get_per_vertex_label("thickness",
                                                                subfolder="")
 
+
+    def _transform_meshes_as_images(self, img_transforms):
+        """ Transform meshes according to image transformations
+        (crops, resize) and normalize
+        """
+        for i, (m, t) in tqdm(
+            enumerate(zip(self.mesh_labels, img_transforms)),
+            position=0, leave=True, desc="Transform meshes accordingly..."
+        ):
+            new_vertices, new_faces = transform_mesh_affine(
+                m.vertices, m.faces, t
+            )
+            new_vertices, norm_affine = normalize_vertices_per_max_dim(
+                new_vertices.view(-1, self.ndims),
+                self.patch_size,
+                return_affine=True
+            )
+            new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
+            new_normals = Meshes(
+                new_vertices, new_faces
+            ).verts_normals_padded()
+
+            # Replace mesh with transformed one
+            self.mesh_labels[i] = Mesh(
+                new_vertices, new_faces, new_normals, m.features
+            )
+
+            # Store affine transformations
+            self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
+
+
+    @deprecated
     def preprocess_data_3D(self):
         """ Preprocess routine according to dataset parameters. """
 
@@ -694,11 +763,8 @@ class Cortex(DatasetHandler):
             faces = np.array([]) # Empty, not used
             curvs = np.array([]) # Empty, not used
         elif target_type == 'mesh':
-            points = self.point_labels[index]
-            normals = self.normal_labels[index]
+            points, normals, curvs = self._get_ref_points_from_index(index)
             faces = np.array([]) # Empty, not used
-            curvs = self.curvatures[index]\
-                    if self.provide_curvatures else np.array([])
         elif target_type == 'full_mesh':
             points = self.mesh_labels[index].vertices
             normals = self.mesh_labels[index].normals
@@ -738,7 +804,7 @@ class Cortex(DatasetHandler):
         as specified by _get_seg_and_mesh_label_names. """
         data = []
         # Iterate over sample ids
-        for sample_id in tqdm(self._files, position=0, leave=True,
+        for i, sample_id in tqdm(enumerate(self._files), position=0, leave=True,
                        desc="Loading voxelized meshes..."):
             voxelized_mesh_label = None
             # Iterate over voxel classes
@@ -756,6 +822,10 @@ class Cortex(DatasetHandler):
                     else:
                         np.putmask(voxelized_mesh_label, img>0, img)
 
+            # Correct patch size
+            voxelized_mesh_label, _ = self._get_single_patch(
+                voxelized_mesh_label, is_label=True
+            )
             data.append(voxelized_mesh_label)
 
         return data
@@ -771,70 +841,51 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _get_single_patches(self):
+    def _load_data3D_and_transform(self, filename: str, is_label: bool):
+        """ Load data and transform to correct patch size. """
+        data = []
+        transformations = []
+        for fn in tqdm(self._files, position=0, leave=True,
+                       desc="Loading images..."):
+            img = nib.load(os.path.join(self._raw_data_dir, fn, filename))
+
+            img_data = img.get_fdata()
+            img_data, trans_affine = self._get_single_patch(img_data, is_label)
+            data.append(img_data)
+            transformations.append(trans_affine)
+
+        return data, transformations
+
+    def _get_single_patch(self, img, is_label):
         """ Extract a single patch from an image. """
 
         assert (tuple(self._patch_origin) == (0,0,0)
-                or not self.patch_mode == "no"),\
+                or self.patch_mode != "no"),\
                 "If patch mode is 'no', patch origin should be (0,0,0)"
-
-        img_patches, label_patches, transformations = [], [], []
 
         # Limits for patch selection
         lower_limit = np.array(self._patch_origin, dtype=int)
         upper_limit = np.array(self._patch_origin, dtype=int) +\
                 np.array(self.select_patch_size, dtype=int)
 
-        # Iterate over images and labels
-        for i, img in tqdm(enumerate(self.images), position=0, leave=True,
-                           desc=f"Extract patches of shape {self.patch_size}"):
-            if self.voxel_labels is not None:
-                label = self.voxel_labels[i]
-            if self.voxelized_meshes is not None:
-                vox_mesh_label = self.voxelized_meshes[i]
-            assert img.shape == (182, 218, 182),\
-                    "Our mesh templates were created based on this shape."
-            # Select patch from whole image
-            img_patch, trans_affine_1 = img_with_patch_size(
-                img, self.select_patch_size, is_label=False, mode='crop',
-                crop_at=(lower_limit + upper_limit) // 2
+        assert img.shape == (182, 218, 182),\
+                "Our mesh templates were created based on this shape."
+        # Select patch from whole image
+        img_patch, trans_affine_1 = img_with_patch_size(
+            img, self.select_patch_size, is_label=is_label, mode='crop',
+            crop_at=(lower_limit + upper_limit) // 2
+        )
+        # Zoom to certain size
+        if self.patch_size != self.select_patch_size:
+            img_patch, trans_affine_2 = img_with_patch_size(
+                img_patch, self.patch_size, is_label=is_label, mode='interpolate'
             )
-            if self.voxel_labels is not None:
-                label_patch, _ = img_with_patch_size(
-                    label, self.select_patch_size, is_label=True, mode='crop',
-                    crop_at=(lower_limit + upper_limit) // 2
-                )
-            if self.voxelized_meshes is not None:
-                vox_mesh_label_patch, _ = img_with_patch_size(
-                    vox_mesh_label, self.select_patch_size, is_label=True, mode='crop',
-                    crop_at=(lower_limit + upper_limit) // 2
-                )
-            # Zoom to certain size
-            if self.patch_size != self.select_patch_size:
-                img_patch, trans_affine_2 = img_with_patch_size(
-                    img_patch, self.patch_size, is_label=False, mode='interpolate'
-                )
-                if self.voxel_labels is not None:
-                    label_patch, _ = img_with_patch_size(
-                        label_patch, self.patch_size, is_label=True, mode='interpolate'
-                    )
-                if self.voxelized_meshes is not None:
-                    vox_mesh_label_patch, _ = img_with_patch_size(
-                        vox_mesh_label_patch, self.patch_size, is_label=True, mode='interpolate'
-                    )
-            else:
-                trans_affine_2 = np.eye(self.ndims + 1) # Identity
+        else:
+            trans_affine_2 = np.eye(self.ndims + 1) # Identity
 
-            # Replace raw images with processed ones. This way, it is avoided
-            # that a 'raw' and a 'processed' list needs to be stored.
-            self.images[i] = img_patch
-            if self.voxel_labels is not None:
-                self.voxel_labels[i] = label_patch
-            if self.voxelized_meshes is not None:
-                self.voxelized_meshes[i] = vox_mesh_label_patch
-            transformations.append(trans_affine_2 @ trans_affine_1)
+        trans_affine = trans_affine_2 @ trans_affine_1
 
-        return transformations
+        return img_patch, trans_affine
 
     def _create_voxel_labels_from_meshes(self, mesh_labels):
         """ Return the voxelized meshes as 3D voxel labels. Here, individual
@@ -976,42 +1027,65 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_ref_points(self):
-        """ Sample surface points from meshes """
+
+    def _get_ref_points_from_index(self, index):
+        """ Choose n reference points together with their normals and
+        curvature. """
+        # Points/vertices
+        p, idx = choose_n_random_points(
+            self.point_labels[index],
+            self.n_ref_points_per_structure,
+            return_idx=True,
+            # Ignoring padded vertices is only possible if the
+            # number of required vertices is smaller than the
+            # minimum number of vertices in the dataset
+            ignore_padded=(self.n_ref_points_per_structure <
+                           self.n_min_vertices)
+        )
+        # Normals
+        n = self.normal_labels[index][idx.unbind(1)].view(
+            self.n_m_classes, -1, 3
+        )
+        # Curvature
+        if self.provide_curvatures:
+            c = self.curvatures[index][idx.unbind(1)].view(
+                self.n_m_classes, -1, 1
+            )
+        else:
+            c = np.array([])
+
+        return p, n, c
+
+
+    def _load_ref_points_all(self, remove_meshes=False):
+        """ Sample surface points from meshes and optionally remove them (to
+        save memory)"""
         points, normals = [], []
         curvs = [] if self.provide_curvatures else None
-        for m in self.mesh_labels:
+        for i, m in tqdm(enumerate(self.mesh_labels), leave=True, position=0,
+                      desc="Get point labels from meshes..."):
             if self.provide_curvatures:
                 # Choose a certain number of vertices
                 m_ = m.to_pytorch3d_Meshes()
-                p, idx = choose_n_random_points(
-                    m_.verts_padded(),
-                    self.n_ref_points_per_structure,
-                    return_idx=True,
-                    # Ignoring padded vertices is only possible if the
-                    # number of required vertices is smaller than the
-                    # minimum number of vertices in the dataset
-                    ignore_padded=(self.n_ref_points_per_structure <
-                                   self.n_min_vertices)
-                )
+                p = m_.verts_padded()
                 # Choose normals with the same indices as vertices
-                n = m_.verts_normals_padded()[idx.unbind(1)].view(
-                    self.n_m_classes, -1, 3
-                )
+                n = m_.verts_normals_padded()
                 # Choose curvatures with the same indices as vertices
                 c = curv_from_cotcurv_laplacian(
                     m_.verts_packed(), m_.faces_packed()
-                ).view(
-                    self.n_m_classes, -1, 1
-                )[idx.unbind(1)].view(
-                    self.n_m_classes, -1, 1
-                )
+                ).view(self.n_m_classes, -1, 1)
                 # Sanity check
                 assert torch.allclose(
                     m_.verts_normals_padded(), m.normals, atol=1e-05
                 ), "Inconsistent normals!"
+
+                # Remove to save memory
+                if remove_meshes:
+                    self.mesh_labels[i] = None
+
             else: # No curvatures
-                # Sample from mesh surface
+                # Sample from mesh surface, probably less memory efficient
+                # than with curvatures
                 p, n = sample_points_from_meshes(
                     m.to_pytorch3d_Meshes(),
                     self.n_ref_points_per_structure,
@@ -1076,6 +1150,8 @@ class Cortex(DatasetHandler):
                 except Exception as e:
                     # Insert dummy if file could not
                     # be found
+                    print(f"[Warning] File {morph_fn} could not be found,"
+                          " inserting dummy.")
                     morph_label = np.zeros(self.mesh_labels[
                         self._files.index(fn)
                     ].vertices[self.mesh_label_names.index(mn)].shape[0])
