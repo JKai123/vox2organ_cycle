@@ -12,8 +12,6 @@ import torch.nn as nn
 from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
-from utils.utils_voxel2mesh.unpooling import uniform_unpool
-from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2meshplusplus.graph_conv import (
     Features2FeaturesResidual,
     zero_weight_init
@@ -149,9 +147,8 @@ class GraphDecoder(nn.Module):
 
             # Optionally create lns layers
             if self.aggregate == 'lns':
-                lns_layers.append(LearntNeighbourhoodSampling(
-                    self.patch_size, self.num_steps, skip_features_count, i
-                ))
+                raise NotImplementedError("LNS not implemented, see"
+                                          " Voxel2Mesh repo.")
 
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
@@ -264,18 +261,7 @@ class GraphDecoder(nn.Module):
                 faces_padded = prev_meshes.faces_padded() # (N,M,F,3)
 
                 if do_unpool == 1:
-                    faces_prev = faces_padded
-                    _, _, V_prev, _ = vertices_padded.shape
-
-                    # Get candidate vertices using uniform unpool
-                    vertices_padded,\
-                            faces_padded_new = uniform_unpool(vertices_padded,
-                                                  faces_padded,
-                                                  identical_face_batch=False)
-                    latent_features_padded, _ = uniform_unpool(latent_features_padded,
-                                                  faces_padded,
-                                                  identical_face_batch=False)
-                    faces_padded = faces_padded_new
+                    raise NotImplementedError("Unpooling not implemented.")
 
                 # Number of vertices might have changed
                 V_new = latent_features_padded.shape[2]

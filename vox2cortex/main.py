@@ -23,19 +23,13 @@ from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.losses import (
-    ChamferLoss,
     ChamferAndNormalsLoss,
-    ChamferAndNormalsAndCurvatureLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
-    EdgeLoss,
-    WassersteinLoss
+    EdgeLoss
 )
 from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm,
-    GCNConvWrapped,
-    GINConvWrapped,
-    GeoGraphConvNorm
 )
 from utils.ablation_study import (
     AVAILABLE_ABLATIONS,
@@ -56,7 +50,6 @@ hyper_ps = {
     'PROJ_NAME': "cortex",
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
-    'REDUCE_REG_LOSS_MODE': 'none',
     'PROVIDE_CURVATURES': True,
     'PATCH_MODE': "no",
     'SANITY_CHECK_DATA': False, # Save some memory
@@ -67,7 +60,7 @@ hyper_ps = {
     'REDUCED_FREESURFER': 0.3,
 
     # Learning
-    'N_EPOCHS': 100,
+    'N_EPOCHS': 1,
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 2,
     'LOG_EVERY': 'epoch',
@@ -126,7 +119,6 @@ hyper_ps = {
 
     # Evaluation
     'EVAL_METRICS': [
-        'Wasserstein',
         'SymmetricHausdorff',
         'JaccardVoxel',
         'JaccardMesh',

@@ -18,7 +18,6 @@ from pytorch3d.ops import (
 )
 from pytorch3d.structures import Meshes, Pointclouds
 from scipy.spatial.distance import directed_hausdorff
-from geomloss import SamplesLoss
 
 from utils.utils import (
     voxelize_mesh,
@@ -47,7 +46,7 @@ class EvalMetrics(IntEnum):
     SymmetricHausdorff = 4
 
     # Wasserstein distance between point clouds
-    Wasserstein = 5
+    # Wasserstein = 5
 
     # Difference in cortical thickness compared to ground truth
     CorticalThicknessError = 6
@@ -151,47 +150,6 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
         th_all.append(thickness_score.cpu().item())
 
     return th_all
-
-@measure_time
-def WassersteinScore(pred, data, n_v_classes, n_m_classes, model_class,
-                     padded_coordinates=(-1.0, -1.0, -1.0)):
-    """ Approximate Wasserstein distance between sets of vertices
-    with Sinkhorn iteration.
-    """
-    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
-
-    # Ground truth
-    mesh_gt = data[2]
-    ndims = mesh_gt.ndims
-    gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims).cuda()
-
-    # Prediction: Only consider mesh of last step
-    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
-
-    # Loss criterion: Sinkhorn divergence with L2 ground distance
-    dist = SamplesLoss(loss="sinkhorn", p=2, diameter=2, blur=0.05)
-
-    wds = []
-
-    for p, gt in zip(pred_vertices, gt_vertices):
-        # Remove padded gt vertices
-        gt = gt[~torch.isclose(gt, padded_coordinates).all(axis=1)]
-        # Select an equal number of points
-        if len(p) < len(gt):
-            p_ = p
-            perm = torch.randperm(len(gt))
-            perm = perm[:len(p)]
-            gt_ = gt[perm, :]
-        else:
-            gt_ = gt
-            perm = torch.randperm(len(p))
-            perm = perm[:len(gt)]
-            p_ = p[perm, :]
-
-        wds.append(dist(p_, gt_).cpu().item())
-
-    return wds
 
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class,
@@ -365,7 +323,6 @@ EvalMetricHandler = {
     EvalMetrics.JaccardMesh.name: JaccardMeshScore,
     EvalMetrics.Chamfer.name: ChamferScore,
     EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
-    EvalMetrics.Wasserstein.name: WassersteinScore,
     EvalMetrics.CorticalThicknessError.name: CorticalThicknessScore,
     EvalMetrics.AverageDistance.name: AverageDistanceScore
 }

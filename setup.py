@@ -45,6 +45,7 @@ setup(
         'tqdm==4.62.3',
         'trimesh==3.9.35',
         'wandb==0.12.6',
+        'scikit-image==0.18.1',
     ]
 )
 

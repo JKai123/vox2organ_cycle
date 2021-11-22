@@ -20,11 +20,6 @@ class V2MModel(Module, ABC):
 
     @staticmethod
     @abstractmethod
-    def convert_data(data, n_v_classes, mode):
-        pass
-
-    @staticmethod
-    @abstractmethod
     def pred_to_verts_and_faces(pred):
         pass
 

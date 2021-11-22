@@ -5,7 +5,6 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from data.supported_datasets import SupportedDatasets
-from data.hippocampus import Hippocampus
 from data.cortex import Cortex
 
 # Mapping supported datasets to split functions

@@ -21,7 +21,6 @@ from utils.utils import string_dict, score_is_better
 from utils.losses import (
     ChamferAndNormalsLoss,
     ChamferLoss,
-    ChamferAndNormalsAndCurvatureLoss,
 )
 from utils.logging import (
     init_logging,
@@ -40,7 +39,7 @@ from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.losses import (
     all_linear_loss_combine,
-    voxel_linear_mesh_geometric_loss_combine)
+)
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.model_names import (
@@ -146,23 +145,6 @@ class Solver():
         self.lr_decay_after = lr_decay_after
         self.lr_decay_rate = lr_decay_rate
 
-    def reduce_reg_losses(self, epoch, n_epochs):
-        """ Reduce the impact of regularization losses """
-        assert self.loss_averaging != 'geometric' or\
-                self.reduce_reg_loss_mode == 'none',\
-                "No regularization loss reduction for geometric loss average!"
-
-        for i, (w0, n) in enumerate(zip(self.mesh_loss_func_weights_start,
-                                        self.mesh_loss_func)):
-            if not isinstance(n, (ChamferLoss, ChamferAndNormalsLoss)):
-                if self.reduce_reg_loss_mode == 'linear':
-                    self.mesh_loss_func_weights[i] = w0 - epoch/n_epochs * w0
-                elif self.reduce_reg_loss_mode == 'none':
-                    pass
-                else:
-                    raise ValueError("Unknown mode for reduction of"
-                                     " regularization loss weights.")
-
     @measure_time
     def training_step(self, model, data, iteration):
         """ One training step.
@@ -240,17 +222,6 @@ class Solver():
         with autocast(self.mixed_precision):
             if self.loss_averaging == 'linear':
                 losses, loss_total = all_linear_loss_combine(
-                    self.voxel_loss_func,
-                    self.voxel_loss_func_weights,
-                    model.__class__.pred_to_raw_voxel_pred(pred),
-                    y.cuda(),
-                    self.mesh_loss_func,
-                    self.mesh_loss_func_weights,
-                    model.__class__.pred_to_pred_meshes(pred),
-                    model.__class__.pred_to_pred_deltaV_meshes(pred),
-                    mesh_target)
-            elif self.loss_averaging == 'geometric':
-                losses, loss_total = voxel_linear_mesh_geometric_loss_combine(
                     self.voxel_loss_func,
                     self.voxel_loss_func_weights,
                     model.__class__.pred_to_raw_voxel_pred(pred),
@@ -349,7 +320,6 @@ class Solver():
         for epoch in range(start_epoch, n_epochs+1):
             model.train()
             training_set.resample_surface_points()
-            self.reduce_reg_losses(epoch, n_epochs)
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)

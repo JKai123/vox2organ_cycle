@@ -7,7 +7,7 @@ from tqdm import tqdm
 import numpy as np
 
 from data.dataset_split_handler import dataset_split_handler
-from utils.visualization import show_slices, show_img_with_contour
+from utils.visualization import show_slices
 from utils.utils import (
     create_mesh_from_voxels,
 )
@@ -111,17 +111,8 @@ def run_preprocess_check(dataset):
                         str(iter_in_epoch) + ".png")
             show_slices(img_slices, None, "../misc/img" +\
                         str(iter_in_epoch) + "_nolabel.png")
-        else: # 2D
-            mesh = mesh.to_pytorch3d_Meshes()
-            show_img_with_contour(
-                img,
-                unnormalize_vertices_per_max_dim(mesh.verts_packed(),
-                                                 img.shape),
-                mesh.faces_packed(),
-                "../misc/img_and_contour" + str(iter_in_epoch) + ".png"
-            )
-            show_slices([img], [label], "../misc/img_and_gt_" +\
-                        str(iter_in_epoch) + ".png")
+        else:
+            raise ValueError("Wrong dimensionality.")
 
         # /w augmentation
         if training_set_augment is not None:

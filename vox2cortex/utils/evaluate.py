@@ -26,7 +26,6 @@ from utils.mesh import Mesh
 from utils.logging import (
     write_img_if_debug
 )
-from utils.visualization import show_slices, show_img_with_contour
 from utils.cortical_thickness import cortical_thickness
 
 def add_to_results_(result_dict, metric_name, result):
@@ -167,20 +166,8 @@ class ModelEvaluator():
                     gt_mesh_transformed.store_with_features(gt_filename)
                 else:
                     gt_mesh_transformed.store(gt_filename)
-        else: # 2D
-            gt_filename = filename + "_gt.png"
-            gt_filename = os.path.join(self._mesh_dir, gt_filename)
-            gt_mesh = gt_mesh.to_pytorch3d_Meshes()
-            if not os.path.isfile(gt_filename):
-                show_img_with_contour(
-                    img,
-                    unnormalize_vertices_per_max_dim(
-                        gt_mesh.verts_packed(),
-                        img.shape
-                    ),
-                    gt_mesh.faces_packed(),
-                    gt_filename
-                )
+        else:
+            raise ValueError("Wrong dimensionality.")
 
         # Mesh prediction
         vertices, faces = model_class.pred_to_verts_and_faces(pred)
@@ -312,13 +299,5 @@ class ModelEvaluator():
                     except AttributeError:
                         # No voxel prediction exists
                         pass
-                else: # 2D
-                    pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                        "_class" + str(c) + "_voxelpred.png"
-                    pred_voxel_filename = os.path.join(self._mesh_dir,
-                                                       pred_voxel_filename)
-                    show_slices(
-                        [img.cpu()],
-                        [voxel_pred_class.cpu()],
-                        pred_voxel_filename
-                    )
+                else:
+                    raise ValueError("Wrong dimensionality.")

@@ -17,7 +17,6 @@ import torch.nn.functional as F
 from trimesh import Trimesh
 from skimage import measure
 from skimage.draw import polygon
-from plyfile import PlyData
 
 from utils.mesh import Mesh
 from utils.coordinate_transform import (
@@ -34,23 +33,6 @@ class ExtendedEnum(Enum):
     def dict(cls):
         return {c.name: c.value for c in cls}
 
-def read_vertices_from_ply(filename: str) -> np.ndarray:
-    """
-    Read .ply file and return vertex coordinates
-
-    :param str filename: The file that should be read.
-    :return: Vertex data as numpy array
-    :rtype: numpy.ndarray
-    """
-
-    plydata = PlyData.read(filename)
-    vertex_data = plydata['vertex'].data # numpy array with fields ['x', 'y', 'z']
-    pts = np.zeros([vertex_data.size, 3])
-    pts[:, 0] = vertex_data['x']
-    pts[:, 1] = vertex_data['y']
-    pts[:, 2] = vertex_data['z']
-
-    return pts
 
 def create_mesh_from_file(filename: str, output_dir: str=None, store=True,
                           mc_step_size=1):

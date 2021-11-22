@@ -15,7 +15,6 @@ import torch
 import torch.nn.functional as F
 import nibabel as nib
 from tqdm import tqdm
-from elasticdeform import deform_random_grid
 
 from utils.modes import DataModes
 from utils.mesh import Mesh
@@ -189,13 +188,6 @@ def flip_img(img, label, coordinates=None, normals=None):
     normals = normals.view(co_shape)
 
     return img, label, coordinates, normals
-
-def deform_img(img, label):
-    """ Deform an image and the corresponding voxel label. """
-    img, label = deform_random_grid([img, label], sigma=1, points=3,
-                                    order=[3, 0])
-
-    return img, label
 
 def sample_surface_points(y_label, n_classes, point_count=3000):
     """ Sample outer surface points from a volume label """
