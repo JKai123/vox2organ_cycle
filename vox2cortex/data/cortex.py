@@ -20,6 +20,7 @@ from trimesh import Trimesh
 from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
+from tqdm import tqdm
 
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
@@ -40,6 +41,7 @@ from utils.utils import (
     normalize_min_max,
 )
 from utils.coordinate_transform import (
+    transform_mesh_affine,
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
 )
@@ -49,60 +51,90 @@ from data.dataset import (
     flip_img,
     img_with_patch_size,
 )
-from data.cortex_labels import combine_labels
+from data.supported_datasets import (
+    valid_ids,
+    valid_ids_ADNI_CSR,
+    valid_ids_OASIS,
+)
+from data.cortex_labels import (
+    combine_labels,
+)
 
 def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
     """ Helper function to map the structure type and the patch mode to the
     correct segmentation and mesh label names.
+
+    For seg_label_names and voxelized_mesh_label_names entries can/should be
+    grouped s.t. they represent one "voxel class" in the segmentation maps.
     """
+    voxelized_mesh_label_names = None # Does not always exist
     if structure_type == "cerebral_cortex":
         if patch_mode=="single-patch":
-            seg_label_names = ("right_cerebral_cortex",)
+            seg_label_names = (("right_cerebral_cortex",),)
+            voxelized_mesh_label_names = (("rh_pial",),)
             mesh_label_names = ("rh_pial",)
         elif patch_mode == "multi-patch":
             raise NotImplementedError()
         else: # not patch mode
-            raise NotImplementedError()
+            if ndims == 3: # 3D
+                seg_label_names = (("left_cerebral_cortex",
+                                   "right_cerebral_cortex"),)
+                mesh_label_names = ("lh_pial", "rh_pial")
+                voxelized_mesh_label_names = (("lh_pial", "rh_pial"),)
+            else:
+                raise NotImplementedError()
     elif structure_type == "white_matter":
         if patch_mode=="single-patch":
-            seg_label_names = ("right_white_matter",)
+            seg_label_names = (("right_white_matter",),)
             mesh_label_names = ("rh_white",)
+            voxelized_mesh_label_names = (("rh_white",),)
         elif patch_mode == "multi-patch":
-            seg_label_names = ("left_white_matter", "right_white_matter")
+            seg_label_names = (("left_white_matter", "right_white_matter"),)
             mesh_label_names = ("lh_white", "rh_white")
         else: # not patch mode
             if ndims == 3: # 3D
-                seg_label_names = ("left_white_matter", "right_white_matter")
+                seg_label_names = (("left_white_matter",
+                                    "right_white_matter"),)
                 mesh_label_names = ("lh_white", "rh_white")
+                voxelized_mesh_label_names = (("lh_white", "rh_white"),)
             elif ndims == 2: # 2D
-                seg_label_names = ("right_white_matter",)
+                seg_label_names = (("right_white_matter",),)
                 mesh_label_names = ("rh_white",)
             else:
                 raise ValueError("Wrong dimensionality.")
     elif ("cerebral_cortex" in structure_type
           and "white_matter" in structure_type):
         if patch_mode == "single-patch":
+            seg_label_names = (("right_white_matter",
+                                "right_cerebral_cortex"),)
+            mesh_label_names = ("rh_white", "rh_pial")
+        elif patch_mode == "multi-patch":
             raise NotImplementedError()
-        if patch_mode == "multi-patch":
-            raise NotImplementedError()
-        # Not patch mode
-        seg_label_names = ("left_white_matter",
-                           "right_white_matter",
-                           "left_cerebral_cortex",
-                           "right_cerebral_cortex")
-        mesh_label_names = ("lh_white",
-                            "rh_white",
-                            "lh_pial",
-                            "rh_pial")
+        else:
+            # Not patch mode
+            seg_label_names = (("left_white_matter",
+                               "right_white_matter",
+                               "left_cerebral_cortex",
+                               "right_cerebral_cortex"),)
+            mesh_label_names = ("lh_white",
+                                "rh_white",
+                                "lh_pial",
+                                "rh_pial")
+            voxelized_mesh_label_names = (("lh_white",
+                                           "rh_white",
+                                           "lh_pial",
+                                           "rh_pial"),)
     else:
         raise ValueError("Unknown structure type.")
 
-    return seg_label_names, mesh_label_names
+    return seg_label_names, mesh_label_names, voxelized_mesh_label_names
 
 class Cortex(DatasetHandler):
     """ Cortex dataset
 
     It loads all data specified by 'ids' directly into memory.
+
+    ATTENTION: 2D and patch behavior is deprecated!!!
 
     :param list ids: The ids of the files the dataset split should contain, example:
         ['1000_3', '1001_3',...]
@@ -125,13 +157,16 @@ class Cortex(DatasetHandler):
     :param reduced_freesurfer: Use a freesurfer mesh with reduced number of
     vertices as mesh ground truth, e.g., 0.3. This has only an effect if patch_mode='no'.
     :param mesh_type: 'freesurfer' or 'marching cubes'
-    :param: provide_curvatures: Whether curvatures should be part of the items.
+    :param provide_curvatures: Whether curvatures should be part of the items.
+    :param preprocessed_data_dir: A directory that contains additional
+    preprocessed data, e.g., thickness values.
     As a consequence, the ground truth can only consist of vertices and not of
     sampled surface points.
+    :param seg_ground_truth: Either 'voxelized_meshes' or 'aseg'
     """
 
     img_filename = "mri.nii.gz"
-    label_filename = "aseg.nii.gz"
+    label_filename = "aseg.nii.gz" # For FS segmentations
 
     def __init__(self,
                  ids: Sequence,
@@ -148,6 +183,8 @@ class Cortex(DatasetHandler):
                  reduced_freesurfer: int=None,
                  mesh_type='marching cubes',
                  provide_curvatures=False,
+                 preprocessed_data_dir=None,
+                 seg_ground_truth='voxelized_meshes',
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -156,29 +193,33 @@ class Cortex(DatasetHandler):
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
 
-        seg_label_names, mesh_label_names = _get_seg_and_mesh_label_names(
+        (self.seg_label_names,
+         self.mesh_label_names,
+         self.voxelized_mesh_label_names) = _get_seg_and_mesh_label_names(
             structure_type, patch_mode, len(patch_size)
         )
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
+        self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
         self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
         self._mc_step_size = kwargs.get('mc_step_size', 1)
+        self.trans_affine = []
         self.ndims = len(patch_size)
         self.patch_mode = patch_mode
         self.patch_size = tuple(patch_size)
         self.select_patch_size = select_patch_size if (
             select_patch_size is not None) else patch_size
-        self.n_m_classes = len(mesh_label_names)
+        self.n_m_classes = len(self.mesh_label_names)
+        assert self.n_m_classes == kwargs.get(
+            "n_m_classes", len(self.mesh_label_names)
+        ), "Number of mesh classes incorrect."
         self.provide_curvatures = provide_curvatures
-        assert self.n_m_classes == kwargs.get("n_m_classes",
-                                              len(mesh_label_names)),\
-                "Number of mesh classes incorrect."
+        assert seg_ground_truth in ('voxelized_meshes', 'aseg')
+        self.seg_ground_truth = seg_ground_truth
         self.n_ref_points_per_structure = n_ref_points_per_structure
-        self.mesh_label_names = mesh_label_names
-        self.seg_label_names = seg_label_names
-        self.n_structures = len(mesh_label_names)
+        self.n_structures = len(self.mesh_label_names)
         self.mesh_type = mesh_type
         self.centers = None
         self.radii = None
@@ -186,8 +227,13 @@ class Cortex(DatasetHandler):
         self.radii_y = None
         self.radii_z = None
         self.n_min_vertices, self.n_max_vertices = None, None
-        # Vertex labels are combined into one class (and background)
-        self.n_v_classes = 2
+        # +1 for background
+        self.n_v_classes = len(self.seg_label_names) + 1 if (
+            self.seg_ground_truth == 'aseg'
+        ) else len(self.voxelized_mesh_label_names) + 1
+
+        # Sanity checks to make sure data is transformed correctly
+        self.sanity_checks = kwargs.get("sanity_check_data", True)
 
         # Freesurfer meshes of desired resolution
         if reduced_freesurfer is not None:
@@ -218,6 +264,8 @@ class Cortex(DatasetHandler):
         assert self.__len__() == len(self.mesh_labels)
         assert self.__len__() == len(self.point_labels)
         assert self.__len__() == len(self.normal_labels)
+        if self.ndims == 3:
+            assert self.__len__() == len(self.trans_affine)
         if self.provide_curvatures:
             assert self.__len__() == len(self.curvatures)
 
@@ -246,6 +294,7 @@ class Cortex(DatasetHandler):
             for vl in self.voxel_labels:
                 vl[vl > 1] = 1
         else:
+
             self.voxel_labels = [
                 combine_labels(l, self.seg_label_names) for l in self.voxel_labels
             ]
@@ -260,34 +309,30 @@ class Cortex(DatasetHandler):
     def _prepare_data_3D(self):
         """ Load 3D data """
 
-        # Check constraints
-        assert (self.patch_mode != "single-patch"
-                or len(self.seg_label_names) == 1),\
-                "Can only use one segmentation class in single-patch mode."
-        assert (self.mesh_type == 'freesurfer'
-                or 'voxelized_mesh' not in self.seg_label_names),\
-                "Voxelized mesh as voxel ground truth requires Freesurfer meshes."
-
         # Raw data
-        raw_imgs = self._load_data3D_raw(self.img_filename)
-        raw_voxel_labels = self._load_data3D_raw(self.label_filename)
-        raw_mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
-
-        # Select desired voxel labels
-        if self.seg_label_names == "all":
-            for vl in raw_voxel_labels:
-                vl[vl > 1] = 1
-        else:
-            raw_voxel_labels = [
-                combine_labels(l, self.seg_label_names) for l in raw_voxel_labels
-            ]
+        self.images = self._load_data3D_raw(self.img_filename)
+        self.voxel_labels = None
+        self.voxelized_meshes = None
+        if self.sanity_checks or self.seg_ground_truth == 'aseg':
+            # Load 'aseg' segmentation maps from FreeSurfer
+            self.voxel_labels = self._load_data3D_raw(self.label_filename)
+            # Combine labels as specified by groups (see
+            # _get_seg_and_mesh_label_names)
+            combine = lambda x: np.sum(
+                np.stack([combine_labels(x, group, val) for val, group in
+                enumerate(self.seg_label_names, 1)]),
+                axis=0
+            )
+            self.voxel_labels = list(map(combine, self.voxel_labels))
+        if self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes':
+            try:
+                self.voxelized_meshes = self._read_voxelized_meshes()
+            except FileNotFoundError:
+                self.voxelized_meshes = None # Compute later
+        self.mesh_labels = self._load_dataMesh_raw(meshnames=self.mesh_label_names)
 
         # Preprocess routine
-        self.images,\
-                self.voxel_labels,\
-                self.mesh_labels = self.preprocess_data_3D(
-                    raw_imgs, raw_voxel_labels, raw_mesh_labels
-                )
+        self.preprocess_data_3D()
 
         (self.centers,
          self.radii,
@@ -297,8 +342,10 @@ class Cortex(DatasetHandler):
             self.mesh_labels
          )
 
-    def preprocess_data_3D(self, raw_imgs: list, raw_voxel_labels: list,
-                           raw_mesh_labels: list):
+        self.thickness_per_vertex = self._get_per_vertex_label("thickness",
+                                                               subfolder="")
+
+    def preprocess_data_3D(self):
         """ Preprocess routine according to dataset parameters. """
 
         ### Multi-patch mode
@@ -306,73 +353,91 @@ class Cortex(DatasetHandler):
         if self.patch_mode == "multi-patch":
             # Image data; attention: file names change in multi-patch mode
             # (each image leads to multiple patches)
-            processed_imgs,\
-                    processed_voxel_labels,\
-                    self._files = self._get_multi_patches(
-                        raw_imgs, raw_voxel_labels
+            self.images,\
+                    self.voxel_labels,\
+                    self.files = self._get_multi_patches(
+                        self.images, self.voxel_labels
                     )
             # Mesh data: marching cubes meshes (it's not straightforward to
             # extract patches from freesurfer meshes)
             assert self.mesh_type == 'marching cubes',\
                     "Multi-patch dataset requires marching cubes meshes."
-            processed_mesh_labels = self._load_mc_dataMesh(processed_voxel_labels)
+            self.mesh_labels = self._load_mc_dataMesh(self.voxel_labels)
 
             # In multi-patch mode, different mesh structures cannot be
             # distinguished anymore after creation of patches
             self.n_m_classes = 1
 
-            return (processed_imgs,
-                    processed_voxel_labels,
-                    processed_mesh_labels)
+            return
 
         ### Single-patch or no patch mode
 
         # Image data
-        processed_imgs,\
-                processed_voxel_labels,\
-                trans_affine = self._get_single_patches(
-                    raw_imgs, raw_voxel_labels
-                )
+        trans_affine = self._get_single_patches()
 
         # Mesh data
         if self.mesh_type == "freesurfer":
             # Transform meshes according to image transformations
             # (crops, resize) and normalize
-            processed_mesh_labels = deepcopy(raw_mesh_labels)
-            for m, t in zip(processed_mesh_labels, trans_affine):
-                m.transform_vertices(t)
-                m.vertices = normalize_vertices_per_max_dim(
-                    m.vertices.view(-1, self.ndims), self.patch_size
-                ).view(self.n_m_classes, -1, self.ndims)
+            for i, (m, t) in tqdm(
+                enumerate(zip(self.mesh_labels, trans_affine)),
+                position=0, leave=True, desc="Transform meshes accordingly..."
+            ):
+                new_vertices, new_faces = transform_mesh_affine(
+                    m.vertices, m.faces, t
+                )
+                new_vertices, norm_affine = normalize_vertices_per_max_dim(
+                    new_vertices.view(-1, self.ndims),
+                    self.patch_size,
+                    return_affine=True
+                )
+                new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
+                new_normals = Meshes(
+                    new_vertices, new_faces
+                ).verts_normals_padded()
 
-            # Voxelize meshes
-            voxelized_meshes = self._create_voxel_labels_from_meshes(
-                processed_mesh_labels
-            )
+                # Replace mesh with transformed one
+                self.mesh_labels[i] = Mesh(
+                    new_vertices, new_faces, new_normals, m.features
+                )
+
+                # Store affine transformations
+                self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
+
+            # Voxelize meshes if voxelized meshes have not been created so far
+            # and they are required (for sanity checks or as labels)
+            if (self.voxelized_meshes is None and (
+                self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
+                self.voxelized_meshes = self._create_voxel_labels_from_meshes(
+                    self.mesh_labels
+                )
+
             # Assert conformity of voxel labels and voxelized meshes
-            for i, (vl, vm) in enumerate(zip(processed_voxel_labels,
-                                             voxelized_meshes)):
-                iou = Jaccard(vl.cuda(), vm.cuda(), 2)
-                if iou < 0.85:
-                    show_difference(
-                        vl,  vm,
-                        f"../to_check/diff_mesh_voxel_label_{self._files[i]}.png"
-                    )
-                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                          " voxelized mesh label, check files at ../to_check/")
+            if self.sanity_checks:
+                for i, (vl, vm) in enumerate(zip(self.voxel_labels,
+                                                 self.voxelized_meshes)):
+                    iou = Jaccard(vl.cuda(), vm.cuda(), 2)
+                    if iou < 0.85:
+                        out_fn = self._files[i].replace("/", "_")
+                        show_difference(
+                            vl,  vm,
+                            f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
+                        )
+                        print(f"[Warning] Small IoU ({iou}) of voxel label and"
+                              " voxelized mesh label, check files at ../to_check/")
 
-            return (processed_imgs,
-                    voxelized_meshes,
-                    processed_mesh_labels)
+            # Use voxelized meshes as voxel ground truth
+            if self.seg_ground_truth == 'voxelized_meshes':
+                self.voxel_labels = self.voxelized_meshes
+
+            return
 
         # Marching cubes mesh labels
-        processed_mesh_labels = self._load_mc_dataMesh(
-            processed_voxel_labels
+        self.mesh_labels = self._load_mc_dataMesh(
+            self.voxel_labels
         )
 
-        return (processed_imgs,
-                processed_voxel_labels,
-                processed_mesh_labels)
+        return
 
     def mean_area(self):
         """ Average surface area of meshes. """
@@ -409,21 +474,21 @@ class Cortex(DatasetHandler):
 
         return torch.tensor(edge_lengths).mean()
 
-    def store_sphere_template(self, path):
+    def store_sphere_template(self, path, level):
         """ Template for dataset. This can be stored and later used during
         training.
         """
         if self.centers is not None and self.radii is not None:
             template = generate_sphere_template(self.centers,
                                                 self.radii,
-                                                level=6)
+                                                level=level)
             template.export(path)
         else:
             raise RuntimeError("Centers and/or radii are unknown, template"
                                " cannnot be created. ")
         return path
 
-    def store_ellipsoid_template(self, path):
+    def store_ellipsoid_template(self, path, level):
         """ Template for dataset. This can be stored and later used during
         training.
         """
@@ -432,7 +497,9 @@ class Cortex(DatasetHandler):
             self.radii_y is not None and
             self.radii_z is not None):
             template = generate_ellipsoid_template(
-                self.centers, self.radii_x, self.radii_y, self.radii_z, level=6
+                self.centers,
+                self.radii_x, self.radii_y, self.radii_z,
+                level=level
             )
             template.export(path)
         else:
@@ -453,12 +520,11 @@ class Cortex(DatasetHandler):
         vertices = self.mesh_labels[0].vertices[0]
         faces = self.mesh_labels[0].faces[0]
 
-        # Remove padded vertices
-        valid_ids = np.unique(faces)
-        valid_ids = valid_ids[valid_ids != -1]
-        vertices_ = vertices[valid_ids]
+        # Remove padded vertices and faces
+        vertices_ = vertices[~torch.isclose(vertices, torch.Tensor([-1.0])).all(dim=1)]
+        faces_ = faces[~(faces == -1).any(dim=1)]
 
-        structure_1 = Trimesh(vertices_, faces, process=False)
+        structure_1 = Trimesh(vertices_, faces_, process=False)
 
         # Increase granularity until desired number of points is reached
         while structure_1.subdivide().vertices.shape[0] < n_max_points:
@@ -545,8 +611,15 @@ class Cortex(DatasetHandler):
         return path
 
     @staticmethod
-    def split(raw_data_dir, dataset_seed, dataset_split_proportions,
-              augment_train, save_dir, overfit=False, **kwargs):
+    def split(raw_data_dir,
+              augment_train,
+              save_dir,
+              dataset_seed=0,
+              dataset_split_proportions=None,
+              fixed_split: Union[dict, bool, Sequence]=False,
+              overfit=False,
+              load_only=('train', 'validation', 'test'),
+              **kwargs):
         """ Create train, validation, and test split of the cortex data"
 
         :param str raw_data_dir: The raw base folder, contains a folder for each
@@ -556,31 +629,70 @@ class Cortex(DatasetHandler):
         splits, e.g. (80, 10, 10)
         :param augment_train: Augment training data.
         :param save_dir: A directory where the split ids can be saved.
+        :param fixed_split: A dict containing file ids for 'train',
+        'validation', and 'test'. If specified, values of dataset_seed,
+        overfit, and dataset_split_proportions will be ignored. If only 'True',
+        the fixed split IDs are read from a file.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
+        :param load_only: Only return the splits specified (in the order train,
+        validation, test, while missing splits will be None)
         :param kwargs: Dataset parameters.
         :return: (Train dataset, Validation dataset, Test dataset)
         """
 
-        # Available files
-        all_files = os.listdir(raw_data_dir)
-        all_files = [fn for fn in all_files if (
-            "meshes" not in fn and
-            "unregistered" not in fn and
-            "FS" not in fn
-        )] # Remove invalid
+        # Decide between fixed and random split
+        if fixed_split:
+            if isinstance(fixed_split, dict):
+                files_train = fixed_split['train']
+                files_val = fixed_split['validation']
+                files_test = fixed_split['test']
+            elif isinstance(fixed_split, Sequence):
+                assert len(fixed_split) == 3,\
+                        "Should contain one file per split"
+                convert = lambda x: x[:-1] # 'x\n' --> 'x'
+                train_split = os.path.join(raw_data_dir, fixed_split[0])
+                try:
+                    files_train = list(map(convert, open(train_split, 'r').readlines()))
+                except:
+                    files_train = []
+                    print("[Warning] No training files.")
+                val_split = os.path.join(raw_data_dir, fixed_split[1])
+                try:
+                    files_val = list(map(convert, open(val_split, 'r').readlines()))
+                except:
+                    files_val = []
+                    print("[Warning] No validation files.")
+                test_split = os.path.join(raw_data_dir, fixed_split[2])
+                try:
+                    files_test = list(map(convert, open(test_split, 'r').readlines()))
+                except:
+                    files_test = []
+                    print("[Warning] No test files.")
 
-        # Shuffle with seed
-        random.Random(dataset_seed).shuffle(all_files)
+                # Choose valid
+                if "ADNI" in raw_data_dir:
+                    files_train = valid_ids_ADNI_CSR(files_train)
+                    files_val = valid_ids_ADNI_CSR(files_val)
+                    files_test = valid_ids_ADNI_CSR(files_test)
+                elif "OASIS" in raw_data_dir:
+                    files_train = valid_ids_OASIS(files_train)
+                    files_val = valid_ids_OASIS(files_val)
+                    files_test = valid_ids_OASIS(files_test)
+                else:
+                    raise NotImplementedError()
+            else:
+                raise TypeError("Wrong type of parameter 'fixed_split'."
+                                f" Got {type(fixed_split)} but should be"
+                                "'Sequence' or 'dict'")
+        else: # Random split
+            # Available files
+            all_files = valid_ids(raw_data_dir) # Remove invalid
 
-        # Split
-        if overfit:
-            # Consider the same splits for train validation and test
-            indices_train = slice(0, overfit)
-            indices_val = slice(0, overfit)
-            indices_test = slice(0, overfit)
-        else:
-            # No overfit
+            # Shuffle with seed
+            random.Random(dataset_seed).shuffle(all_files)
+
+            # Split according to proportions
             assert np.sum(dataset_split_proportions) == 100, "Splits need to sum to 100."
             indices_train = slice(0, dataset_split_proportions[0] * len(all_files) // 100)
             indices_val = slice(indices_train.stop,
@@ -588,31 +700,60 @@ class Cortex(DatasetHandler):
                                     (dataset_split_proportions[1] * len(all_files) // 100))
             indices_test = slice(indices_val.stop, len(all_files))
 
-        # Create datasets
-        train_dataset = Cortex(all_files[indices_train],
-                               DataModes.TRAIN,
-                               raw_data_dir,
-                               augment=augment_train,
-                               **kwargs)
-        val_dataset = Cortex(all_files[indices_val],
-                             DataModes.VALIDATION,
-                             raw_data_dir,
-                             augment=False,
-                             **kwargs)
-        test_dataset = Cortex(all_files[indices_test],
-                              DataModes.TEST,
-                              raw_data_dir,
-                              augment=False,
-                              **kwargs)
+            files_train = all_files[indices_train]
+            files_val = all_files[indices_val]
+            files_test = all_files[indices_test]
+
+        if overfit:
+            # Consider the same splits for train validation and test
+            files_train = files_train[:overfit]
+            files_val = files_train[:overfit]
+            files_test = files_train[:overfit]
 
         # Save ids to file
-        DatasetHandler.save_ids(all_files[indices_train], all_files[indices_val],
-                         all_files[indices_test], save_dir)
+        DatasetHandler.save_ids(files_train, files_val, files_test, save_dir)
+
+        assert (len(set(files_train) & set(files_val) & set(files_test)) == 0
+                or overfit),\
+                "Train, validation, and test set should not intersect!"
+
+        # Create train, validation, and test datasets
+        if 'train' in load_only:
+            train_dataset = Cortex(files_train,
+                                   DataModes.TRAIN,
+                                   raw_data_dir,
+                                   augment=augment_train,
+                                   **kwargs)
+        else:
+            train_dataset = None
+        if 'validation' in load_only:
+            val_dataset = Cortex(files_val,
+                                 DataModes.VALIDATION,
+                                 raw_data_dir,
+                                 augment=False,
+                                 **kwargs)
+        else:
+            val_dataset = None
+        if 'test' in load_only:
+            test_dataset = Cortex(files_test,
+                                  DataModes.TEST,
+                                  raw_data_dir,
+                                  augment=False,
+                                  **kwargs)
+        else:
+            test_dataset = None
 
         return train_dataset, val_dataset, test_dataset
 
     def __len__(self):
         return len(self._files)
+
+    def resample_surface_points(self):
+        """ Resample the surface points of the meshes. """
+        self.point_labels,\
+                self.normal_labels,\
+                self.curvatures = self._load_ref_points()
+
 
     @measure_time
     def get_item_from_index(self, index: int, mesh_target_type: str=None,
@@ -712,13 +853,49 @@ class Cortex(DatasetHandler):
          normals, _) = self.get_item_from_index(
             index, mesh_target_type='full_mesh'
         )
-        mesh_label = Mesh(vertices, faces, normals)
+        thickness = self.get_thickness_from_index(index)
+        mesh_label = Mesh(vertices, faces, normals, thickness)
+        trans_affine_label = self.trans_affine[index]
 
-        return img, voxel_label, mesh_label
+        return img, voxel_label, mesh_label, trans_affine_label
+
+    def get_thickness_from_index(self, index: int):
+        """ Return per-vertex thickness of the ith dataset element if possible."""
+        return self.thickness_per_vertex[index] if (
+            self.thickness_per_vertex is not None) else None
+
+    def _read_voxelized_meshes(self):
+        """ Read voxelized meshes stored in nifity files and set voxel classes
+        as specified by _get_seg_and_mesh_label_names. """
+        data = []
+        # Iterate over sample ids
+        for sample_id in tqdm(self._files, position=0, leave=True,
+                       desc="Loading voxelized meshes..."):
+            voxelized_mesh_label = None
+            # Iterate over voxel classes
+            for group_id, voxel_group in enumerate(
+                self.voxelized_mesh_label_names, 1
+            ):
+                # Iterate over files
+                for vmln in voxel_group:
+                    vm_file = os.path.join(
+                        self._raw_data_dir, sample_id, vmln + ".nii.gz"
+                    )
+                    img = nib.load(vm_file).get_fdata().astype(int) * group_id
+                    if voxelized_mesh_label is None:
+                        voxelized_mesh_label = img
+                    else:
+                        np.putmask(voxelized_mesh_label, img>0, img)
+
+            data.append(voxelized_mesh_label)
+
+        return data
+
 
     def _load_data3D_raw(self, filename: str):
         data = []
-        for fn in self._files:
+        for fn in tqdm(self._files, position=0, leave=True,
+                       desc="Loading images..."):
             img = nib.load(os.path.join(self._raw_data_dir, fn, filename))
 
             d = img.get_fdata()
@@ -748,8 +925,12 @@ class Cortex(DatasetHandler):
 
         return data_2D
 
-    def _get_single_patches(self, raw_imgs, raw_labels):
+    def _get_single_patches(self):
         """ Extract a single patch from an image. """
+
+        assert (tuple(self._patch_origin) == (0,0,0)
+                or not self.patch_mode == "no"),\
+                "If patch mode is 'no', patch origin should be (0,0,0)"
 
         img_patches, label_patches, transformations = [], [], []
 
@@ -759,32 +940,55 @@ class Cortex(DatasetHandler):
                 np.array(self.select_patch_size, dtype=int)
 
         # Iterate over images and labels
-        for img, label in zip(raw_imgs, raw_labels):
+        for i, img in tqdm(enumerate(self.images), position=0, leave=True,
+                           desc=f"Extract patches of shape {self.patch_size}"):
+            if self.voxel_labels is not None:
+                label = self.voxel_labels[i]
+            if self.voxelized_meshes is not None:
+                vox_mesh_label = self.voxelized_meshes[i]
+            assert img.shape == (182, 218, 182),\
+                    "Our mesh templates were created based on this shape."
             # Select patch from whole image
             img_patch, trans_affine_1 = img_with_patch_size(
                 img, self.select_patch_size, is_label=False, mode='crop',
                 crop_at=(lower_limit + upper_limit) // 2
             )
-            label_patch, _ = img_with_patch_size(
-                label, self.select_patch_size, is_label=True, mode='crop',
-                crop_at=(lower_limit + upper_limit) // 2
-            )
+            if self.voxel_labels is not None:
+                label_patch, _ = img_with_patch_size(
+                    label, self.select_patch_size, is_label=True, mode='crop',
+                    crop_at=(lower_limit + upper_limit) // 2
+                )
+            if self.voxelized_meshes is not None:
+                vox_mesh_label_patch, _ = img_with_patch_size(
+                    vox_mesh_label, self.select_patch_size, is_label=True, mode='crop',
+                    crop_at=(lower_limit + upper_limit) // 2
+                )
             # Zoom to certain size
             if self.patch_size != self.select_patch_size:
                 img_patch, trans_affine_2 = img_with_patch_size(
                     img_patch, self.patch_size, is_label=False, mode='interpolate'
                 )
-                label_patch, _ = img_with_patch_size(
-                    label_patch, self.patch_size, is_label=True, mode='interpolate'
-                )
+                if self.voxel_labels is not None:
+                    label_patch, _ = img_with_patch_size(
+                        label_patch, self.patch_size, is_label=True, mode='interpolate'
+                    )
+                if self.voxelized_meshes is not None:
+                    vox_mesh_label_patch, _ = img_with_patch_size(
+                        vox_mesh_label_patch, self.patch_size, is_label=True, mode='interpolate'
+                    )
             else:
                 trans_affine_2 = np.eye(self.ndims + 1) # Identity
 
-            img_patches.append(img_patch)
-            label_patches.append(label_patch)
+            # Replace raw images with processed ones. This way, it is avoided
+            # that a 'raw' and a 'processed' list needs to be stored.
+            self.images[i] = img_patch
+            if self.voxel_labels is not None:
+                self.voxel_labels[i] = label_patch
+            if self.voxelized_meshes is not None:
+                self.voxelized_meshes[i] = vox_mesh_label_patch
             transformations.append(trans_affine_2 @ trans_affine_1)
 
-        return img_patches, label_patches, transformations
+        return transformations
 
     def _get_multi_patches(self, raw_imgs: list, raw_labels: list):
         """ Load multiple patches from each raw image and corresponding voxel
@@ -901,7 +1105,8 @@ class Cortex(DatasetHandler):
         """ Return the voxelized meshes as 3D voxel labels. Here, individual
         structures are not distinguished. """
         data = []
-        for m in mesh_labels:
+        for m in tqdm(mesh_labels, position=0, leave=True,
+                      desc="Voxelize meshes..."):
             vertices = m.vertices.view(self.n_m_classes, -1, 3)
             faces = m.faces.view(self.n_m_classes, -1, 3)
             voxel_label = voxelize_mesh(
@@ -935,7 +1140,7 @@ class Cortex(DatasetHandler):
         for m in meshes:
             for verts_, mn in zip(m.vertices, self.mesh_label_names):
                 # Remove padded vertices
-                verts = verts_[(verts_ != (-1.0)).all(dim=1)]
+                verts = verts_[~torch.isclose(verts_, torch.Tensor([-1.0])).all(dim=1)]
                 # Centroid of vertex coordinates
                 center = verts.mean(dim=0)
                 centers_per_structure[mn].append(center)
@@ -972,27 +1177,42 @@ class Cortex(DatasetHandler):
         return centroids, radii, radii_x, radii_y, radii_z
 
     def _load_dataMesh_raw(self, meshnames):
-        """ Load mesh such that it's registered to the respective 3D image
+        """ Load mesh such that it's registered to the respective 3D image. If
+        a mesh cannot be found, a dummy is inserted if it is a test split.
         """
         data = []
-        for fn in self._files:
+        assert len(self.trans_affine) == 0, "Should be empty."
+        for fn in tqdm(self._files, position=0, leave=True,
+                       desc="Loading meshes..."):
             # Voxel coords
             orig = nib.load(os.path.join(self._raw_data_dir, fn,
                                          self.img_filename))
             vox2world_affine = orig.affine
             world2vox_affine = np.linalg.inv(vox2world_affine)
+            self.trans_affine.append(world2vox_affine)
             file_vertices = []
             file_faces = []
             for mn in meshnames:
-                mesh = trimesh.load_mesh(os.path.join(
-                    self._raw_data_dir, fn, mn + ".stl"
-                ))
+                try:
+                    mesh = trimesh.load_mesh(os.path.join(
+                        self._raw_data_dir, fn, mn + ".stl"
+                    ))
+                except ValueError:
+                    try:
+                        mesh = trimesh.load_mesh(os.path.join(
+                            self._raw_data_dir, fn, mn + ".ply"
+                        ))
+                    except Exception as e:
+                        # Insert a dummy if dataset is test split
+                        if self._mode != DataModes.TEST:
+                            raise e
+                        print(f"[Warning] No mesh for file {fn}/{mn},"
+                              " inserting dummy.")
+                        mesh = trimesh.creation.icosahedron()
                 # World --> voxel coordinates
-                coords = np.concatenate(
-                    (mesh.vertices.T, np.ones((1, mesh.vertices.shape[0]))),
-                    axis=0
+                voxel_verts, voxel_faces = transform_mesh_affine(
+                    mesh.vertices, mesh.faces, world2vox_affine
                 )
-                voxel_verts = (world2vox_affine @ coords).T[:,:-1]
                 # Store min/max number of vertices
                 self.n_max_vertices = np.maximum(
                     voxel_verts.shape[0], self.n_max_vertices) if (
@@ -1002,14 +1222,7 @@ class Cortex(DatasetHandler):
                 self.n_min_vertices is not None) else voxel_verts.shape[0]
                 # Add to structures of file
                 file_vertices.append(torch.from_numpy(voxel_verts))
-                # Keep normal convention if coordinates are mirrored an uneven
-                # number of times
-                if np.sum(np.sign(np.diag(world2vox_affine)) == -1) % 2 == 1:
-                    file_faces.append(
-                        torch.from_numpy(mesh.faces).flip(dims=[1])
-                    )
-                else: # no flips required
-                    file_faces.append(torch.from_numpy(mesh.faces))
+                file_faces.append(torch.from_numpy(voxel_faces))
 
             # First treat as a batch of multiple meshes and then combine
             # into one mesh
@@ -1017,7 +1230,6 @@ class Cortex(DatasetHandler):
             mesh_single = Mesh(
                 mesh_batch.verts_padded().float(),
                 mesh_batch.faces_padded().long(),
-                normals=mesh_batch.verts_normals_padded().float()
             )
             data.append(mesh_single)
 
@@ -1085,6 +1297,10 @@ class Cortex(DatasetHandler):
                     )[idx.unbind(1)].view(
                         self.n_m_classes, -1, 1
                     )
+                    # Sanity check
+                    assert torch.allclose(
+                        m_.verts_normals_padded(), m.normals, atol=1e-05
+                    ), "Inconsistent normals!"
                 else: # No curvatures
                     # Sample from mesh surface
                     p, n = sample_points_from_meshes(
@@ -1122,7 +1338,57 @@ class Cortex(DatasetHandler):
         # Assert up to sign of direction
         assert (
             torch.allclose(normals_f, py3d_mesh_aug.verts_normals_padded(),
-                           atol=2e-03)
+                           atol=7e-03)
             or torch.allclose(-normals_f, py3d_mesh_aug.verts_normals_padded(),
-                             atol=2e-03)
+                             atol=7e-03)
         )
+
+    def _get_per_vertex_label(self, morphology, subfolder="surf"):
+        """ Load per-vertex labels, e.g., thickness values, from a freesurfer
+        morphology (curv) file in the preprocessed data (FS) directory for each
+        dataset sample.
+        :param morphology: The morphology to load, e.g., 'thickness'
+        :param subfolder: The subfolder of a the sample folder where the
+        morphology file could be found.
+        :return: List of len(self) containing per-vertex morphology values for
+        each sample.
+        """
+        if self._preprocessed_data_dir is None:
+            return None
+
+        morph_labels = []
+        for fn in self._files:
+            file_dir = os.path.join(
+                self._preprocessed_data_dir, fn, subfolder
+            )
+            file_labels = []
+            n_max = 0
+            for mn in self.mesh_label_names:
+                # Filenames have form 'lh_white_reduced_0.x.thickness'
+                morph_fn = mn + "." + morphology
+                morph_fn = os.path.join(file_dir, morph_fn)
+                try:
+                    morph_label = nib.freesurfer.io.read_morph_data(morph_fn)
+                except Exception as e:
+                    # Insert dummy if file could not
+                    # be found
+                    morph_label = np.zeros(self.mesh_labels[
+                        self._files.index(fn)
+                    ].vertices[self.mesh_label_names.index(mn)].shape[0])
+
+                file_labels.append(
+                    torch.from_numpy(morph_label.astype(np.float32))
+                )
+                if morph_label.shape[0] > n_max:
+                    n_max = morph_label.shape[0]
+
+            # Pad values with 0
+            file_labels_padded = []
+            for fl in file_labels:
+                file_labels_padded.append(
+                    F.pad(fl, (0, n_max - fl.shape[0]))
+                )
+
+            morph_labels.append(torch.stack(file_labels_padded))
+
+        return morph_labels

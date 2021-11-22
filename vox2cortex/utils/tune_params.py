@@ -16,7 +16,7 @@ from utils.modes import ExecModes
 from utils.logging import init_logging, finish_wandb_run, init_wandb_logging
 from utils.evaluate import ModelEvaluator
 from models.model_handler import ModelHandler
-from data.supported_datasets import dataset_split_handler
+from data.dataset_split_handler import dataset_split_handler
 
 def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     """
@@ -33,7 +33,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     # Only consider few epochs when tuning parameters
-    hps['N_EPOCHS'] = 1000
+    hps['N_EPOCHS'] = 1500
 
     # Create directories
     experiment_name, experiment_dir, log_dir =\
@@ -82,14 +82,11 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
     ###### Load data ######
     hps_lower = dict((k.lower(), v) for k, v in hps.items())
     trainLogger.info("Loading dataset %s...", hps['DATASET'])
-    training_set,\
-            validation_set,\
-            test_set=\
-                dataset_split_handler[hps['DATASET']](save_dir=experiment_dir,
-                                                      **hps_lower)
+    training_set, validation_set, _ = dataset_split_handler[hps['DATASET']](
+        save_dir=experiment_dir, **hps_lower
+    )
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
-    trainLogger.info("%d test files.", len(test_set))
 
     # Evaluation during training on validation set
     evaluator = ModelEvaluator(eval_dataset=validation_set,

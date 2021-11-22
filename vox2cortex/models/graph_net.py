@@ -13,9 +13,8 @@ from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
 from utils.utils_voxel2mesh.unpooling import uniform_unpool
+from utils.utils_voxel2mesh.feature_sampling import LearntNeighbourhoodSampling
 from utils.utils_voxel2meshplusplus.graph_conv import (
-    Features2FeaturesSimpleResidual,
-    GraphIdLayer,
     Features2FeaturesResidual,
     zero_weight_init
 )
@@ -25,7 +24,6 @@ from utils.utils_voxel2meshplusplus.feature_aggregation import (
 )
 from utils.file_handle import read_obj
 from utils.logging import measure_time
-from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 from utils.mesh import MeshesOfMeshes
 from utils.coordinate_transform import (
     normalize_vertices,
@@ -49,6 +47,7 @@ class GraphDecoder(nn.Module):
                  propagate_coords: bool,
                  patch_size: Tuple[int, int, int],
                  aggregate_indices: Tuple[Tuple[int]],
+                 exchange_coords: bool,
                  group_structs: Tuple[Tuple[int]]=None,
                  k_struct_neighbors=5,
                  ndims: int=3,
@@ -80,6 +79,7 @@ class GraphDecoder(nn.Module):
         self.ndims = ndims
         self.group_structs = group_structs
         self.k_struct_neighbors = k_struct_neighbors
+        self.exchange_coords = exchange_coords
 
         # Aggregation of voxel features
         self.aggregate = aggregate
@@ -93,6 +93,7 @@ class GraphDecoder(nn.Module):
         # Graph decoder
         f2f_res_layers = [] # Residual feature to feature blocks
         f2v_layers = [] # Features to vertices
+        lns_layers = [] # Learnt neighborhood sampling (optional)
 
         # Whether or not to add the vertex coordinates to the features again
         # after each step
@@ -104,9 +105,13 @@ class GraphDecoder(nn.Module):
 
         # Additional structural information added
         if group_structs:
-            # Neighbor coordinates + pos. encoding
-            add_n += k_struct_neighbors * ndims +\
-                    int(np.ceil(np.log2(len(group_structs))))
+            if exchange_coords:
+                # Neighbor coordinates + surface id
+                add_n += k_struct_neighbors * ndims +\
+                        int(np.ceil(np.log2(len(group_structs))))
+            else:
+                # Surface id
+                add_n += int(np.ceil(np.log2(len(group_structs))))
 
         for i in range(self.num_steps):
             # Multiple sequential graph residual blocks
@@ -142,8 +147,15 @@ class GraphDecoder(nn.Module):
                 init='zero'
             ))
 
+            # Optionally create lns layers
+            if self.aggregate == 'lns':
+                lns_layers.append(LearntNeighbourhoodSampling(
+                    self.patch_size, self.num_steps, skip_features_count, i
+                ))
+
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
+        self.lns_layers = nn.ModuleList(lns_layers)
 
         # Init f2v layers to zero
         self.f2v_layers.apply(zero_weight_init)
@@ -264,6 +276,8 @@ class GraphDecoder(nn.Module):
                                                   faces_padded,
                                                   identical_face_batch=False)
                     faces_padded = faces_padded_new
+
+                # Number of vertices might have changed
                 V_new = latent_features_padded.shape[2]
 
                 # Mesh coordinates for F.grid_sample
@@ -279,12 +293,23 @@ class GraphDecoder(nn.Module):
                 # Avoid bug related to automatic mixed precision, see also
                 # https://github.com/pytorch/pytorch/issues/42218
                 with autocast(enabled=False):
-                    skipped_features = aggregate_from_indices(
-                        skips,
-                        verts_img_co,
-                        agg_indices,
-                        mode=self.aggregate
-                    ).view(batch_size, M, V_new, -1)
+                    if self.aggregate in ('trilinear', 'bilinear'):
+                        skipped_features = aggregate_from_indices(
+                            skips,
+                            verts_img_co,
+                            agg_indices,
+                            mode=self.aggregate
+                        ).view(batch_size, M, V_new, -1)
+                    elif self.aggregate == 'lns':
+                        # Learnt neighborhood sampling
+                        assert len(agg_indices) == 1,\
+                                "Does only work with single feature map."
+                        skipped_features = self.lns_layers[i](
+                            skips[agg_indices[0]], verts_img_co
+                        ).view(batch_size, M, V_new, -1)
+                    else:
+                        raise ValueError("Unknown aggregation scheme ",
+                                         self.aggregate)
 
                 # Latent features related to structural information (ID of
                 # structure, geometry of nearby structure)
@@ -292,6 +317,7 @@ class GraphDecoder(nn.Module):
                     struct_features = aggregate_structural_features(
                         vertices_padded,
                         self.group_structs,
+                        self.exchange_coords,
                         self.k_struct_neighbors
                     )
                     # Concatenate along feature dimension
@@ -326,6 +352,7 @@ class GraphDecoder(nn.Module):
                 deltaV_packed = f2v(latent_features_packed, edges_packed)
                 deltaV_padded = deltaV_packed.view(batch_size, M, V_new,
                                                    self.ndims)
+                new_deltaV_mesh = MeshesOfMeshes(deltaV_padded, faces_padded)
                 new_meshes.move_verts(deltaV_padded)
 
                 # New latent features
@@ -341,6 +368,6 @@ class GraphDecoder(nn.Module):
                     # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, V_prev)
 
                 pred_meshes.append(new_meshes)
-                pred_deltaV.append(deltaV_padded)
+                pred_deltaV.append(new_deltaV_mesh)
 
         return pred_meshes, pred_deltaV

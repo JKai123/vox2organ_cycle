@@ -1,4 +1,4 @@
-""" Documentation of project-wide parameters and default values 
+""" Documentation of project-wide parameters and default values
 
 Ideally, all occurring parameters should be documented here.
 """
@@ -20,6 +20,19 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
     GraphConvNorm
 )
 
+DATASET_SPLIT_PARAMS = (
+    'DATASET_SEED',
+    'DATASET_SPLIT_PROPORTIONS',
+    'FIXED_SPLIT',
+    'OVERFIT'
+)
+
+DATASET_PARAMS = (
+    'DATASET',
+    'RAW_DATA_DIR',
+    'PREPROCESSED_DATA_DIR'
+)
+
 hyper_ps_default={
 
     # >>> Note: Using tuples (...) instead of lists [...] may lead to problems
@@ -35,6 +48,11 @@ hyper_ps_default={
 
     # The number of vertices in a single template structure
     'N_TEMPLATE_VERTICES': 162,
+
+    # The number of vertices in a single template structure used during testing
+    # (may be different than 'N_TEMPLATE_VERTICES'; -1 means that
+    # 'N_TEMPLATE_VERTICES' is used)
+    'N_TEMPLATE_VERTICES_TEST': -1,
 
     # The number of reference points in a cortex structure
     'N_REF_POINTS_PER_STRUCTURE': 40962,
@@ -56,8 +74,16 @@ hyper_ps_default={
     # 'white_matter'
     'STRUCTURE_TYPE': "white_matter",
 
+    # Check if data has been transformed correctly. This leads potentially to a
+    # larger memory consumption since meshes are voxelized and voxel labels are
+    # loaded (even though only one of them is typically used)
+    'SANITY_CHECK_DATA': True,
+
     # The batch size used during training
     'BATCH_SIZE': 1,
+
+    # Optionally provide a norm for gradient clipping
+    'CLIP_GRADIENT': False,
 
     # Activate/deactivate patch mode for the cortex dataset. Possible values
     # are "no", "single-patch", "multi-patch"
@@ -72,6 +98,10 @@ hyper_ps_default={
     # Freesurfer ground truth meshes with reduced resolution. 1.0 = original
     # resolution (in terms of number of vertices)
     'REDUCED_FREESURFER': 1.0,
+
+    # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
+    # labels
+    'SEG_GROUND_TRUTH': 'voxelized_meshes',
 
     # Whether to use curvatures of the meshes. If set to True, the ground truth
     # points are vertices and not sampled surface points
@@ -106,6 +136,10 @@ hyper_ps_default={
     # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
     # [0.3, 0.05, 0.46, 0.16]
     'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+
+    # Penalize large vertex displacements, can be seen as a regularization loss
+    # function weight
+    'PENALIZE_DISPLACEMENT': 0.0,
 
     # The number of sample points for the mesh loss computation if done as by
     # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
@@ -180,9 +214,14 @@ hyper_ps_default={
         # rh_pial have ids 2 and 3, then the groups should be specified as
         # ((0,1),(2,3))
         'GROUP_STRUCTS': None,
+        # Whether to exchange coordinates between groups
+        'EXCHANGE_COORDS': True,
         # The number of neighbors considered for feature aggregation from
         # vertices of different structures in the graph net
         'K_STRUCT_NEIGHBORS': 5,
+        # The mechanism for voxel feature aggregations, can be 'trilinear',
+        # 'bilinear', or 'lns'
+        'AGGREGATE': 'trilinear',
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]]
     },
@@ -204,12 +243,21 @@ hyper_ps_default={
     # Proportions of dataset splits
     'DATASET_SPLIT_PROPORTIONS': [80, 10, 10],
 
+    # Dict or bool value that allows for specifying fixed ids for dataset
+    # splitting.
+    # If specified, 'DATASET_SEED' and 'DATASET_SPLIT_PROPORTIONS' will be
+    # ignored. The dict should contain values for keys 'train', 'validation',
+    # and 'test'. Alternatively, a list of files can be specified containing
+    # IDs for 'train', 'validation', and 'test'
+    'FIXED_SPLIT': False,
+
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",
 
     # Directory of raw data
     'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
 
-    # Directory of preprocessed data
+    # Directory of preprocessed data, e.g., containing thickness values from
+    # FreeSurfer
     'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
 }

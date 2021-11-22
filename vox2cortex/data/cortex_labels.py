@@ -15,11 +15,12 @@ class CortexLabels(IntEnum):
     left_cerebral_cortex = 3
     right_cerebral_cortex = 42
 
-def combine_labels(labels, names):
-    """ Only consider labels in 'names' and set all those labels equally to 1
+def combine_labels(labels, names, value=1):
+    """ Only consider labels in 'names' and set all those labels equally to
+    'value'.
     """
     ids = [CortexLabels[n].value for n in names]
-    combined_labels = np.isin(labels, ids).astype(int)
+    combined_labels = np.isin(labels, ids).astype(int) * value
 
     if isinstance(labels, torch.Tensor):
         combined_labels = torch.from_numpy(combined_labels)

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import trimesh
 import torch
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyntcloud import PyntCloud
 from skimage.measure import find_contours
 
@@ -55,13 +56,16 @@ def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     return os.path.join(label_dir, label_name)
 
 
-def show_pointcloud(filenames: Union[str, list], backend='open3d'):
+def show_pointcloud(filenames: Union[str, list], backend='open3d', opacity=1.0,
+                    values=None):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d or pyvista.
 
     :param str filenames: A list of files or a directory name.
     :param str backend: 'open3d' or 'pyvista' (default)
     """
+    if values and backend == 'open3d':
+        raise ValueError("Values not supported with open3d.")
     if isinstance(filenames, str):
         if os.path.isdir(filenames):
             path = filenames
@@ -70,13 +74,30 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d'):
             filenames = [os.path.join(path, fn) for fn in filenames]
         else:
             filenames = [filenames]
+    filenames = sorted(filenames)
 
-    for fn in filenames:
+    if values:
+        if isinstance(values, str):
+            if os.path.isdir(values):
+                path = values
+                values = os.listdir(path)
+                values.sort()
+                values = [os.path.join(path, fn) for fn in values]
+            else:
+                values = [values]
+
+        values = sorted(values)
+
+    for i, fn in enumerate(filenames):
         print(f"File: {fn}")
         if backend == 'open3d':
             show_pointcloud_open3d(fn)
         elif backend == 'pyvista':
-            show_pointcloud_pyvista(fn)
+            if values:
+                value = values[i]
+            else:
+                value = None
+            show_pointcloud_pyvista(fn, opacity=opacity, value=value)
         else:
             raise ValueError("Unknown backend {}".format(backend))
 
@@ -93,19 +114,39 @@ def show_pointcloud_open3d(filename: str):
     print(mesh)
     o3d.visualization.draw_geometries([mesh])
 
-def show_pointcloud_pyvista(filename: str):
+def show_pointcloud_pyvista(filename: str, opacity=1.0, value=None):
     """
     Show a point cloud stored in a file (e.g. .ply) using pyvista.
 
     :param str filename: The file that should be visualized.
     """
     import pyvista as pv
-    cloud = pv.read(filename)
+
+    # Custom theme
+    pv.set_plot_theme('doc')
+
+    mesh = trimesh.load(filename)
+    # pyvista has different face format
+    faces = np.hstack([
+        np.ones([mesh.faces.shape[0], 1], dtype=int) * mesh.faces.shape[1],
+        mesh.faces
+    ])
+    cloud = pv.PolyData(mesh.vertices, faces)
     print(cloud)
 
     plotter = pv.Plotter()
-    plotter.add_mesh(cloud)
-    plotter.show()
+    # plotter.set_background(color=[0.90196, 0.90196, 0.90196])
+    if value is None:
+        plotter.add_mesh(cloud, opacity=opacity, smooth_shading=True,
+                         color='paleturquoise')
+    else:
+        value = np.load(value)
+        plotter.add_mesh(cloud, opacity=opacity, smooth_shading=True,
+                         cmap='plasma', scalars=value, clim=[0, 5])
+
+    fn = '../misc/rendered_mesh.png'
+    plotter.show(screenshot=fn)
+    print("Stored a screenshot at ", fn)
 
 def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
                        label_mode='contour', labels_from_mesh: str=None, 
@@ -137,7 +178,7 @@ def show_img_slices_3D(filenames: str, show_label=True, dataset="Cortex",
         assert img3D.ndim == 3, "Image dimension not equal to 3."
 
         img1 = img3D.get_fdata() # get np.ndarray
-        img1 = img1[int(img3D.shape[0]/2), :, :]
+        img1 = img1[int(img3D.shape[0]/4), :, :]
         img1 = np.flip(np.rot90(img1), axis=1)
         img2 = img3D.get_fdata() # get np.ndarray
         img2 = img2[:, int(img3D.shape[1]/2), :]
@@ -342,15 +383,20 @@ def show_difference(img_1, img_2, save_path=None):
                     img_2[:, :, shape_2[2]//2]]
     diff = [(i1 != i2).long() for i1, i2 in zip(img_1_slices, img_2_slices)]
 
-    _, axs = plt.subplots(1, len(img_1_slices))
+    fig, axs = plt.subplots(1, len(img_1_slices))
     if len(img_1_slices) == 1:
         axs = [axs]
 
     for i, s in enumerate(img_1_slices):
         axs[i].imshow(s, cmap="gray")
 
-    for i, l in enumerate(diff):
-        axs[i].imshow(l, cmap="OrRd", alpha=0.6)
+    for i, (l, ax) in enumerate(zip(diff, axs)):
+        im = ax.imshow(l, cmap="OrRd", alpha=0.6)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+
+    fig.tight_layout()
 
     plt.suptitle("Difference")
     if save_path is None:

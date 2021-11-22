@@ -272,6 +272,6 @@ class ResidualUNet(nn.Module):
         if self.decoder is not None:
             decoder_skips, seg_out = self.decoder(encoder_skips)
         else:
-            decoder_skips, seg_out = None, None
+            decoder_skips, seg_out = [], []
 
         return encoder_skips, decoder_skips, seg_out

@@ -100,8 +100,8 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool,
         img = crop(img, (D_new, H_new, W_new), (center_z, center_y, center_x))
         if isinstance(img, np.ndarray):
             img = torch.from_numpy(img).float()
-        transform_affine[:-1,-1] = offset_due_to_padding(
-            img.shape, patch_size, (center_z, center_y, center_x)
+        transform_affine[:-1,-1] = offset_due_to_padding_and_shift(
+            (center_z, center_y, center_x), patch_size
         )
 
     elif mode == 'interpolate':
@@ -126,16 +126,12 @@ def img_with_patch_size(img: np.ndarray, patch_size: int, is_label: bool,
 
     return img, transform_affine
 
-def offset_due_to_padding(old_shape, new_shape, crop_at):
-    """ Get the voxel coordinate offset due to padding of an image with shape
+def offset_due_to_padding_and_shift(crop_at, patch_shape):
+    """ Get the voxel coordinate offset due to padding and shift of an image with shape
     'old_shape' such that it has 'new_shape'
     """
-    D, H, W = old_shape
-    center_z, center_y, center_x = crop_at
-    D, H, W = new_shape
-    _, pad_width, _ = crop_indices(old_shape, new_shape, (center_z, center_y,
-                                                          center_x))
-    offset = np.array(pad_width)[:,0]
+    offset = [(i - ps // 2) for i, ps in zip(crop_at, patch_shape)]
+    offset = -np.array(offset)
 
     return offset
 
@@ -303,7 +299,9 @@ class DatasetHandler(torch.utils.data.Dataset):
         """ Check if voxel and mesh data is consistent """
         for i in tqdm(range(len(self)),
                       desc="Checking IoU of voxel and mesh labels"):
-            _, voxel_label, mesh = self.get_item_and_mesh_from_index(i)
+            data = self.get_item_and_mesh_from_index(i)
+            voxel_label = data[1]
+            mesh = data[2]
             shape = voxel_label.shape
             vertices, faces = mesh.vertices, mesh.faces
             faces = faces.view(self.n_m_classes, -1, 3)

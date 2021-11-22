@@ -11,6 +11,8 @@ import torch
 from trimesh import Trimesh
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import cot_laplacian
+from matplotlib import cm
+from matplotlib.colors import Normalize
 
 class Mesh():
     """ Custom meshes
@@ -27,9 +29,9 @@ class Mesh():
     def __init__(self, vertices, faces, normals=None, features=None):
         self._vertices = vertices
         self._faces = faces
-        self._normals = normals
-        self._features = features
         self._ndims = vertices.shape[-1]
+        self.normals = normals
+        self.features = features
 
     @property
     def vertices(self):
@@ -44,10 +46,7 @@ class Mesh():
     def ndims(self):
         return self._ndims
 
-    @property
-    def ndims(self):
-        return self._ndims
-
+    # Faces cannot be changed! --> Preserve topology
     @property
     def faces(self):
         return self._faces
@@ -56,9 +55,28 @@ class Mesh():
     def normals(self):
         return self._normals
 
+    @normals.setter
+    def normals(self, new_normals):
+        if new_normals is not None:
+            assert new_normals.shape[-1] == self.ndims
+            if len(self.vertices.shape) == 3: # Padded
+                assert new_normals.shape[0:2] == self.vertices.shape[0:2]
+            else: # Packed
+                assert new_normals.shape[0] == self.vertices.shape[0]
+        self._normals = new_normals
+
     @property
     def features(self):
         return self._features
+
+    @features.setter
+    def features(self, new_features):
+        if new_features is not None:
+            if len(self.vertices.shape) == 3: # Padded
+                assert new_features.shape[0:2] == self.vertices.shape[0:2]
+            else: # Packed
+                assert new_features.shape[0] == self.vertices.shape[0]
+        self._features = new_features
 
     def to_trimesh(self, process=False):
         assert type(self.vertices) == type(self.faces)
@@ -94,7 +112,23 @@ class Mesh():
         raise ValueError("Invalid dimension of vertices and/or faces.")
 
     def store(self, path: str):
+        """ Store only the mesh itself. For storing with features see
+        'store_with_features'.  """
         t_mesh = self.to_trimesh()
+        t_mesh.export(path)
+
+    def store_with_features(self, path: str, vmin: float=0.1, vmax: float=3.0):
+        """ Store a mesh together with its morphology features. Default vmin
+        and vmax correspond to typical values for the visualization of cortical
+        thickness."""
+        t_mesh = self.to_trimesh(process=False)
+        autumn = cm.get_cmap('autumn')
+        color_norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
+        features = self.features.reshape(t_mesh.vertices.shape[0])
+        if isinstance(features, torch.Tensor):
+            features = features.cpu().numpy()
+        colors = autumn(color_norm(features))
+        t_mesh.visual.vertex_colors = colors
         t_mesh.export(path)
 
     def get_occupied_voxels(self, shape):
@@ -125,38 +159,15 @@ class Mesh():
 
         return vox_occupied
 
-    def transform_vertices(self, transformation_matrix: Union[np.ndarray,
-                                                              torch.Tensor]):
-        """ Transform the vertices of the mesh using a given transformation
-        matrix. """
-        if (tuple(transformation_matrix.shape) !=
-            (self._ndims + 1, self._ndims + 1)):
-            raise ValueError("Wrong shape of transformation matrix.")
-        if isinstance(self.vertices, np.ndarray):
-            vertices = torch.from_numpy(self.vertices)
-        else:
-            vertices = self.vertices
-        if isinstance(transformation_matrix, np.ndarray):
-            transformation_matrix =\
-                torch.from_numpy(transformation_matrix).float()
-        vertices = vertices.view(-1, self._ndims)
-        coords = torch.cat(
-            (vertices.T, torch.ones(1, vertices.shape[0])), dim=0
-        )
-        # Transform
-        new_coords = (transformation_matrix @ coords)
-        new_coords = new_coords.T[:,:-1].view(self.vertices.shape)
-
-        # Correct data type
-        if isinstance(self.vertices, np.ndarray):
-            new_coords = new_coords.numpy()
-        self.vertices = new_coords
-
 class MeshesOfMeshes():
     """ Extending pytorch3d.structures.Meshes so that each mesh in a batch of
     meshes can consist of several distinguishable meshes (often individual
     structures in a scene). Basically, a new dimension 'M' is introduced
     to tensors of vertices and faces.
+    Compared to pytorch3d.structures.Meshes, we do not sort out padded vertices
+    in packed representation but assume that every sub-mesh has the same number
+    of vertices and faces.
+    TODO: Maybe add this functionality in the future.
 
     Shapes of self.faces (analoguously for vertices and normals):
         - padded (N,M,F,3)
@@ -205,7 +216,8 @@ class MeshesOfMeshes():
         return self._faces_padded
 
     def edges_packed(self):
-        """ Based on pytorch3d.structures.Meshes.edges_packed()"""
+        """ Returns unique edges in packed representation.
+        Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
             if self.ndims == 3:
                 # Calculate edges from faces
@@ -215,10 +227,33 @@ class MeshesOfMeshes():
                 e12 = torch.cat([v1, v2], dim=1)  # (N*M*F), 2)
                 e20 = torch.cat([v2, v0], dim=1)  # (N*M*F), 2)
                 # All edges including duplicates.
-                self._edges_packed = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
+                edges = torch.cat([e12, e20, e01], dim=0) # (N*M*F)*3, 2)
             else:
                 # 2D equality of faces and edges
-                self._edges_packed = self.faces_packed()
+                edges = self.faces_packed()
+
+            # Sort the edges in increasing vertex order to remove duplicates as
+            # the same edge may appear in different orientations in different
+            # faces.
+            # i.e. rows in edges after sorting will be of the form (v0, v1)
+            # where v1 > v0.
+            # This sorting does not change the order in dim=0.
+            edges, _ = edges.sort(dim=1)
+
+            # Remove duplicate edges: convert each edge (v0, v1) into an
+            # integer hash = V * v0 + v1; this allows us to use the
+            # scalar version of unique which is much faster than
+            # edges.unique(dim=1) which is very slow. After finding
+            # the unique elements reconstruct the vertex indices as:
+            # (v0, v1) = (hash/V, hash % V) The inverse maps from
+            # unique_edges back to edges: unique_edges[inverse_idxs] == edges
+            # i.e. inverse_idxs[i] == j means that edges[i] == unique_edges[j]
+
+            V = self.verts_packed().shape[0]
+            edges_hash = V * edges[:, 0] + edges[:, 1]
+            u, inverse_idxs = torch.unique(edges_hash, return_inverse=True)
+
+            self._edges_packed = torch.stack([u // V, u % V], dim=1)
 
         return self._edges_packed
 

@@ -19,6 +19,7 @@ from utils.utils import (
     create_mesh_from_voxels,
 )
 from utils.coordinate_transform import (
+    transform_mesh_affine,
     unnormalize_vertices_per_max_dim,
 )
 from utils.mesh import Mesh
@@ -26,6 +27,7 @@ from utils.logging import (
     write_img_if_debug
 )
 from utils.visualization import show_slices, show_img_with_contour
+from utils.cortical_thickness import cortical_thickness
 
 def add_to_results_(result_dict, metric_name, result):
     """ Helper function to add evaluation results to the result dict."""
@@ -71,7 +73,10 @@ class ModelEvaluator():
         if not os.path.isdir(self._mesh_dir):
             os.mkdir(self._mesh_dir)
 
-    def evaluate(self, model, epoch, save_meshes=5, remove_previous_meshes=True):
+    def evaluate(self, model, epoch, save_meshes=5,
+                 remove_previous_meshes=True, store_in_orig_coords=False):
+        """ Evaluate a given model and optionally store predicted meshes. """
+
         results_all = {}
         model_class = model.__class__
 
@@ -97,7 +102,8 @@ class ModelEvaluator():
                         self._dataset.get_file_name_from_index(i).split(".")[0]
                 self.store_meshes(
                     pred, data, filename, epoch, model_class,
-                    remove_previous=remove_previous_meshes
+                    remove_previous=remove_previous_meshes,
+                    convert_to_orig_coords=store_in_orig_coords
                 )
 
         # Just consider means over evaluation set
@@ -106,9 +112,15 @@ class ModelEvaluator():
         return results
 
     def store_meshes(self, pred, data, filename, epoch, model_class,
-                     show_all_steps=False, remove_previous=True):
+                     show_all_steps=False, remove_previous=True,
+                     convert_to_orig_coords=False):
         """ Save predicted meshes and ground truth
         """
+        if "/" in filename:
+            subdir = os.path.join(self._mesh_dir, filename.split("/")[0])
+            if not os.path.isdir(subdir):
+                os.mkdir(subdir)
+
         # Remove previously stored files to avoid dumping storage
         if remove_previous:
             for suffix in ("*_meshpred.ply", "*_voxelpred.ply",
@@ -139,16 +151,27 @@ class ModelEvaluator():
         )
         # Store ground truth if it does not exist yet
         if ndims == 3:
+            trans_affine = data[3]
+            # Back to original coordinate space
+            if convert_to_orig_coords:
+                new_vertices, new_faces = transform_mesh_affine(
+                    gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)
+                )
+            else:
+                new_vertices, new_faces = gt_mesh.vertices, gt_mesh.faces
+            gt_mesh_transformed = Mesh(new_vertices, new_faces, features=gt_mesh.features)
             gt_filename = filename + "_gt.ply"
             gt_filename = os.path.join(self._mesh_dir, gt_filename)
             if not os.path.isfile(gt_filename):
-                gt_mesh.store(gt_filename)
+                if self._n_m_classes in (2, 4):
+                    gt_mesh_transformed.store_with_features(gt_filename)
+                else:
+                    gt_mesh_transformed.store(gt_filename)
         else: # 2D
             gt_filename = filename + "_gt.png"
             gt_filename = os.path.join(self._mesh_dir, gt_filename)
             gt_mesh = gt_mesh.to_pytorch3d_Meshes()
             if not os.path.isfile(gt_filename):
-                pass
                 show_img_with_contour(
                     img,
                     unnormalize_vertices_per_max_dim(
@@ -163,94 +186,139 @@ class ModelEvaluator():
         vertices, faces = model_class.pred_to_verts_and_faces(pred)
         if show_all_steps:
             # Visualize meshes of all steps
-            for s, (v, f) in enumerate(zip(vertices, faces)):
-                pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
+            for s, (v_, f_) in enumerate(zip(vertices, faces)):
+                v, f = v_.squeeze(), f_.squeeze()
+                # Optionally convert to original coordinate space
+                if convert_to_orig_coords:
+                    assert ndims == 3, "Only for 3 dim meshes."
+                    v, f = transform_mesh_affine(
+                        v, f, np.linalg.inv(trans_affine)
+                    )
+                if self._n_m_classes in (2, 4) and convert_to_orig_coords:
+                    # Meshes with thickness
+                    pred_meshes = cortical_thickness(v, f)
+                    # Store the mesh of each structure separately
+                    for i, m in enumerate(pred_meshes):
+                        pred_mesh_filename =\
+                                filename + "_epoch" + str(epoch) + "_step" +\
+                                str(s) + "_struc" + str(i) +\
+                                "_meshpred.ply"
+                        pred_mesh_filename = os.path.join(self._mesh_dir,
+                                                          pred_mesh_filename)
+                        m.store_with_features(pred_mesh_filename)
+                else: # Do not consider structures separately
+                    pred_mesh = Mesh(v.cpu(), f.cpu())
+                    logging.getLogger(ExecModes.TEST.name).debug(
+                        "%d vertices in predicted mesh", len(v.view(-1, ndims))
+                    )
+                    if ndims == 3:
+                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                            "_step" + str(s) + "_meshpred.ply"
+                        pred_mesh_filename = os.path.join(self._mesh_dir,
+                                                          pred_mesh_filename)
+                        pred_mesh.store(pred_mesh_filename)
+                    else: # 2D
+                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                            "_step" + str(s) + "_meshpred.png"
+                        pred_mesh_filename = os.path.join(self._mesh_dir,
+                                                          pred_mesh_filename)
+                        pred_mesh = pred_mesh.to_pytorch3d_Meshes()
+                        show_img_with_contour(
+                            img,
+                            unnormalize_vertices_per_max_dim(
+                                pred_mesh.verts_packed(), img.shape
+                            ),
+                            pred_mesh.faces_packed(),
+                            pred_mesh_filename
+                        )
+        else:
+            # Only visualize last step
+            v, f = vertices[-1].squeeze(), faces[-1].squeeze()
+            # Optionally transform back to original coordinates
+            if convert_to_orig_coords:
+                assert ndims == 3, "Only for 3 dim meshes."
+                v, f = transform_mesh_affine(
+                    v, f, np.linalg.inv(trans_affine)
+                )
+            if self._n_m_classes in (2, 4) and convert_to_orig_coords:
+                # Meshes with thickness
+                pred_meshes = cortical_thickness(v, f)
+                # Store the mesh of each structure separately
+                for i, m in enumerate(pred_meshes):
+                    pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                        "_struc" + str(i) + "_meshpred.ply"
+                    pred_mesh_filename = os.path.join(self._mesh_dir,
+                                                      pred_mesh_filename)
+                    m.store_with_features(pred_mesh_filename)
+            else: # Do not consider structures separately
+                pred_mesh = Mesh(v.cpu(), f.cpu())
                 logging.getLogger(ExecModes.TEST.name).debug(
                     "%d vertices in predicted mesh", len(v.view(-1, ndims))
                 )
                 if ndims == 3:
                     pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                        "_step" + str(s) + "_meshpred.ply"
+                        "_meshpred.ply"
                     pred_mesh_filename = os.path.join(self._mesh_dir,
                                                       pred_mesh_filename)
                     pred_mesh.store(pred_mesh_filename)
                 else: # 2D
                     pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                        "_step" + str(s) + "_meshpred.png"
+                        "_meshpred.png"
                     pred_mesh_filename = os.path.join(self._mesh_dir,
                                                       pred_mesh_filename)
                     pred_mesh = pred_mesh.to_pytorch3d_Meshes()
                     show_img_with_contour(
                         img,
                         unnormalize_vertices_per_max_dim(
-                            pred_mesh.verts_packed(), img.shape
+                            pred_mesh.verts_packed(),
+                            img.shape
                         ),
                         pred_mesh.faces_packed(),
                         pred_mesh_filename
                     )
-        else:
-            # Only visualize last step
-            v, f = vertices[-1], faces[-1]
-            pred_mesh = Mesh(v.squeeze().cpu(), f.squeeze().cpu())
-            logging.getLogger(ExecModes.TEST.name).debug(
-                "%d vertices in predicted mesh", len(v.view(-1, ndims))
-            )
-            if ndims == 3:
-                pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                    "_meshpred.ply"
-                pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                  pred_mesh_filename)
-                pred_mesh.store(pred_mesh_filename)
-            else: # 2D
-                pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                    "_meshpred.png"
-                pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                  pred_mesh_filename)
-                pred_mesh = pred_mesh.to_pytorch3d_Meshes()
-                show_img_with_contour(
-                    img,
-                    unnormalize_vertices_per_max_dim(
-                        pred_mesh.verts_packed(),
-                        img.shape
-                    ),
-                    pred_mesh.faces_packed(),
-                    pred_mesh_filename
-                )
 
         # Voxel prediction
         voxel_pred = model_class.pred_to_voxel_pred(pred)
-        for c in range(1, self._n_v_classes):
-            voxel_pred_class = voxel_pred.squeeze()
-            voxel_pred_class[voxel_pred_class != c] = 0
-            if ndims == 3:
-                pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                    "_class" + str(c) + "_voxelpred.ply"
-                pred_voxel_filename = os.path.join(self._mesh_dir,
-                                                   pred_voxel_filename)
-                try:
-                    mc_pred_mesh = create_mesh_from_voxels(
-                        voxel_pred_class, self._mc_step_size
-                    ).to_trimesh(process=True)
-                    mc_pred_mesh.export(pred_voxel_filename)
-                except ValueError as e:
-                    logging.getLogger(ExecModes.TEST.name).warning(
-                           "In voxel prediction for file: %s: %s."
-                           " This means usually that the prediction"
-                           " is all 1.", filename, e)
-                except RuntimeError as e:
-                    logging.getLogger(ExecModes.TEST.name).warning(
-                           "In voxel prediction for file: %s: %s ",
-                           filename, e)
-                except AttributeError:
-                    # No voxel prediction exists
-                    pass
-            else: # 2D
-                pred_voxel_filename = filename + "_epoch" + str(epoch) +\
-                    "_class" + str(c) + "_voxelpred.png"
-                pred_voxel_filename = os.path.join(self._mesh_dir,
-                                                   pred_voxel_filename)
-                show_slices(
-                    [img.cpu()],
-                    [voxel_pred_class.cpu()],
-                    pred_voxel_filename
-                )
+        if voxel_pred is not None: # voxel_pred can be empty
+            for c in range(1, self._n_v_classes):
+                voxel_pred_class = voxel_pred.squeeze()
+                voxel_pred_class[voxel_pred_class != c] = 0
+                if ndims == 3:
+                    pred_voxel_filename = filename + "_epoch" + str(epoch) +\
+                        "_class" + str(c) + "_voxelpred.ply"
+                    pred_voxel_filename = os.path.join(self._mesh_dir,
+                                                       pred_voxel_filename)
+                    try:
+                        mc_pred_mesh = create_mesh_from_voxels(
+                            voxel_pred_class, self._mc_step_size
+                        ).to_trimesh(process=True)
+                        if convert_to_orig_coords:
+                            v, f = transform_mesh_affine(
+                                mc_pred_mesh.vertices,
+                                mc_pred_mesh.faces,
+                                np.linalg.inv(trans_affine)
+                            )
+                            mc_pred_mesh = Mesh(v, f).to_trimesh()
+                        mc_pred_mesh.export(pred_voxel_filename)
+                    except ValueError as e:
+                        logging.getLogger(ExecModes.TEST.name).warning(
+                               "In voxel prediction for file: %s: %s."
+                               " This means usually that the prediction"
+                               " is all 1.", filename, e)
+                    except RuntimeError as e:
+                        logging.getLogger(ExecModes.TEST.name).warning(
+                               "In voxel prediction for file: %s: %s ",
+                               filename, e)
+                    except AttributeError:
+                        # No voxel prediction exists
+                        pass
+                else: # 2D
+                    pred_voxel_filename = filename + "_epoch" + str(epoch) +\
+                        "_class" + str(c) + "_voxelpred.png"
+                    pred_voxel_filename = os.path.join(self._mesh_dir,
+                                                       pred_voxel_filename)
+                    show_slices(
+                        [img.cpu()],
+                        [voxel_pred_class.cpu()],
+                        pred_voxel_filename
+                    )
