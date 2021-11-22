@@ -56,13 +56,16 @@ def find_label_to_img(base_dir: str, img_id: str, label_dir_id="label"):
     return os.path.join(label_dir, label_name)
 
 
-def show_pointcloud(filenames: Union[str, list], backend='open3d', opacity=1.0):
+def show_pointcloud(filenames: Union[str, list], backend='open3d', opacity=1.0,
+                    values=None):
     """
     Show a point cloud stored in a file (e.g. .ply) using open3d or pyvista.
 
     :param str filenames: A list of files or a directory name.
     :param str backend: 'open3d' or 'pyvista' (default)
     """
+    if values and backend == 'open3d':
+        raise ValueError("Values not supported with open3d.")
     if isinstance(filenames, str):
         if os.path.isdir(filenames):
             path = filenames
@@ -71,13 +74,30 @@ def show_pointcloud(filenames: Union[str, list], backend='open3d', opacity=1.0):
             filenames = [os.path.join(path, fn) for fn in filenames]
         else:
             filenames = [filenames]
+    filenames = sorted(filenames)
 
-    for fn in filenames:
+    if values:
+        if isinstance(values, str):
+            if os.path.isdir(values):
+                path = values
+                values = os.listdir(path)
+                values.sort()
+                values = [os.path.join(path, fn) for fn in values]
+            else:
+                values = [values]
+
+        values = sorted(values)
+
+    for i, fn in enumerate(filenames):
         print(f"File: {fn}")
         if backend == 'open3d':
             show_pointcloud_open3d(fn)
         elif backend == 'pyvista':
-            show_pointcloud_pyvista(fn, opacity=opacity)
+            if values:
+                value = values[i]
+            else:
+                value = None
+            show_pointcloud_pyvista(fn, opacity=opacity, value=value)
         else:
             raise ValueError("Unknown backend {}".format(backend))
 
@@ -94,7 +114,7 @@ def show_pointcloud_open3d(filename: str):
     print(mesh)
     o3d.visualization.draw_geometries([mesh])
 
-def show_pointcloud_pyvista(filename: str, opacity=1.0):
+def show_pointcloud_pyvista(filename: str, opacity=1.0, value=None):
     """
     Show a point cloud stored in a file (e.g. .ply) using pyvista.
 
@@ -105,11 +125,24 @@ def show_pointcloud_pyvista(filename: str, opacity=1.0):
     # Custom theme
     pv.set_plot_theme('doc')
 
-    cloud = pv.read(filename)
+    mesh = trimesh.load(filename)
+    # pyvista has different face format
+    faces = np.hstack([
+        np.ones([mesh.faces.shape[0], 1], dtype=int) * mesh.faces.shape[1],
+        mesh.faces
+    ])
+    cloud = pv.PolyData(mesh.vertices, faces)
     print(cloud)
 
     plotter = pv.Plotter()
-    plotter.add_mesh(cloud, opacity=opacity)
+    # plotter.set_background(color=[0.90196, 0.90196, 0.90196])
+    if value is None:
+        plotter.add_mesh(cloud, opacity=opacity, smooth_shading=True,
+                         color='paleturquoise')
+    else:
+        value = np.load(value)
+        plotter.add_mesh(cloud, opacity=opacity, smooth_shading=True,
+                         cmap='plasma', scalars=value, clim=[0, 5])
 
     fn = '../misc/rendered_mesh.png'
     plotter.show(screenshot=fn)
