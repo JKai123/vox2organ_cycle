@@ -46,7 +46,6 @@ from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices_per_max_dim,
 )
-from utils.sample_points_from_contours import sample_points_from_contours
 from data.dataset import (
     DatasetHandler,
     flip_img,
@@ -73,8 +72,6 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
             seg_label_names = (("right_cerebral_cortex",),)
             voxelized_mesh_label_names = (("rh_pial",),)
             mesh_label_names = ("rh_pial",)
-        elif patch_mode == "multi-patch":
-            raise NotImplementedError()
         else: # not patch mode
             if ndims == 3: # 3D
                 seg_label_names = (("left_cerebral_cortex",
@@ -83,33 +80,27 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
                 voxelized_mesh_label_names = (("lh_pial", "rh_pial"),)
             else:
                 raise NotImplementedError()
+
     elif structure_type == "white_matter":
         if patch_mode=="single-patch":
             seg_label_names = (("right_white_matter",),)
             mesh_label_names = ("rh_white",)
             voxelized_mesh_label_names = (("rh_white",),)
-        elif patch_mode == "multi-patch":
-            seg_label_names = (("left_white_matter", "right_white_matter"),)
-            mesh_label_names = ("lh_white", "rh_white")
         else: # not patch mode
             if ndims == 3: # 3D
                 seg_label_names = (("left_white_matter",
                                     "right_white_matter"),)
                 mesh_label_names = ("lh_white", "rh_white")
                 voxelized_mesh_label_names = (("lh_white", "rh_white"),)
-            elif ndims == 2: # 2D
-                seg_label_names = (("right_white_matter",),)
-                mesh_label_names = ("rh_white",)
             else:
                 raise ValueError("Wrong dimensionality.")
+
     elif ("cerebral_cortex" in structure_type
           and "white_matter" in structure_type):
         if patch_mode == "single-patch":
             seg_label_names = (("right_white_matter",
                                 "right_cerebral_cortex"),)
             mesh_label_names = ("rh_white", "rh_pial")
-        elif patch_mode == "multi-patch":
-            raise NotImplementedError()
         else:
             # Not patch mode
             seg_label_names = (("left_white_matter",
@@ -134,8 +125,6 @@ class Cortex(DatasetHandler):
 
     It loads all data specified by 'ids' directly into memory.
 
-    ATTENTION: 2D and patch behavior is deprecated!!!
-
     :param list ids: The ids of the files the dataset split should contain, example:
         ['1000_3', '1001_3',...]
     :param DataModes datamode: TRAIN, VALIDATION, or TEST
@@ -147,7 +136,7 @@ class Cortex(DatasetHandler):
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param structure_type: Either 'white_matter' or 'cerebral_cortex'
-    :param patch_mode: "single-patch", "multi-patch", or "no"
+    :param patch_mode: "single-patch" or "no"
     :param patch_origin: The anker of an extracted patch, only has an effect if
     patch_mode is True.
     :param select_patch_size: The size of the cut out patches. Can be different
@@ -188,7 +177,7 @@ class Cortex(DatasetHandler):
                  **kwargs):
         super().__init__(ids, mode)
 
-        assert patch_mode in ("multi-patch", "single-patch", "no"),\
+        assert patch_mode in ("single-patch", "no"),\
                 "Unknown patch mode."
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
@@ -245,8 +234,6 @@ class Cortex(DatasetHandler):
 
         if self.ndims == 3:
             self._prepare_data_3D()
-        elif self.ndims == 2:
-            self._prepare_data_2D()
         else:
             raise ValueError("Unknown number of dimensions ", self.ndims)
 
@@ -271,40 +258,6 @@ class Cortex(DatasetHandler):
 
         if self._augment:
             self.check_augmentation_normals()
-
-    def _prepare_data_2D(self):
-        """ Load 2D data """
-
-        # Check constraints
-        assert self.patch_mode == "no",\
-                "Patch mode not supported for 2D data."
-        assert 'voxelized_mesh' not in self.seg_label_names,\
-                "Voxelization of mesh not possible for 2D data."
-
-        # Load images
-        self.images = self._load_single_data2D(
-            filename=self.img_filename, is_label=False
-        )
-
-        # Load voxel labels
-        self.voxel_labels = self._load_single_data2D(
-            filename=self.label_filename, is_label=True
-        )
-        if self.seg_label_names == "all":
-            for vl in self.voxel_labels:
-                vl[vl > 1] = 1
-        else:
-
-            self.voxel_labels = [
-                combine_labels(l, self.seg_label_names) for l in self.voxel_labels
-            ]
-
-        # Marching squares mesh labels
-        self.mesh_labels = self._load_ms_dataMesh()
-
-        # Update voxel labels as we chose only the main region for the mesh and
-        # ignore small 'artifact' regions
-        self.voxel_labels = self._create_voxel_labels_from_contours()
 
     def _prepare_data_3D(self):
         """ Load 3D data """
@@ -347,30 +300,6 @@ class Cortex(DatasetHandler):
 
     def preprocess_data_3D(self):
         """ Preprocess routine according to dataset parameters. """
-
-        ### Multi-patch mode
-
-        if self.patch_mode == "multi-patch":
-            # Image data; attention: file names change in multi-patch mode
-            # (each image leads to multiple patches)
-            self.images,\
-                    self.voxel_labels,\
-                    self.files = self._get_multi_patches(
-                        self.images, self.voxel_labels
-                    )
-            # Mesh data: marching cubes meshes (it's not straightforward to
-            # extract patches from freesurfer meshes)
-            assert self.mesh_type == 'marching cubes',\
-                    "Multi-patch dataset requires marching cubes meshes."
-            self.mesh_labels = self._load_mc_dataMesh(self.voxel_labels)
-
-            # In multi-patch mode, different mesh structures cannot be
-            # distinguished anymore after creation of patches
-            self.n_m_classes = 1
-
-            return
-
-        ### Single-patch or no patch mode
 
         # Image data
         trans_affine = self._get_single_patches()
@@ -465,8 +394,8 @@ class Cortex(DatasetHandler):
             m_ = m.to_pytorch3d_Meshes()
             if self.ndims == 3:
                 edges_packed = m_.edges_packed()
-            else: # 2D
-                edges_packed = m_.faces_packed()
+            else:
+                raise ValueError("Only 3D possible.")
             verts_packed = m_.verts_packed()
 
             verts_edges = verts_packed[edges_packed]
@@ -546,68 +475,6 @@ class Cortex(DatasetHandler):
             structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
                                               plane_point)
             template.add_geometry(structure_2, geom_name=label_2)
-
-        template.export(path)
-
-        return path
-
-    def store_convex_cortex_template(self, path, n_min_points=40000, n_max_points=41000):
-        """ This template is created as follows:
-            1. Take the convex hull of one of the two structures and subdivide
-            faces until the required number of vertices is large enough
-            2. Mirror this mesh on the plane that separates the two cortex
-            hemispheres
-            3. Store both meshes together in one template
-        """
-        ml_names = self.mesh_label_names
-        # Assume ordering lh_white, rh_white, lh_pial, rh_pial
-        if len(ml_names) == 4:
-            ml_names = ((ml_names[0], ml_names[1]), (ml_names[2], ml_names[3]))
-        else:
-            ml_names = (ml_names,)
-        template = Scene()
-        for struc_id, mln in enumerate(ml_names):
-            n_points = 0
-            i = 0
-            while n_points > n_max_points or n_points < n_min_points:
-                if i >= len(self):
-                    print("Template with the desired number of vertices could not"
-                          " be created. Aborting.")
-                    return None
-                if len(mln) == 2:
-                    label_1, label_2 = mln
-                else:
-                    label_1 = mln[0]
-                    label_2 = None
-                # Select mesh to generate the template from
-                vertices = self.mesh_labels[i].vertices[struc_id * 2]
-                faces = self.mesh_labels[i].faces[struc_id * 2]
-
-                # Remove padded faces
-                faces = faces[(faces != -1).any(dim=1)]
-
-                # Get convex hull of the mesh label
-                structure_1 = Trimesh(vertices, faces).convex_hull
-
-                # Increase granularity until desired number of points is reached
-                while structure_1.subdivide().vertices.shape[0] < n_max_points:
-                    structure_1 = structure_1.subdivide()
-
-                assert structure_1.is_watertight, "Mesh template should be watertight."
-                n_points = structure_1.vertices.shape[0]
-                print(f"Template structure {i} has {n_points} vertices.")
-                i += 1
-
-            template.add_geometry(structure_1, geom_name=label_1)
-
-            # Second structure = mirror of first structure
-            if label_2 is not None:
-                plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
-                plane_point = 0.5 * np.array((self.centers[label_1] +
-                                              self.centers[label_2]))
-                structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
-                                                  plane_point)
-                template.add_geometry(structure_2, geom_name=label_2)
 
         template.export(path)
 
@@ -757,7 +624,6 @@ class Cortex(DatasetHandler):
                 self.normal_labels,\
                 self.curvatures = self._load_ref_points()
 
-
     @measure_time
     def get_item_from_index(self, index: int, mesh_target_type: str=None,
                             *args, **kwargs):
@@ -779,7 +645,7 @@ class Cortex(DatasetHandler):
          target_curvs) = self._get_mesh_target(index, mesh_target_type)
 
         # Potentially augment
-        if self._augment and self.ndims == 3:
+        if self._augment:
             assert all(
                 (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
             ), "Padding must be symmetric for augmentation."
@@ -894,7 +760,6 @@ class Cortex(DatasetHandler):
 
         return data
 
-
     def _load_data3D_raw(self, filename: str):
         data = []
         for fn in tqdm(self._files, position=0, leave=True,
@@ -905,28 +770,6 @@ class Cortex(DatasetHandler):
             data.append(d)
 
         return data
-
-    def _load_single_data2D(self, filename: str, is_label: bool):
-        """Load the image data """
-
-        data_3D = self._load_data3D_raw(filename)
-        mode = 'nearest' if is_label else 'bilinear'
-        align_corners = None if is_label else False
-
-        data_2D = []
-        for img in data_3D:
-            img_2D = F.interpolate(
-                torch.from_numpy(img[img.shape[0]//13*4, :, :])[None][None],
-                size=self.patch_size,
-                mode=mode,
-                align_corners=align_corners
-            ).squeeze()
-            if is_label:
-                data_2D.append(img_2D.long())
-            else:
-                data_2D.append(img_2D.float())
-
-        return data_2D
 
     def _get_single_patches(self):
         """ Extract a single patch from an image. """
@@ -993,117 +836,6 @@ class Cortex(DatasetHandler):
 
         return transformations
 
-    def _get_multi_patches(self, raw_imgs: list, raw_labels: list):
-        """ Load multiple patches from each raw image and corresponding voxel
-        label. """
-        data, labels, ids = [], [], []
-        for img, lab, fn in zip(raw_imgs, raw_labels, self._files):
-            img_patches, label_patches = self._create_patches(
-                torch.from_numpy(img).float(), torch.from_numpy(lab).long()
-            )
-            for i in range(len(img_patches)):
-                ids.append(fn + "_patch_" + str(i))
-            data += img_patches
-            labels += label_patches
-
-        return data, labels, ids
-
-    def _create_patches(self, img, label, pad_width=2):
-        """ Create 3D patches from an image and the respective voxel label """
-        ndims = self.ndims
-        assert ndims == 3
-        # The relative volume that should be occupied in the patch by non-zero
-        # labels. If this cannot be fulfilled, a smaller threshold is selected, see
-        # below.
-        occ_volume_max = 0.5
-
-        pad_width_all = (pad_width,) * 2 * self.ndims
-
-        shape = torch.tensor(label.shape)
-        patch_size = torch.tensor(self.patch_size)
-        idxs = [
-            [-1,
-             slice(int(shape[1] / 2 - patch_size[1] / 2 + pad_width),
-                   int(shape[1] / 2 + patch_size[1] / 2 - pad_width)),
-             slice(int(shape[2] / 2 - patch_size[2] / 2 + pad_width),
-                   int(shape[2] / 2 + patch_size[2] / 2 - pad_width))
-            ],
-            [slice(int(shape[0] / 4 - patch_size[0] / 2 + pad_width),
-                   int(shape[0] / 4 + patch_size[0] / 2 - pad_width)),
-             -1,
-             slice(int(shape[2] / 2 - patch_size[2] / 2 + pad_width),
-                   int(shape[2] / 2 + patch_size[2] / 2 - pad_width))
-            ],
-            [slice(int(3 * shape[0] / 4 - patch_size[0] / 2 + pad_width),
-                   int(3 * shape[0] / 4 + patch_size[0] / 2 - pad_width)),
-             slice(int(shape[1] / 2 - patch_size[1] / 2 + pad_width),
-                   int(shape[1] / 2 + patch_size[1] / 2 - pad_width)),
-             -1
-            ]
-        ]
-        w = torch.ones(tuple(patch_size - 2*pad_width)).float()[None][None]
-        img_patches = []
-        label_patches = []
-
-        # Iterate over dimensions
-        for idx_i in idxs:
-            idx = deepcopy(idx_i)
-            d = idx_i.index(-1) # -1 indicates the dimension to conv over
-            # -->
-            idx[d] = slice(0, label.shape[d])
-            tmp_label = label[tuple(idx)].clone().float()[None][None]
-            tmp_label_conv = F.conv3d(tmp_label, w).squeeze()
-
-            # Try to extract a patch with highest possible occupied volume
-            occ_volume = occ_volume_max
-            while occ_volume >= 0.1:
-                try:
-                    pos = torch.min(torch.nonzero(
-                        tmp_label_conv >
-                        occ_volume * np.prod(self.patch_size)
-                    ))
-                    break
-                except RuntimeError: # No volume found --> reduce threshold
-                    occ_volume -= 0.1
-
-            if occ_volume < 0.1:
-                raise RuntimeError("No patch could be found.")
-
-            idx[d] = slice(
-                pos + pad_width, pos + self.patch_size[d] - pad_width
-            )
-            img_patches.append(F.pad(img[tuple(idx)], pad_width_all))
-            label_patches.append(F.pad(label[tuple(idx)], pad_width_all))
-
-            # <--
-            idx[d] = slice(0, label.shape[d])
-            tmp_label = label[tuple(idx)].clone().float().flip(dims=[d])[None][None]
-            tmp_label_conv = F.conv3d(tmp_label, w).squeeze()
-
-            # Try to extract a patch with highest possible occupied volume
-            occ_volume = occ_volume_max
-            while occ_volume >= 0.1:
-                try:
-                    pos = torch.min(torch.nonzero(
-                        tmp_label_conv >
-                        occ_volume * np.prod(self.patch_size)
-                    ))
-                    break
-                except RuntimeError: # No volume found --> reduce threshold
-                    occ_volume -= 0.1
-
-            if occ_volume < 0.1:
-                raise RuntimeError("No patch could be found.")
-
-            idx[d] = slice(
-                shape[d]-pos-1+pad_width-self.patch_size[d], shape[d]-pos-1-pad_width
-            )
-            img_patches.append(F.pad(img[tuple(idx)], pad_width_all))
-            label_patches.append(F.pad(label[tuple(idx)], pad_width_all))
-
-        return img_patches, label_patches
-
-
     def _create_voxel_labels_from_meshes(self, mesh_labels):
         """ Return the voxelized meshes as 3D voxel labels. Here, individual
         structures are not distinguished. """
@@ -1116,17 +848,6 @@ class Cortex(DatasetHandler):
                 vertices, faces, self.patch_size, self.n_m_classes
             ).sum(0).bool().long() # Treat as one class
 
-            data.append(voxel_label)
-
-        return data
-
-    def _create_voxel_labels_from_contours(self):
-        """ Return the voxelized contour as 2D voxel labels """
-        data = []
-        for m in self.mesh_labels:
-            voxel_label = voxelize_contour(
-                m.vertices, self.patch_size
-            )
             data.append(voxel_label)
 
         return data
@@ -1159,7 +880,7 @@ class Cortex(DatasetHandler):
                 radii_z_per_structure[mn].append(radius_z)
 
         # Average radius per structure
-        if self.__len__() > 0 and self.patch_mode != "multi-patch":
+        if self.__len__() > 0:
             centroids = {k: torch.mean(torch.stack(v), dim=0)
                          for k, v in centers_per_structure.items()}
             radii = {k: torch.mean(torch.stack(v), dim=0)
@@ -1255,68 +976,48 @@ class Cortex(DatasetHandler):
 
         return data
 
-    def _load_ms_dataMesh(self):
-        """ Create ground truth meshes from pixel labels."""
-        data = []
-        for vl in self.voxel_labels:
-            assert tuple(vl.shape) == tuple(self.patch_size),\
-                    "Voxel label should be of correct size."
-            ms_mesh = create_mesh_from_pixels(vl).to_pytorch3d_Meshes()
-            data.append(Mesh(
-                ms_mesh.verts_padded(),
-                ms_mesh.faces_padded() # faces = edges in 2D
-            ))
-
-        return data
-
     def _load_ref_points(self):
         """ Sample surface points from meshes """
         points, normals = [], []
         curvs = [] if self.provide_curvatures else None
         for m in self.mesh_labels:
-            if self.ndims == 3:
-                if self.provide_curvatures:
-                    # Choose a certain number of vertices
-                    m_ = m.to_pytorch3d_Meshes()
-                    p, idx = choose_n_random_points(
-                        m_.verts_padded(),
-                        self.n_ref_points_per_structure,
-                        return_idx=True,
-                        # Ignoring padded vertices is only possible if the
-                        # number of required vertices is smaller than the
-                        # minimum number of vertices in the dataset
-                        ignore_padded=(self.n_ref_points_per_structure <
-                                       self.n_min_vertices)
-                    )
-                    # Choose normals with the same indices as vertices
-                    n = m_.verts_normals_padded()[idx.unbind(1)].view(
-                        self.n_m_classes, -1, 3
-                    )
-                    # Choose curvatures with the same indices as vertices
-                    c = curv_from_cotcurv_laplacian(
-                        m_.verts_packed(), m_.faces_packed()
-                    ).view(
-                        self.n_m_classes, -1, 1
-                    )[idx.unbind(1)].view(
-                        self.n_m_classes, -1, 1
-                    )
-                    # Sanity check
-                    assert torch.allclose(
-                        m_.verts_normals_padded(), m.normals, atol=1e-05
-                    ), "Inconsistent normals!"
-                else: # No curvatures
-                    # Sample from mesh surface
-                    p, n = sample_points_from_meshes(
-                        m.to_pytorch3d_Meshes(),
-                        self.n_ref_points_per_structure,
-                        return_normals=True
-                    )
-            else:
-                p, n = sample_points_from_contours(
+            if self.provide_curvatures:
+                # Choose a certain number of vertices
+                m_ = m.to_pytorch3d_Meshes()
+                p, idx = choose_n_random_points(
+                    m_.verts_padded(),
+                    self.n_ref_points_per_structure,
+                    return_idx=True,
+                    # Ignoring padded vertices is only possible if the
+                    # number of required vertices is smaller than the
+                    # minimum number of vertices in the dataset
+                    ignore_padded=(self.n_ref_points_per_structure <
+                                   self.n_min_vertices)
+                )
+                # Choose normals with the same indices as vertices
+                n = m_.verts_normals_padded()[idx.unbind(1)].view(
+                    self.n_m_classes, -1, 3
+                )
+                # Choose curvatures with the same indices as vertices
+                c = curv_from_cotcurv_laplacian(
+                    m_.verts_packed(), m_.faces_packed()
+                ).view(
+                    self.n_m_classes, -1, 1
+                )[idx.unbind(1)].view(
+                    self.n_m_classes, -1, 1
+                )
+                # Sanity check
+                assert torch.allclose(
+                    m_.verts_normals_padded(), m.normals, atol=1e-05
+                ), "Inconsistent normals!"
+            else: # No curvatures
+                # Sample from mesh surface
+                p, n = sample_points_from_meshes(
                     m.to_pytorch3d_Meshes(),
                     self.n_ref_points_per_structure,
                     return_normals=True
                 )
+
             points.append(p)
             normals.append(n)
             if self.provide_curvatures:
