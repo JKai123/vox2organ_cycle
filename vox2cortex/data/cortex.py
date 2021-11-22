@@ -22,6 +22,7 @@ from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
 from tqdm import tqdm
 
+from utils.params import CHECK_DIR
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
@@ -54,7 +55,6 @@ from data.dataset import (
 from data.supported_datasets import (
     valid_ids,
     valid_ids_ADNI_CSR,
-    valid_ids_OASIS,
 )
 from data.cortex_labels import (
     combine_labels,
@@ -421,7 +421,10 @@ class Cortex(DatasetHandler):
                         out_fn = self._files[i].replace("/", "_")
                         show_difference(
                             vl,  vm,
-                            f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
+                            os.path.join(
+                                CHECK_DIR,
+                                f"diff_mesh_voxel_label_{out_fn}.png"
+                            )
                         )
                         print(f"[Warning] Small IoU ({iou}) of voxel label and"
                               " voxelized mesh label, check files at ../to_check/")

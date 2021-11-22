@@ -33,11 +33,26 @@ DATASET_PARAMS = (
     'PREPROCESSED_DATA_DIR'
 )
 
+# Directory for output to check
+CHECK_DIR = "../to_check"
+
+# Miscellanous output
+MISC_DIR = "../misc"
+
 hyper_ps_default={
 
     # >>> Note: Using tuples (...) instead of lists [...] may lead to problems
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
+
+    # The path where templates are stored
+    'TEMPLATE_PATH': "../supplementary_material/white_pial/",
+
+    # The template name in dependence of the number of vertices N,
+    # 'SELECT_PATH_SIZE' (sps) and 'PATCH_SIZE' (ps)
+    'TEMPLATE_NAME': (
+        lambda N, sps, ps: f"cortex_4_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
+    ),
 
     # The number of vertex classes to distinguish (including background)
     'N_V_CLASSES': 2,
