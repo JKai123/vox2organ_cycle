@@ -73,9 +73,9 @@ def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     v_pred_mesh_new = trimesh.transform_points(pred_mesh.vertices,
                                                trans_affine)
     pred_mesh.vertices = v_pred_mesh_new
-    _, cost = pred_mesh.register(pred_mesh_partner)
-    print("Average distance after registration for mesh"
-          f" {mri_id}, {surf_name}: {cost}")
+    # _, cost = pred_mesh.register(pred_mesh_partner)
+    # print("Average distance after registration for mesh"
+          # f" {mri_id}, {surf_name}: {cost}")
 
     # Compute ad, hd, percentage > 1mm, percentage > 2mm with pytorch3d
     pred_mesh = Meshes(
@@ -137,14 +137,16 @@ def trt_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
-def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
-                       method="ray", subfolder="meshes"):
+def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
+                       method="nearest", subfolder="meshes"):
     """ Cortical thickness biomarker.
     :param method: 'nearest' or 'ray'.
     """
+    print("Evaluate thickness using " + method + " correspondences.")
+
     pred_folder = os.path.join(eval_params['log_path'])
     thickness_folder = os.path.join(
-        eval_params['log_path'], 'thickness_evaluation_' + subfolder
+        eval_params['log_path'], 'thickness'
     )
     if not os.path.isdir(thickness_folder):
         os.mkdir(thickness_folder)
@@ -287,47 +289,22 @@ def eval_thickness_ray(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     print("\t > Thickness error mean {:.4f}".format(error_mean))
     print("\t > Thickness error median {:.4f}".format(error_median))
 
-    # Store mesh with error as color
-    mesh_path = os.path.join(
-        thickness_folder, f"{mri_id}_{surf_name}_thicknesserror.ply"
+    # Store
+    th_gt_file = os.path.join(
+        thickness_folder, f"{mri_id}_struc{s_index}_gt.thickness"
+    )
+    np.save(th_gt_file, gt_thickness)
+    th_pred_file = os.path.join(
+        thickness_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.thickness"
+    )
+    np.save(th_pred_file, pred_thickness)
+    err_file = os.path.join(
+        thickness_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.thicknesserror"
     )
     error_features = np.zeros(pred_pntcloud.shape[0])
     error_features[pred_idx] = error
     np.nan_to_num(error_features, copy=False, nan=0.0)
-    Mesh(
-        pred_mesh.vertices, pred_mesh.faces, features=error_features
-    ).store_with_features(
-        mesh_path, vmin=0.0, vmax=4.0
-    )
-    mesh_path = os.path.join(
-        thickness_folder, f"{mri_id}_{surf_name}_thickness_pred.ply"
-    )
-    error_features = np.zeros(pred_pntcloud.shape[0])
-    error_features[pred_idx] = pred_thickness
-    np.nan_to_num(error_features, copy=False, nan=0.0)
-    Mesh(
-        pred_mesh.vertices, pred_mesh.faces, features=error_features
-    ).store_with_features(
-        mesh_path, vmin=0.0, vmax=4.0
-    )
-    mesh_path = os.path.join(
-        thickness_folder, f"{mri_id}_{surf_name}_thickness_gt.ply"
-    )
-    error_features = np.zeros(gt_pntcloud.shape[0])
-    error_features[gt_idx] = gt_thickness
-    np.nan_to_num(error_features, copy=False, nan=0.0)
-    Mesh(
-        gt_mesh.vertices, gt_mesh.faces, features=error_features
-    ).store_with_features(
-        mesh_path, vmin=0.0, vmax=4.0
-    )
-
-    hist_file = os.path.join(
-        thickness_folder, f"{mri_id}_{surf_name}_errorhisto.png"
-    )
-    plt.hist(error[np.isfinite(error)], bins=100)
-    plt.savefig(hist_file)
-    plt.clf()
+    np.save(err_file, error_features)
 
     return error_mean, error_median
 
@@ -355,6 +332,11 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
                          device="cuda:1", subfolder="meshes"):
     """ AD and HD computed with pytorch3d. """
     pred_folder = os.path.join(eval_params['log_path'])
+    ad_hd_folder = os.path.join(
+        eval_params['log_path'], 'ad_hd'
+    )
+    if not os.path.isdir(ad_hd_folder):
+        os.mkdir(ad_hd_folder)
 
     # load ground-truth mesh
     try:
@@ -406,6 +388,15 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
 
     print("\t > Average symmetric surface distance {:.4f}".format(assd2))
     print("\t > Hausdorff surface distance {:.4f}".format(hd2))
+
+    ad_pred_file = os.path.join(
+        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ad.npy"
+    )
+    np.save(ad_pred_file, assd2)
+    hd_pred_file = os.path.join(
+        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.hd.npy"
+    )
+    np.save(hd_pred_file, hd2)
 
     return assd2, hd2
 
@@ -489,7 +480,7 @@ def ad_hd_output(results, summary_file):
         output_csv_file.write(mets_str+'\n')
 
 mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
-                    "thickness": eval_thickness_ray,
+                    "thickness": eval_thickness,
                     "trt": eval_trt}
 mode_to_output_file = {"ad_hd": ad_hd_output,
                        "thickness": thickness_output,
@@ -534,7 +525,7 @@ if __name__ == '__main__':
         subdir = ""
     eval_params['gt_mesh_path'] = os.path.join(
         RAW_DATA_DIR,
-        dataset.replace("_small", "").replace("_large", ""),
+        dataset.replace("_small", "").replace("_large", "").replace("_orig", ""),
         subdir
     )
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)

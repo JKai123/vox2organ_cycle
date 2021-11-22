@@ -118,7 +118,7 @@
 %%% Classifier 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % final conv
-\pic[shift={(2,0,0)}] at (urb1-east) {Box={name=cf,%
+\pic[shift={(3,0,0)}] at (urb1-east) {Box={name=cf,%
 	xlabel={"2","dummy"},zlabel=I,fill=ConvKOneColor,%
         opacity=0.5,height=40,width=1,depth=40}};
 % upsamplefordeepsupervision2
@@ -642,27 +642,37 @@
 %% Draw legend
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \tikzset{rectnode/.style = {rectangle, rounded corners=0pt, minimum width = 30pt, minimum height = 30pt}}
-\coordinate (legend-northwest) at ([yshift=-200pt,xshift=200pt] rb3-south);
+\coordinate (legend-northwest) at ([yshift=-170pt,xshift=220pt] template.south);
 \matrix[matrix of nodes, nodes={opacity=0.9, draw=none},
 	column 2/.style={anchor=west}, draw=black, densely dashed, thick, rounded corners,
         row sep=5pt,column sep=10pt, rectangle] at (legend-northwest) {
 		\node[rectnode,fill=ConvColor]{}; &
 		\node[fill=none] {\huge Conv 3x3x3, stride 1}; &
 		\node[rectnode,fill=ConvReluColor]{}; &
-		\node[fill=none] {\huge BatchNorm3d + ReLU}; &
+		\node[fill=none] {\huge BatchNorm3d + ReLU}; \\
 		\node[rectnode,fill=PoolColor]{}; &
 		\node[fill=none] {\huge Conv 2x2x2, stride 2}; &
-		\node[ellipse, minimum size =30pt, fill=GraphConvColor]{}; &
-		\node[fill=none] {\huge Graph conv}; \\
 		\node[rectnode,fill=ConvKOneColor]{}; &
-		\node[fill=none] {\huge Conv 1x1x1, stride 1}; &
+		\node[fill=none] {\huge Conv 1x1x1, stride 1}; \\
 		\node[rectnode,fill=UpsampleColor]{}; &
 		\node[fill=none] {\huge Upsample trilinear}; &
 		\node[rectnode,fill=UnpoolColor]{}; &
-		\node[fill=none] {\huge ConvTranspose 2x2x2, stride 2}; &
+		\node[fill=none] {\huge ConvTranspose 2x2x2, stride 2}; \\
+		\node[ellipse, minimum size =30pt, fill=GraphConvColor]{}; &
+		\node[fill=none] {\huge Graph conv}; &
 		\node[ellipse, minimum size =30pt,fill=GraphReluColor]{}; &
-		\node[fill=none] {\huge BatchNorm1d + ReLU};\\
+		\node[fill=none] {\huge BatchNorm1d + ReLU}; \\
+		% Empty row to be filled later
+		\node[ellipse, minimum size =30pt, fill=none, name=e-leg1] {}; &
+		\node[ellipse, minimum size =30pt, fill=none, name=e-leg2] {}; &
+		\node[fill=none, name=e-leg3] {}; &
+		\node[fill=none, name=e-leg4] {}; \\
 	};
+% Multicolumn
+\node[ellipse, minimum size = 30pt, fill=FeatureColor1, draw=black, solid] (f1-leg) at (e-leg1.center){};
+\node[ellipse, minimum size = 30pt, fill=FeatureColor9] (f9-leg) at (e-leg2.center){};
+\node[fill=none, anchor=west] at ([xshift=-165pt] e-leg3.center) {\huge Trilinear interpolation at vertices};
+\draw[loosely dotted, line width=5pt, line cap=round, dash pattern=on.5off7] (f1-leg.center) -- (f9-leg.center);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{tikzpicture}
 \end{document}
