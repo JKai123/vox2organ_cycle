@@ -6,27 +6,6 @@ import torch.nn.functional as F
 
 from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
 
-class UNetLayer(nn.Module):
-    """ U-Net Layer
-    Implementation taken from https://github.com/cvlab-epfl/voxel2mesh
-    """
-    def __init__(self, num_channels_in, num_channels_out, ndims):
-
-        super(UNetLayer, self).__init__()
-
-        conv_op = nn.Conv2d if ndims == 2 else nn.Conv3d
-        batch_nrom_op = nn.BatchNorm2d if ndims == 2 else nn.BatchNorm3d
-
-        conv1 = conv_op(num_channels_in,  num_channels_out, kernel_size=3, padding=1)
-        conv2 = conv_op(num_channels_out, num_channels_out, kernel_size=3, padding=1)
-
-        bn1 = batch_nrom_op(num_channels_out)
-        bn2 = batch_nrom_op(num_channels_out)
-        self.unet_layer = nn.Sequential(conv1, bn1, nn.ReLU(), conv2, bn2, nn.ReLU())
-
-    def forward(self, x):
-        return self.unet_layer(x)
-
 class ResidualBlock(nn.Module):
     """ Residual Block of https://arxiv.org/abs/1908.02182,
     implementation at https://github.com/MIC-DKFZ/nnUNet
