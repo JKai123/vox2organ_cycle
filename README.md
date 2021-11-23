@@ -1,35 +1,35 @@
-# Cortex Parcellation using Meshes
+# Vox2Cortex
 
-Master's thesis at ai-med. The project deals with 3D segmentation/parcellation of cortex structures based on mesh template deformation similar to [Pixel2Mesh](https://arxiv.org/abs/1804.01654) and [Voxel2Mesh](https://arxiv.org/abs/1912.03681).
-
-The long-living branches are structured as follows:
-
-- master: most tested, very stable
-- run: ready to run but maybe not tested extensively
-- dev: development in progress, potentially not runnable
+This repository implements Vox2Cortex, a fast deep learning-based method for reconstruction of cortical surfaces from MRI.
 
 ## Installation
-Installation using conda:
+1. Make sure you use python 3.8
+2. Clone this (Vox2Cortex) repo
 ```
-    conda install requirements.yml --name <conda-env-name>
+    git clone https://gitlab.lrz.de/ga63wus/vox2cortex.git
 ```
-In addition, clone and install our [pytorch3d fork](https://github.com/fabibo3/pytorch3d) as described therein (under 'Install from a local clone' in `INSTALL.md`).
+3. Install using pip
+```
+    cd vox2cortex/
+    pip install .
+```
+4. Clone and install our [pytorch3d fork](https://github.com/fabibo3/pytorch3d) as described therein (basically in analogy to how vox2cortex is installed as described above).
 
 ## Usage
+You can include new cortex datasets directly in `vox2cortex/data/supported_datasets.py` and `vox2cortex/data/dataset_handler.py`. It is generally assumed that the cortex data (preprocessed with [FreeSurfer](https://surfer.nmr.mgh.harvard.edu/)) is stored in the form `data-raw-directory/sample-ID/sample-data`, where `sample-data` includes MRI scans and ground-truth surfaces.
+
 A training with subsequent model testing can be started with
 ```
-    cd src/
+    cd vox2cortex/
     python3 main.py --train --test
 ```
 For further information about command-line options see
 ```
     python3 main.py --help
 ```
-All model parameters (and also for optimization, testing, tuning, etc.) are set in `src/main.py`. For an extensive documentation of parameters see `src/utils/params.py`.
+All model parameters (and also for optimization, testing, tuning, etc.) are set in `vox2cortex/main.py`. For an extensive documentation and default parameters see `vox2cortex/utils/params.py`.
 
-Further scripts facilitating the general workflow can be found in `src/scripts/`, e.g., for visualization of images and meshes. This folder also contains scripts for model evaluation that operate directly on predicted meshes (in contrast to in `utills/evaluation.py` that operates on model predictions and therefore requires the model to be available). The script `scripts/apply_meshfix.sh`can be used to process all predicted test meshes of an experiment with [MeshFix](https://github.com/MarcoAttene/MeshFix-V2.1) (requires MeshFix to be installed and available in PATH).
-
-The folder `src/check/` contains some scripts for checking preprocessing steps (e.g., run `python3 -m check.check_preprocess` to check preprocessing operations) or implementations (e.g., `python3 -m check.check_coordsystems` to check the implementation of coordinate transformations).
+Further scripts facilitating the general workflow can be found in `src/scripts/`, e.g., for template creation. This folder also contains scripts for model evaluation that operate directly on predicted meshes (in contrast to in `utills/evaluation.py` that operates on model predictions and therefore requires the model to be available).
 
 ## Coordinate convention
 The coordinate convention is the following:
