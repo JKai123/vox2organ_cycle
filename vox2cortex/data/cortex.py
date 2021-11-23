@@ -10,7 +10,6 @@ import logging
 from copy import deepcopy
 from collections.abc import Sequence
 from typing import Union
-from deprecated import deprecated
 
 import torch
 import torch.nn.functional as F
@@ -364,81 +363,6 @@ class Cortex(DatasetHandler):
 
             # Store affine transformations
             self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
-
-
-    @deprecated
-    def preprocess_data_3D(self):
-        """ Preprocess routine according to dataset parameters. """
-
-        # Image data
-        trans_affine = self._get_single_patches()
-
-        # Mesh data
-        if self.mesh_type == "freesurfer":
-            # Transform meshes according to image transformations
-            # (crops, resize) and normalize
-            for i, (m, t) in tqdm(
-                enumerate(zip(self.mesh_labels, trans_affine)),
-                position=0, leave=True, desc="Transform meshes accordingly..."
-            ):
-                new_vertices, new_faces = transform_mesh_affine(
-                    m.vertices, m.faces, t
-                )
-                new_vertices, norm_affine = normalize_vertices_per_max_dim(
-                    new_vertices.view(-1, self.ndims),
-                    self.patch_size,
-                    return_affine=True
-                )
-                new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
-                new_normals = Meshes(
-                    new_vertices, new_faces
-                ).verts_normals_padded()
-
-                # Replace mesh with transformed one
-                self.mesh_labels[i] = Mesh(
-                    new_vertices, new_faces, new_normals, m.features
-                )
-
-                # Store affine transformations
-                self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
-
-            # Voxelize meshes if voxelized meshes have not been created so far
-            # and they are required (for sanity checks or as labels)
-            if (self.voxelized_meshes is None and (
-                self.sanity_checks or self.seg_ground_truth == 'voxelized_meshes')):
-                self.voxelized_meshes = self._create_voxel_labels_from_meshes(
-                    self.mesh_labels
-                )
-
-            # Assert conformity of voxel labels and voxelized meshes
-            if self.sanity_checks:
-                for i, (vl, vm) in enumerate(zip(self.voxel_labels,
-                                                 self.voxelized_meshes)):
-                    iou = Jaccard(vl.cuda(), vm.cuda(), 2)
-                    if iou < 0.85:
-                        out_fn = self._files[i].replace("/", "_")
-                        show_difference(
-                            vl,  vm,
-                            os.path.join(
-                                CHECK_DIR,
-                                f"diff_mesh_voxel_label_{out_fn}.png"
-                            )
-                        )
-                        print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                              " voxelized mesh label, check files at ../to_check/")
-
-            # Use voxelized meshes as voxel ground truth
-            if self.seg_ground_truth == 'voxelized_meshes':
-                self.voxel_labels = self.voxelized_meshes
-
-            return
-
-        # Marching cubes mesh labels
-        self.mesh_labels = self._load_mc_dataMesh(
-            self.voxel_labels
-        )
-
-        return
 
     def mean_area(self):
         """ Average surface area of meshes. """
