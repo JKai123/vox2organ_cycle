@@ -60,7 +60,7 @@ hyper_ps = {
     'REDUCED_FREESURFER': 0.3,
 
     # Learning
-    'N_EPOCHS': 1,
+    'N_EPOCHS': 100,
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 2,
     'LOG_EVERY': 'epoch',
