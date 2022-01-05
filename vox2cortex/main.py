@@ -41,26 +41,55 @@ PARAM_GROUPS = {
     # Parameters set in dependence of 'PATCH_MODE'
     'PATCH_MODE': {
         "no": {
+            # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
+            # weights should respect this order!
+            'MESH_LOSS_FUNC_WEIGHTS': [
+                [1.0] * 4, # Chamfer
+                [0.01] * 2 + [0.0125] * 2, # Cosine,
+                [0.1] * 2 + [0.25] * 2, # Laplace,
+                [0.001] * 2 + [0.00225] * 2, # NormalConsistency
+                [5.0] * 4 # Edge
+            ],
             'N_M_CLASSES': 4,
             'PATCH_SIZE': [128, 144, 128],
             'SELECT_PATCH_SIZE': [192, 208, 192],
+            'N_TEMPLATE_VERTICES': 42016,
+            'MODEL_CONFIG': {
+                'GROUP_STRUCTS': [[0, 1], [2, 3]],
+            },
         },
         "single-patch": {
+            # Order of structures: rh_white, rh_pial
+            'MESH_LOSS_FUNC_WEIGHTS': [
+                [1.0] * 2, # Chamfer
+                [0.01] + [0.0125] , # Cosine,
+                [0.1] + [0.25], # Laplace,
+                [0.001] + [0.00225], # NormalConsistency
+                [5.0] * 2 # Edge
+            ],
             'N_M_CLASSES': 2,
             'PATCH_SIZE': [64, 144, 128],
             'SELECT_PATCH_SIZE': [96, 208, 192],
+            'N_TEMPLATE_VERTICES': 41602,
+            'MODEL_CONFIG': {
+                'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
+            },
         }
     },
 
     # Bayesian network for uncertainty
     'UNCERTAINTY': {
         None: { # No uncertainty measure
-            'P_DROPOUT_UNET': None,
-            'P_DROPOUT_GRAPH': None,
+            'MODEL_CONFIG': {
+                'P_DROPOUT_UNET': None,
+                'P_DROPOUT_GRAPH': None,
+            }
         },
         'mc': { # Monte Carlo dropout during training and testing
-            'P_DROPOUT_UNET': 0.2,
-            'P_DROPOUT_GRAPH': 0.2,
+            'MODEL_CONFIG': {
+                'P_DROPOUT_UNET': 0.2,
+                'P_DROPOUT_GRAPH': 0.2,
+            }
         }
     },
 
@@ -103,14 +132,6 @@ hyper_ps = {
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
-    'OPTIMIZER_CLASS': torch.optim.Adam,
-    'OPTIM_PARAMS': {
-        'lr': 1e-4, # voxel lr
-        'graph_lr': 5e-5,
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0
-    },
     'LR_DECAY_AFTER': 30, # has usually no impact
     'PENALIZE_DISPLACEMENT': 0.0,
     'CLIP_GRADIENT': 200000,
@@ -127,19 +148,9 @@ hyper_ps = {
        NormalConsistencyLoss(),
        EdgeLoss(0.0)
     ],
-    # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
-    # weights should respect this order!
-    'MESH_LOSS_FUNC_WEIGHTS': [
-        [1.0] * 4, # Chamfer
-        [0.01] * 2 + [0.0125] * 2, # Cosine,
-        [0.1] * 2 + [0.25] * 2, # Laplace,
-        [0.001] * 2 + [0.00225] * 2, # NormalConsistency
-        [5.0] * 4 # Edge
-    ],
 
     # Model
     'MODEL_CONFIG': {
-        'GROUP_STRUCTS': [[0, 1], [2, 3]], # False for single-surface reconstruction
         'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
         'UNPOOL_INDICES': [0,0,0,0],
         'AGGREGATE_INDICES': [
@@ -166,9 +177,6 @@ hyper_ps = {
         'CorticalThicknessError',
         'AverageDistance'
     ],
-
-    # Template
-    'N_TEMPLATE_VERTICES': 42016,
 }
 
 mode_handler = {
@@ -186,32 +194,32 @@ def main(hps):
                                formatter_class=RawTextHelpFormatter)
     argparser.add_argument('--architecture',
                            type=str,
-                           default="voxel2meshplusplusgeneric",
+                           default=hyper_ps_default['ARCHITECTURE'],
                            help="The name of the algorithm. Supported:\n"
                            "- voxel2meshplusplusgeneric")
     argparser.add_argument('--dataset',
                            type=str,
-                           default="ADNI_CSR_large",
+                           default=hyper_ps_default['DATASET'],
                            help="The name of the dataset.")
     argparser.add_argument('--train',
                            action='store_true',
                            help="Train a model.")
     argparser.add_argument('--test',
                            type=int,
-                           default=None,
+                           default=hyper_ps_default['TEST_MODEL_EPOCH'],
                            nargs='?',
                            const=-1,
                            help="Test a model, optionally specified by epoch."
                            " If no epoch is specified, the best (w.r.t. IoU)"
                            " and the last model are evaluated.")
     argparser.add_argument('--tune',
-                           default=None,
+                           default=hyper_ps_default['PARAMS_TO_TUNE'],
                            type=str,
                            dest='params_to_tune',
                            nargs='+',
                            help="Specify the name of a parameter to tune.")
     argparser.add_argument('--fine-tune',
-                           default=None,
+                           default=hyper_ps_default['PARAMS_TO_FINE_TUNE'],
                            type=str,
                            dest='params_to_fine_tune',
                            nargs='+',
@@ -223,35 +231,35 @@ def main(hps):
     argparser.add_argument('--log',
                            type=str,
                            dest='loglevel',
-                           default='INFO',
+                           default=hyper_ps_default['LOGLEVEL'],
                            help="Specify log level.")
     argparser.add_argument('--proj',
                            type=str,
                            dest='proj_name',
-                           default=None,
+                           default=hyper_ps_default['PROJ_NAME'],
                            help="Specify the name of the wandb project.")
     argparser.add_argument('--group',
                            type=str,
                            dest='group_name',
-                           default='uncategorized',
+                           default=hyper_ps_default['GROUP_NAME'],
                            help="Specify the name of the wandb group.")
     argparser.add_argument('--device',
                            type=str,
                            dest='device',
-                           default='cuda:0',
+                           default=hyper_ps_default['DEVICE'],
                            help="Specify the device for execution.")
     argparser.add_argument('--overfit',
                            type=int,
                            nargs='?',
-                           const=1,
-                           default=False,
+                           const=1, # Assume 1 sample without further spec.
+                           default=hyper_ps_default['OVERFIT'],
                            help="Overfit on a few training samples.")
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
     argparser.add_argument('--n_test_vertices',
                            type=int,
-                           default=-1,
+                           default=hyper_ps_default['N_TEMPLATE_VERTICES_TEST'],
                            help="Set the number of template vertices during"
                            " testing.")
     argparser.add_argument('--ablation_study',
@@ -262,7 +270,7 @@ def main(hps):
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
-                           default=None,
+                           default=hyper_ps_default['EXPERIMENT_NAME'],
                            help="Name of experiment:\n"
                            "- 'debug' means that the results are  written "
                            "into a directory \nthat might be overwritten "
@@ -290,7 +298,7 @@ def main(hps):
     if args.ablation_study:
         hps['ABLATION_STUDY'] = args.ablation_study[0]
     else:
-        hps['ABLATION_STUDY'] = False
+        hps['ABLATION_STUDY'] = hyper_ps_default['ABLATION_STUDY']
 
     if args.params_to_tune and args.params_to_fine_tune:
         raise RuntimeError(
@@ -301,15 +309,6 @@ def main(hps):
 
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
-
-    # Automatically choose template
-    hps['MODEL_CONFIG']['MESH_TEMPLATE'] = os.path.join(
-        hps['TEMPLATE_PATH'],
-        hps['TEMPLATE_NAME'](
-            hps['N_TEMPLATE_VERTICES'],
-            hps['SELECT_PATCH_SIZE'],
-            hps['PATCH_SIZE'])
-    )
 
     # Set dataset paths
     update_dict(hps, dataset_paths[args.dataset])
@@ -348,6 +347,16 @@ def main(hps):
 
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
+
+    # Automatically choose template
+    hps['MODEL_CONFIG']['MESH_TEMPLATE'] = os.path.join(
+        hps['TEMPLATE_PATH'],
+        hps['TEMPLATE_NAME'](
+            hps['N_M_CLASSES'],
+            hps['N_TEMPLATE_VERTICES'],
+            hps['SELECT_PATCH_SIZE'],
+            hps['PATCH_SIZE'])
+    )
 
     # Create output dirs
     if not os.path.isdir(MISC_DIR):

@@ -45,13 +45,54 @@ hyper_ps_default={
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
 
+    # The name of an experiment (=base folder for all data stored throughout
+    # training and testing)
+    'EXPERIMENT_NAME': None,
+
+    # Project name used for wandb
+    'PROJ_NAME': 'vox2cortex',
+
+    # The architecture to use
+    'ARCHITECTURE': 'voxel2meshplusplusgeneric',
+
+    # The dataset to use
+    'DATASET': 'TO BE SPECIFIED',
+
+    # The loglevel for output logs
+    'LOGLEVEL': 'INFO',
+
+    # Wandb logging group
+    'GROUP_NAME': 'uncategorized',
+
+    # The device to train on
+    'DEVICE': 'cuda:0',
+
+    # Whether to do overfitting
+    'OVERFIT': False,
+
+    # If execution times should be measured for some functions
+    'TIME_LOGGING': False,
+
+    # A list of parameters to tune
+    'PARAMS_TO_TUNE': None,
+
+    # A list of parameters to fine-tune
+    'PARAMS_TO_FINE_TUNE': None,
+
+    # For testing the model from a certain training epoch; if None, the final
+    # model is used
+    'TEST_MODEL_EPOCH': None,
+
+    # Specification of an ablation study, see utils.ablation_study
+    'ABLATION_STUDY': False,
+
     # The path where templates are stored
     'TEMPLATE_PATH': "../supplementary_material/white_pial/",
 
     # The template name in dependence of the number of vertices N,
     # 'SELECT_PATH_SIZE' (sps) and 'PATCH_SIZE' (ps)
     'TEMPLATE_NAME': (
-        lambda N, sps, ps: f"cortex_4_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
+        lambda M, N, sps, ps: f"cortex_{M}_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
     ),
 
     # The number of vertex classes to distinguish (including background)
@@ -127,7 +168,13 @@ hyper_ps_default={
 
     # Parameters for the optimizer. A separate learning rate for the graph
     # network can be specified
-    'OPTIM_PARAMS': {'lr': 1e-4, 'graph_lr': None},
+    'OPTIM_PARAMS': {
+        'lr': 1e-4, # voxel lr
+        'graph_lr': 5e-5,
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0
+    },
 
     # Data augmentation
     'AUGMENT_TRAIN': False,
@@ -221,7 +268,9 @@ hyper_ps_default={
         # voxel features
         'PROPAGATE_COORDS': False,
         # Dropout probability of UNet blocks
-        'P_DROPOUT': None,
+        'P_DROPOUT_UNET': None,
+        # Dropout probability of graph conv blocks
+        'P_DROPOUT_GRAPH': None,
         # The used patch size, should be equal to global patch size
         'PATCH_SIZE': [64, 64, 64],
         # The ids of structures that should be grouped in the graph net.
@@ -275,4 +324,7 @@ hyper_ps_default={
     # Directory of preprocessed data, e.g., containing thickness values from
     # FreeSurfer
     'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
+
+    # Define the measure of uncertainty, possible values: 'mc', None
+    'UNCERTAINTY': None,
 }
