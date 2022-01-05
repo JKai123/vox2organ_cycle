@@ -9,7 +9,6 @@ import torch
 
 from data.supported_datasets import (
     dataset_paths,
-    CortexDatasets,
 )
 from utils.params import (
     hyper_ps_default,
@@ -36,7 +35,48 @@ from utils.ablation_study import (
     set_ablation_params_
 )
 
-# Overwrite default parameters for a common training procedure on ADNI large
+
+# Parameter groups (typically changed together)
+PARAM_GROUPS = {
+    # Parameters set in dependence of 'PATCH_MODE'
+    'PATCH_MODE': {
+        "no": {
+            'N_M_CLASSES': 4,
+            'PATCH_SIZE': [128, 144, 128],
+            'SELECT_PATCH_SIZE': [192, 208, 192],
+        },
+        "single-patch": {
+            'N_M_CLASSES': 2,
+            'PATCH_SIZE': [64, 144, 128],
+            'SELECT_PATCH_SIZE': [96, 208, 192],
+        }
+    },
+
+    # Bayesian network for uncertainty
+    'UNCERTAINTY': {
+        None: { # No uncertainty measure
+            'P_DROPOUT_UNET': None,
+            'P_DROPOUT_GRAPH': None,
+        },
+        'mc': { # Monte Carlo dropout during training and testing
+            'P_DROPOUT_UNET': 0.2,
+            'P_DROPOUT_GRAPH': 0.2,
+        }
+    },
+
+    # Overwrite params for overfitting (often useful for debugging and development)
+    'OVERFIT': {
+        True: {
+        # Learning
+        'BATCH_SIZE': 1,
+        'SANITY_CHECK_DATA': True
+        },
+        False: {} # No changes
+    },
+}
+
+
+# Overwrite default parameters
 hyper_ps = {
     # Overwriting std values from utils.params
     #######################
@@ -51,11 +91,8 @@ hyper_ps = {
     'MESH_TARGET_TYPE': "mesh",
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "no",
+    'PATCH_MODE': "single-patch",
     'SANITY_CHECK_DATA': False, # Save some memory
-    'N_M_CLASSES': 4,
-    'PATCH_SIZE': [128, 144, 128],
-    'SELECT_PATCH_SIZE': [192, 208, 192],
     'MESH_TYPE': 'freesurfer',
     'REDUCED_FREESURFER': 0.3,
 
@@ -77,6 +114,9 @@ hyper_ps = {
     'LR_DECAY_AFTER': 30, # has usually no impact
     'PENALIZE_DISPLACEMENT': 0.0,
     'CLIP_GRADIENT': 200000,
+
+    # Inference
+    'UNCERTAINTY': 'mc',
 
     # Loss function
     'LOSS_AVERAGING': 'linear',
@@ -129,13 +169,6 @@ hyper_ps = {
 
     # Template
     'N_TEMPLATE_VERTICES': 42016,
-}
-
-# Overwrite params for overfitting (often useful for debugging and development)
-hyper_ps_overfit = {
-    # Learning
-    'BATCH_SIZE': 1,
-    'SANITY_CHECK_DATA': True
 }
 
 mode_handler = {
@@ -281,9 +314,9 @@ def main(hps):
     # Set dataset paths
     update_dict(hps, dataset_paths[args.dataset])
 
-    # Update again for overfitting
-    if hps['OVERFIT']:
-        hps = update_dict(hps, hyper_ps_overfit)
+    # Update params for parameter groups
+    for k, v in PARAM_GROUPS.items():
+        hps = update_dict(hps, v[hps[k]])
 
     # Set the number of test vertices
     if hps['N_TEMPLATE_VERTICES_TEST'] == -1:
