@@ -287,7 +287,7 @@ hyper_ps_default={
         # 'bilinear', or 'lns'
         'AGGREGATE': 'trilinear',
         # Where to take the features from the UNet
-        'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]]
+        'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]],
     },
 
     # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
