@@ -9,7 +9,6 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 import trimesh
-import nibabel as nib
 import matplotlib.pyplot as plt
 from trimesh.proximity import longest_ray
 from pytorch3d.structures import Meshes, Pointclouds
@@ -17,18 +16,15 @@ from pytorch3d.ops import (
     sample_points_from_meshes,
     knn_points
 )
-import subprocess
+
 from utils.file_handle import read_dataset_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
 from data.supported_datasets import valid_ids
 
-# for vox2cortex
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/"
 EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
-
-
 SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 # SURF_NAMES = ("rh_white", "rh_pial")
 PARTNER = {"rh_white": "rh_pial",
@@ -37,10 +33,6 @@ PARTNER = {"rh_white": "rh_pial",
            "lh_pial": "lh_white"}
 
 MODES = ('ad_hd', 'thickness', 'trt')
-
-
-
-
 
 def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
              subfolder="meshes"):
