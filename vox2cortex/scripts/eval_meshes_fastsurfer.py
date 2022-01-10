@@ -18,15 +18,31 @@ from pytorch3d.ops import (
     knn_points
 )
 import subprocess
-from utils.file_handle import read_dataset_ids
+from utils.file_handle import read_dataset_ids, read_dataset_ids_fastsurfer
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
 from data.supported_datasets import valid_ids
 
-# for vox2cortex
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/"
-EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
+
+# for fastsurfer
+RAW_DATA_DIR = '/mnt/nas/Data_Neuro/OASIS/CSR_data/'
+EXPERIMENT_DIR = '/home/anne/cortex_parcellation/mesh_parcellation/FastSurfer_experiments/'
+
+OASIS_CSR_DIR = '/mnt/nas/Data_Neuro/OASIS/CSR_data/'
+OASIS_FastSurfer_out = '/home/anne/cortex_parcellation/mesh_parcellation/FastSurfer_experiments/OASIS_FS53/predictions/CSR_data/'
+OASIS_TEST_FILES = '/mnt/nas/Data_Neuro/OASIS/CSR_data/OASIS_test.txt'
+OASIS_ORIG_DIR = '/mnt/nas/Data_Neuro/OASIS/FS_full/'
+SAVE_DIR = OASIS_FastSurfer_out
+
+#RAW_DATA_DIR = '/mnt/nas/Data_Neuro/ADNI_CSR/FS72/'
+#EXPERIMENT_DIR = '/mnt/nas/Users/Anne/FastSurfer_experiments/'
+
+#OASIS_CSR_DIR = '/mnt/nas/Data_Neuro/ADNI_CSR/FS72/'
+#OASIS_FastSurfer_out = '/mnt/nas/Users/Anne/FastSurfer_experiments/ADNI72/predictions/FS72/'
+#OASIS_TEST_FILES = '/mnt/nas/Data_Neuro/ADNI_CSR/ADNI_large_test_qc_pass.txt.txt'
+#OASIS_ORIG_DIR = '/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/'
+#SAVE_DIR = OASIS_FastSurfer_out
 
 
 SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
@@ -36,10 +52,67 @@ PARTNER = {"rh_white": "rh_pial",
            "lh_white": "lh_pial",
            "lh_pial": "lh_white"}
 
+FS_surf_name = {'lh_pial': 'lh.pial',
+                'lh_white': 'lh.white',
+                'rh_pial': 'rh.pial',
+                'rh_white': 'rh.white'}
 MODES = ('ad_hd', 'thickness', 'trt')
+subprocess.call(['export FREESURFER_HOME=/mnt/nas/Software/Freesurfer60'],shell=True)
+subprocess.call(['source $FREESURFER_HOME/SetUpFreeSurfer.sh'],shell=True)
 
 
+def warp_surface(pat, surf_name):
+    '''
+    this function is needed to warp fastsurfer output surfaces to the same space as the data we used
+    for vox2cortex for better comparability.
+    It converts fastsurfer output surfaces to .ply e.g. lh.pial --> lh_pial_fsspace.ply
+    and also uses the transform_affine matrix to warp the surface and saves as lh_pial.ply
+    :param pat: patient ID
+    :param surf_name: surface name e.g. lh_pial
+    :return:
+    '''
+    print('warping surfaces')
+    # converting and warping surfaces
+    sample_output_dir = os.path.join(SAVE_DIR, pat)
+    out_affine_path = os.path.join(OASIS_CSR_DIR, pat, 'transform_affine.txt')
 
+    surf_in_path = os.path.join(OASIS_FastSurfer_out, pat, 'surf', FS_surf_name[surf_name])
+
+    #lh_pial_path = os.path.join(surf_path, 'lh.pial')
+    #lh_white_path = os.path.join(surf_path, 'lh.white')
+    #rh_pial_path = os.path.join(surf_path, 'rh.pial')
+    #rh_white_path = os.path.join(surf_path, 'rh.white')
+    # read fixed to moving transformation and invert to moving to fixed
+    T = np.linalg.inv(np.loadtxt(out_affine_path))
+
+
+    surf_scanner_path = os.path.join(sample_output_dir, "{}.scanner".format(surf_name))
+    surf_out_fs_path = os.path.join(sample_output_dir, "{}_fsspace.ply".format(surf_name))
+    surf_out_path = os.path.join(sample_output_dir, "{}.ply".format(surf_name))
+
+    # read fs mesh and save as .ply file
+    verts, faces = nib.freesurfer.io.read_geometry(surf_in_path)
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+
+    mesh.remove_duplicate_faces()
+    mesh.remove_unreferenced_vertices()
+    # apply transformation
+    mesh.export(surf_out_fs_path)
+
+    # convert freesurfer mesh to scanner cordinates
+    subprocess.call(['mris_convert', '--to-scanner', surf_in_path, surf_scanner_path])
+    # read fs mesh and save as .ply file
+    verts, faces = nib.freesurfer.io.read_geometry(surf_scanner_path)
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+
+    mesh.remove_duplicate_faces()
+    mesh.remove_unreferenced_vertices()
+    # apply transformation
+    mesh = mesh.apply_transform(T)
+    mesh.export(surf_out_path)
+
+    # delete .scanner file
+    os.remove(surf_scanner_path)
 
 
 def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
@@ -145,8 +218,8 @@ def trt_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
-def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
-                       method="nearest", subfolder="meshes"):
+def eval_thickness(mri_id, surf_name, eval_params, device="cuda:1",
+                       method="nearest"):
     """ Cortical thickness biomarker.
     :param method: 'nearest' or 'ray'.
     """
@@ -196,9 +269,8 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     # Load predicted meshes
     s_index = SURF_NAMES.index(surf_name)
     pred_mesh_path = os.path.join(
-        pred_folder,
-        subfolder,
-        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+        pred_folder, mri_id,
+        f"{surf_name}.ply"
     )
     pred_mesh = trimesh.load(pred_mesh_path)
     pred_mesh.remove_duplicate_faces()
@@ -207,11 +279,11 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
     pred_normals = pred_mesh.vertex_normals
     if "pial" in surf_name: # point to inside
         pred_normals = - pred_normals
-    s_index_partner = SURF_NAMES.index(PARTNER[surf_name])
+    #s_index_partner = SURF_NAMES.index(PARTNER[surf_name])
+    partner_name = PARTNER[surf_name]
     pred_mesh_path_partner = os.path.join(
-        pred_folder,
-        subfolder,
-        f"{mri_id}_epoch{epoch}_struc{s_index_partner}_meshpred.ply"
+        pred_folder,mri_id,
+        f"{partner_name}.ply"
     )
     pred_mesh_partner = trimesh.load(pred_mesh_path_partner)
     pred_mesh_partner.remove_duplicate_faces()
@@ -299,15 +371,15 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
 
     # Store
     th_gt_file = os.path.join(
-        thickness_folder, f"{mri_id}_struc{s_index}_gt.thickness"
+        thickness_folder, f"{mri_id}_{surf_name}_gt.thickness"
     )
     np.save(th_gt_file, gt_thickness)
     th_pred_file = os.path.join(
-        thickness_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.thickness"
+        thickness_folder, f"{mri_id}_{surf_name}_meshpred.thickness"
     )
     np.save(th_pred_file, pred_thickness)
     err_file = os.path.join(
-        thickness_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.thicknesserror"
+        thickness_folder, f"{mri_id}_{surf_name}_meshpred.thicknesserror"
     )
     error_features = np.zeros(pred_pntcloud.shape[0])
     error_features[pred_idx] = error
@@ -336,8 +408,8 @@ def thickness_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
-def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
-                         device="cuda:1", subfolder="meshes"):
+def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params,
+                         device="cuda:1"):
     """ AD and HD computed with pytorch3d. """
     pred_folder = os.path.join(eval_params['log_path'])
     ad_hd_folder = os.path.join(
@@ -364,9 +436,7 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
     # orig, pp, top_fix
     s_index = SURF_NAMES.index(surf_name)
     pred_mesh_path = os.path.join(
-        pred_folder,
-        subfolder,
-        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+        pred_folder,mri_id,f"{surf_name}.ply"
     )
     pred_mesh = trimesh.load(pred_mesh_path)
     pred_mesh.remove_duplicate_faces(); pred_mesh.remove_unreferenced_vertices();
@@ -398,11 +468,11 @@ def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
     print("\t > Hausdorff surface distance {:.4f}".format(hd2))
 
     ad_pred_file = os.path.join(
-        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ad.npy"
+        ad_hd_folder, f"{mri_id}_{surf_name}_meshpred.ad.npy"
     )
     np.save(ad_pred_file, assd2)
     hd_pred_file = os.path.join(
-        ad_hd_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.hd.npy"
+        ad_hd_folder, f"{mri_id}_{surf_name}_meshpred.hd.npy"
     )
     np.save(hd_pred_file, hd2)
 
@@ -497,77 +567,71 @@ mode_to_output_file = {"ad_hd": ad_hd_output,
 
 if __name__ == '__main__':
     argparser = ArgumentParser(description="Mesh evaluation procedure")
-    argparser.add_argument('exp_name',
+    argparser.add_argument('--exp_name',
                            type=str,
                            help="Name of experiment under evaluation.")
-    argparser.add_argument('epoch',
-                           type=int,
-                           help="The epoch to evaluate.")
-    argparser.add_argument('n_test_vertices',
-                           type=int,
-                           help="The number of template vertices for each"
-                           " structure that was used during testing.")
-    argparser.add_argument('dataset',
+    argparser.add_argument('--dataset',
                            type=str,
                            help="The dataset.")
-    argparser.add_argument('mode',
+    argparser.add_argument('--mode',
                            type=str,
                            help="The evaluation to perform, possible values"
                            " are " + str(MODES))
-    argparser.add_argument('--meshfixed',
-                           action='store_true',
-                           help="Use MeshFix'ed meshes for evaluation.")
-
+    argparser.add_argument('--test_file',
+                           type=str,
+                           help="file containing the indices for testing")
     args = argparser.parse_args()
     exp_name = args.exp_name
-    epoch = args.epoch
+    #epoch = args.epoch
     mode = args.mode
     dataset = args.dataset
-    meshfixed = args.meshfixed
+    #meshfixed = args.meshfixed
 
     # Provide params
     eval_params = {}
     if "OASIS" in dataset:
         subdir = "CSR_data"
+    elif "ADNI72" in dataset:
+        subdir = "FS72"
     else:
-        subdir = ""
+        subdir = ''
     eval_params['gt_mesh_path'] = os.path.join(
-        RAW_DATA_DIR,
-        dataset.replace("_small", "").replace("_large", "").replace("_orig", ""),
-        subdir
+        RAW_DATA_DIR
     )
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
+    #OASIS_FS53/predictions/CSR_data/
     eval_params['log_path'] = os.path.join(
         EXPERIMENT_DIR, exp_name,
-        "test_template_"
-        + str(args.n_test_vertices)
-        + f"_{dataset}"
+        "predictions", subdir
     )
     eval_params['metrics_csv_prefix'] = "eval_" + mode
 
-    if meshfixed:
-        eval_params['metrics_csv_prefix'] += "_meshfixed"
-        subfolder = "meshfix"
-    else:
-        subfolder = "meshes"
+    #if meshfixed:
+    #    eval_params['metrics_csv_prefix'] += "_meshfixed"
+    #    subfolder = "meshfix"
+    #else:
+    #    subfolder = "meshes"
 
     # Read dataset split
-    dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
-
+    #dataset_file = os.path.join(eval_params['exp_path'], 'dataset_ids.txt')
+    #dataset_file = os.path.join(RAW_DATA_DIR)
+    dataset_file = args.test_file
     # Use all valid ids in the case of test-retest (everything is 'test') and
     # test split otherwise
     if mode == 'trt':
         ids = valid_ids(eval_params['gt_mesh_path'])
     else:
-        ids = read_dataset_ids(dataset_file)
+        ids = read_dataset_ids_fastsurfer(dataset_file)
 
     res_all = []
     res_surfaces = {s: [] for s in SURF_NAMES}
     for mri_id in ids:
         for surf_name in SURF_NAMES:
+            # warp surfaces from freesurfer space to vox2cortex space if not done yet
+            if not os.path.isfile(os.path.join(SAVE_DIR,mri_id, "{}.ply".format(surf_name))):
+                warp_surface(mri_id, surf_name)
             result = mode_to_function[mode](
-                mri_id, surf_name, eval_params, epoch, subfolder=subfolder
-            )
+                mri_id, surf_name, eval_params)
             if result is not None:
                 res_all.append(result)
                 res_surfaces[surf_name].append(result)

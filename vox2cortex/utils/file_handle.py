@@ -59,6 +59,10 @@ def read_obj(filepath):
         else:
             return vertices, faces, None
 
+def read_dataset_ids_fastsurfer(filename: str):
+    with open(filename) as f:
+        ids = f.read().splitlines()
+    return ids
 def read_dataset_ids(filename: str, split: str='Test'):
     """ Read the ids corresponding to the desired split. """
     ids = []
