@@ -15,7 +15,7 @@ from torch.nn import Dropout
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CyclicLR
 from pytorch3d.structures import Pointclouds, Meshes
 
 from utils.utils import string_dict, score_is_better
@@ -75,9 +75,6 @@ class Solver():
     :param int accumulate_n_gradients: Gradient accumulation of n gradients.
     :param bool mixed_precision: Whether or not to use automatic mixed
     precision.
-    :param int lr_decay_after: see lr_decay_rate
-    :param float lr_decay_rate: If no improvement for lr_decay_after epochs,
-    then new_lr = old_lr * lr_decay_rate
     :param str reduce_reg_loss_mode: The mode for reduction of regularization
     losses, either 'linear' or 'none'
     :param penalize_displacement: Weight for penalizing large displacements,
@@ -102,8 +99,6 @@ class Solver():
                  main_eval_metric,
                  accumulate_n_gradients,
                  mixed_precision,
-                 lr_decay_rate,
-                 lr_decay_after,
                  reduce_reg_loss_mode,
                  penalize_displacement,
                  clip_gradient,
@@ -146,8 +141,6 @@ class Solver():
         self.main_eval_metric = main_eval_metric
         self.accumulate_ngrad = accumulate_n_gradients
         self.mixed_precision = mixed_precision
-        self.lr_decay_after = lr_decay_after
-        self.lr_decay_rate = lr_decay_rate
 
     @measure_time
     def training_step(self, model, data, iteration):
@@ -251,7 +244,6 @@ class Solver():
               training_set: torch.utils.data.Dataset,
               n_epochs: int,
               batch_size: int,
-              early_stop: bool,
               eval_every: int,
               start_epoch: int,
               save_models: bool=True):
@@ -263,7 +255,6 @@ class Solver():
         :param validation_set: The validation dataset.
         :param n_epochs: The number of training epochs.
         :param batch_size: The minibatch size.
-        :param early_stop: Enable early stopping.
         :param eval_every: Evaluate the model every n epochs.
         :param start_epoch: Start at this epoch with counting, should be 1
         besides previous training is resumed.
@@ -282,7 +273,7 @@ class Solver():
         self.trainLogger = logging.getLogger(ExecModes.TRAIN.name)
         self.trainLogger.info("Training on device %s", self.device)
 
-        # Optimizer and lr scheduling
+        # Optimizer
         if self.optim_params.get('graph_lr', None) is not None:
             # Separate learning rates for voxel and graph network
             graph_lr = self.optim_params['graph_lr']
@@ -300,10 +291,16 @@ class Solver():
                 model.parameters(), **self.optim_params
             )
         self.optim.zero_grad()
-        _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
-        lr_scheduler = ReduceLROnPlateau(self.optim, lr_decay_mode,
-                                         self.lr_decay_rate,
-                                         self.lr_decay_after)
+
+        # Lr scheduling
+        # Parameters of CycliclLR as recommended by Leslie Smith
+        lr_scheduler = CyclicLR(
+            self.optim,
+            base_lr=[p['lr'] for p in self.optim.param_groups],
+            max_lr=[4 * p['lr'] for p in self.optim.param_groups],
+            step_size_up=int(len(training_set)/batch_size)*10,
+            cycle_momentum=False
+        )
 
         training_loader = DataLoader(training_set, batch_size=batch_size,
                                      shuffle=True)
@@ -327,10 +324,12 @@ class Solver():
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)
                     log_epoch(epoch, iteration)
-                    log_lr(np.mean([p['lr'] for p in self.optim.param_groups]),
-                           iteration)
+                    log_lr(np.mean(lr_scheduler.get_last_lr()), iteration)
                 # Step
                 loss = self.training_step(model, data, iteration)
+
+                # For cyclic lr
+                lr_scheduler.step()
 
                 iteration += 1
 
@@ -365,9 +364,6 @@ class Solver():
                     if save_models:
                         model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
                         models_to_epochs[BEST_MODEL_NAME] = best_epoch
-            lr_scheduler.step(best_val_score)
-
-            # TODO: Early stopping
 
             # Save intermediate model after each epoch
             if save_models:
@@ -547,7 +543,6 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
                  training_set=training_set,
                  n_epochs=hps['N_EPOCHS'],
                  batch_size=hps['BATCH_SIZE'],
-                 early_stop=hps['EARLY_STOP'],
                  eval_every=hps['EVAL_EVERY'],
                  start_epoch=start_epoch)
 

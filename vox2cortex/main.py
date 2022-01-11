@@ -6,6 +6,7 @@ import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 import torch
+from torch.optim import AdamW
 
 from data.supported_datasets import (
     dataset_paths,
@@ -132,9 +133,12 @@ hyper_ps = {
     'LOG_EVERY': 'epoch',
     'ACCUMULATE_N_GRADIENTS': 1,
     'MIXED_PRECISION': True,
-    'LR_DECAY_AFTER': 30, # has usually no impact
     'PENALIZE_DISPLACEMENT': 0.0,
     'CLIP_GRADIENT': 200000,
+    'OPTIMIZER_CLASS': torch.optim.AdamW,
+    'OPTIM_PARAMS': {
+        'weight_decay': 1e-3
+    },
 
     # Inference
     'UNCERTAINTY': 'mc',

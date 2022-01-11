@@ -221,9 +221,6 @@ hyper_ps_default={
     # Evaluate model every n epochs
     'EVAL_EVERY': 1,
 
-    # Use early stopping
-    'EARLY_STOP': False,
-
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
@@ -292,11 +289,6 @@ hyper_ps_default={
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]],
     },
-
-    # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
-    # improvement for 'LR_DECAY_AFTER' epochs
-    'LR_DECAY_RATE': 0.5,
-    'LR_DECAY_AFTER': -1, # -1 = no decay
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],
