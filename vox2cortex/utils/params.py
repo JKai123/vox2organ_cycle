@@ -110,6 +110,9 @@ hyper_ps_default={
     # 'N_TEMPLATE_VERTICES' is used)
     'N_TEMPLATE_VERTICES_TEST': -1,
 
+    # Either 'test' or 'validation'
+    'TEST_SPLIT': 'test',
+
     # The number of reference points in a cortex structure
     'N_REF_POINTS_PER_STRUCTURE': 40962,
 

@@ -64,6 +64,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     cannot be resumed.
     """
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
+    test_split = hps.get('TEST_SPLIT', 'test')
+
     if experiment_name is None:
         print("Please specify experiment name for testing with --exp_name.")
         return
@@ -90,7 +92,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Directoy where test results are written to
     test_dir = os.path.join(
         experiment_dir,
-        "test_template_"
+        test_split
+        + "_template_"
         + str(hps['N_TEMPLATE_VERTICES_TEST'])
         + f"_{hps['DATASET']}"
     )
@@ -127,11 +130,13 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Load test dataset
     test_dataset_params = _get_test_dataset_params(hps, training_hps)
     testLogger.info("Loading dataset %s...", test_dataset_params['DATASET'])
-    _, _, test_set = dataset_split_handler[test_dataset_params['DATASET']](
+    _, val_set, test_set = dataset_split_handler[test_dataset_params['DATASET']](
         save_dir=test_dir,
-        load_only='test',
+        load_only=test_split,
         **dict_to_lower_dict(test_dataset_params)
     )
+    if test_split == 'validation':
+        test_set = val_set
     testLogger.info("%d test files.", len(test_set))
 
     # Use current hps for testing. In particular, the evaluation metrics may be
@@ -178,8 +183,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
         # Test each epoch that has been stored
         if epoch not in epochs_tested or epoch == -1:
-            testLogger.info("Test model %s stored in training epoch %d",
-                            model_path, epoch)
+            testLogger.info(
+                "Test model %s stored in training epoch %d on dataset split '%s'",
+                model_path, epoch, test_split
+            )
 
             # Avoid problem of cuda out of memory by first loading to cpu, see
             # https://discuss.pytorch.org/t/cuda-error-out-of-memory-when-load-models/38011/3
