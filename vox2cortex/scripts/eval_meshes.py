@@ -24,15 +24,15 @@ from utils.utils import choose_n_random_points
 from data.supported_datasets import valid_ids
 
 RAW_DATA_DIR = "/mnt/nas/Data_Neuro/"
-EXPERIMENT_DIR = "/home/fabianb/work/cortex-parcellation-using-meshes/experiments/"
-SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
-# SURF_NAMES = ("rh_white", "rh_pial")
+EXPERIMENT_DIR = "../experiments/"
+# SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+SURF_NAMES = ("rh_white", "rh_pial")
 PARTNER = {"rh_white": "rh_pial",
            "rh_pial": "rh_white",
            "lh_white": "lh_pial",
            "lh_pial": "lh_white"}
 
-MODES = ('ad_hd', 'thickness', 'trt')
+MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error')
 
 def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
              subfolder="meshes"):
@@ -328,6 +328,66 @@ def thickness_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
+def eval_per_vertex_err(mri_id, surf_name, eval_params, epoch,
+                        device="cuda:1", subfolder="meshes"):
+    """ Error per predicted vertex w.r.t. closest gt vertex.
+    """
+    pred_folder = os.path.join(eval_params['log_path'])
+    err_folder = os.path.join(
+        eval_params['log_path'], 'mesh_error'
+    )
+    if not os.path.isdir(err_folder):
+        os.mkdir(err_folder)
+
+    # load ground-truth mesh
+    try:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
+    except ValueError:
+        gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name))
+        gt_mesh = trimesh.load(gt_mesh_path)
+    gt_mesh.remove_duplicate_faces(); gt_mesh.remove_unreferenced_vertices();
+    gt_mesh = Meshes(
+        [torch.from_numpy(gt_mesh.vertices).float().to(device)],
+        [torch.from_numpy(gt_mesh.faces).long().to(device)]
+    )
+
+    # load predicted mesh
+    # file endings depending on the post-processing:
+    # orig, pp, top_fix
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
+    pred_mesh.remove_duplicate_faces(); pred_mesh.remove_unreferenced_vertices();
+
+    # compute with pytorch3d:
+    pred_pcl = Pointclouds(
+        torch.from_numpy(pred_mesh.vertices)[None].float().to(device)
+    )
+
+    print(f"Computing point to mesh distances for file {pred_mesh_path}...")
+    P2G_dist = _point_mesh_face_distance_unidirectional(
+        pred_pcl, gt_mesh
+    ).cpu().numpy()
+
+    avg_err = P2G_dist.sum() / float(P2G_dist.shape[0])
+
+    print("\t > Average per-vertex error: {:.4f}".format(avg_err))
+
+    err_file = os.path.join(
+        err_folder, f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.error.npy"
+    )
+    np.save(err_file, P2G_dist.squeeze())
+
+    return avg_err
+
+def per_vertex_err_output(results, summary_file):
+    pass
+
 def eval_ad_hd_pytorch3d(mri_id, surf_name, eval_params, epoch,
                          device="cuda:1", subfolder="meshes"):
     """ AD and HD computed with pytorch3d. """
@@ -481,10 +541,12 @@ def ad_hd_output(results, summary_file):
 
 mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
                     "thickness": eval_thickness,
-                    "trt": eval_trt}
+                    "trt": eval_trt,
+                    "per-vertex-error": eval_per_vertex_err}
 mode_to_output_file = {"ad_hd": ad_hd_output,
                        "thickness": thickness_output,
-                       "trt": trt_output}
+                       "trt": trt_output,
+                       "per-vertex-error": per_vertex_err_output}
 
 
 if __name__ == '__main__':
@@ -502,6 +564,10 @@ if __name__ == '__main__':
     argparser.add_argument('dataset',
                            type=str,
                            help="The dataset.")
+    argparser.add_argument('split',
+                           type=str,
+                           help="The dataset split, either 'validation' or"
+                           " 'test'.")
     argparser.add_argument('mode',
                            type=str,
                            help="The evaluation to perform, possible values"
@@ -531,7 +597,8 @@ if __name__ == '__main__':
     eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
     eval_params['log_path'] = os.path.join(
         EXPERIMENT_DIR, exp_name,
-        "test_template_"
+        args.split
+        + "_template_"
         + str(args.n_test_vertices)
         + f"_{dataset}"
     )
@@ -551,7 +618,9 @@ if __name__ == '__main__':
     if mode == 'trt':
         ids = valid_ids(eval_params['gt_mesh_path'])
     else:
-        ids = read_dataset_ids(dataset_file)
+        ids = read_dataset_ids(
+            dataset_file, args.split[0].upper() + args.split[1:]
+        )
 
     res_all = []
     res_surfaces = {s: [] for s in SURF_NAMES}

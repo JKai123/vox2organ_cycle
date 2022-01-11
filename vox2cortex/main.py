@@ -177,6 +177,7 @@ hyper_ps = {
         'CorticalThicknessError',
         'AverageDistance'
     ],
+    'TEST_SPLIT': 'validation',
 }
 
 mode_handler = {
