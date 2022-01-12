@@ -6,7 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 from utils.utils import ExtendedEnum
 
-from models.voxel2meshplusplus import (
+from models.vox2cortex import (
     Voxel2MeshPlusPlusGeneric,
 )
 
