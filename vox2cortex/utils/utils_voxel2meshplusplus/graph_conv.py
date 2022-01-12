@@ -1,5 +1,5 @@
 
-""" Graph conv blocks for Voxel2MeshPlusPlus.
+""" Graph conv blocks.
 
 Implementation based on https://github.com/cvlab-epfl/voxel2mesh.
 """

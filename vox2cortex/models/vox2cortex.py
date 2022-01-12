@@ -17,10 +17,8 @@ from models.base_model import V2MModel
 from models.graph_net import GraphDecoder
 
 
-class Voxel2MeshPlusPlusGeneric(V2MModel):
-    """ Voxel2MeshPlusPlus with features taken either from the encoder or the
-    decoder. The primary reference for this implementation is
-    https://arxiv.org/abs/2102.07899.
+class Vox2Cortex(V2MModel):
+    """ Implementation of the Vox2Cortex model.
 
     :param n_v_classes: Number of voxel classes to distinguish
     :param n_m_classes: Number of mesh classes to distinguish
@@ -216,7 +214,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
-        vertices, faces = Voxel2MeshPlusPlusGeneric.pred_to_verts_and_faces(pred)
+        vertices, faces = Vox2Cortex.pred_to_verts_and_faces(pred)
         pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
 
         return pred_meshes
@@ -225,7 +223,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     def pred_to_pred_deltaV_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) with RELATIVE
         coordinates, i.e., with vertices containing displacement vectors. """
-        deltaV, faces = Voxel2MeshPlusPlusGeneric.pred_to_deltaV_and_faces(pred)
+        deltaV, faces = Vox2Cortex.pred_to_deltaV_and_faces(pred)
         pred_deltaV_meshes = verts_faces_to_Meshes(deltaV, faces, 2) # pytorch3d
 
         return pred_deltaV_meshes

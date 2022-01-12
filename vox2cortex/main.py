@@ -201,7 +201,7 @@ def main(hps):
                            type=str,
                            default=hyper_ps_default['ARCHITECTURE'],
                            help="The name of the algorithm. Supported:\n"
-                           "- voxel2meshplusplusgeneric")
+                           "- vox2cortex")
     argparser.add_argument('--dataset',
                            type=str,
                            default=hyper_ps_default['DATASET'],

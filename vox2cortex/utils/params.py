@@ -53,7 +53,7 @@ hyper_ps_default={
     'PROJ_NAME': 'vox2cortex',
 
     # The architecture to use
-    'ARCHITECTURE': 'voxel2meshplusplusgeneric',
+    'ARCHITECTURE': 'vox2cortex',
 
     # The dataset to use
     'DATASET': 'TO BE SPECIFIED',
