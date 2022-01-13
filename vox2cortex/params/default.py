@@ -39,11 +39,36 @@ hyper_ps_default={
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
 
+
+    ### Paths ###
+
     # Directory for output to check
     'CHECK_DIR': "../to_check",
 
     # Miscellanous output
     'MISC_DIR': "../misc",
+
+    # The path where templates are stored
+    'TEMPLATE_PATH': "../supplementary_material/white_pial/",
+
+    # The template name in dependence of the number of vertices N,
+    # 'SELECT_PATH_SIZE' (sps) and 'PATCH_SIZE' (ps)
+    'TEMPLATE_NAME': (
+        lambda M, N, sps, ps: f"cortex_{M}_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
+    ),
+
+    # The directory where experiments are stored
+    'EXPERIMENT_BASE_DIR': "../experiments/",
+
+    # Directory of raw data
+    'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
+
+    # Directory of preprocessed data, e.g., containing thickness values from
+    # FreeSurfer
+    'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
+
+
+    ### Experiment description ###
 
     # The name of an experiment (=base folder for all data stored throughout
     # training and testing)
@@ -51,12 +76,6 @@ hyper_ps_default={
 
     # Project name used for wandb
     'PROJ_NAME': 'vox2cortex',
-
-    # The architecture to use
-    'ARCHITECTURE': 'vox2cortex',
-
-    # The dataset to use
-    'DATASET': 'ADNI_CSR_small',
 
     # The loglevel for output logs
     'LOGLEVEL': 'INFO',
@@ -79,168 +98,19 @@ hyper_ps_default={
     # A list of parameters to fine-tune
     'PARAMS_TO_FINE_TUNE': None,
 
-    # For testing the model from a certain training epoch; if None, the final
-    # model is used
-    'TEST_MODEL_EPOCH': None,
-
     # Specification of an ablation study, see utils.ablation_study
     'ABLATION_STUDY': False,
 
-    # The path where templates are stored
-    'TEMPLATE_PATH': "../supplementary_material/white_pial/",
 
-    # The template name in dependence of the number of vertices N,
-    # 'SELECT_PATH_SIZE' (sps) and 'PATCH_SIZE' (ps)
-    'TEMPLATE_NAME': (
-        lambda M, N, sps, ps: f"cortex_{M}_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
-    ),
+    ### Model ###
 
-    # The number of vertex classes to distinguish (including background)
-    'N_V_CLASSES': 2,
-
-    # The number of mesh classes. This is usually the number of non-connected
-    # components/structures
-    'N_M_CLASSES': 2,
+    # The architecture to use
+    'ARCHITECTURE': 'vox2cortex',
 
     # The number of vertices in a single template structure
     'N_TEMPLATE_VERTICES': 162,
 
-    # The number of vertices in a single template structure used during testing
-    # (may be different than 'N_TEMPLATE_VERTICES'; -1 means that
-    # 'N_TEMPLATE_VERTICES' is used)
-    'N_TEMPLATE_VERTICES_TEST': -1,
-
-    # Either 'test' or 'validation'
-    'TEST_SPLIT': 'test',
-
-    # The number of reference points in a cortex structure
-    'N_REF_POINTS_PER_STRUCTURE': 40962,
-
-    # Either use a mesh or a pointcloud as ground truth. Basically, if one
-    # wants to compute only point losses like the Chamfer loss, a pointcloud is
-    # sufficient while other losses like cosine distance between vertex normals
-    # require a mesh (pointcloud + faces)
-    'MESH_TARGET_TYPE': "mesh",
-
-    # The type of meshes used, either 'freesurfer' or 'marching cubes'
-    'MESH_TYPE': 'freesurfer',
-
-    # The mode for reduction of mesh regularization losses, either 'linear' or
-    # 'none'
-    'REDUCE_REG_LOSS_MODE': 'none',
-
-    # The structure type for cortex data, either 'cerebral_cortex' or
-    # 'white_matter' or both
-    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
-
-    # Check if data has been transformed correctly. This leads potentially to a
-    # larger memory consumption since meshes are voxelized and voxel labels are
-    # loaded (even though only one of them is typically used)
-    'SANITY_CHECK_DATA': True,
-
-    # The batch size used during training
-    'BATCH_SIZE': 1,
-
-    # Optionally provide a norm for gradient clipping
-    'CLIP_GRADIENT': False,
-
-    # Activate/deactivate patch mode for the cortex dataset. Possible values
-    # are "no", "single-patch", "multi-patch"
-    'PATCH_MODE': "no",
-
-    # Accumulate n gradients before doing a backward pass
-    'ACCUMULATE_N_GRADIENTS': 1,
-
-    # The number of training epochs
-    'N_EPOCHS': 5,
-
-    # Freesurfer ground truth meshes with reduced resolution. 1.0 = original
-    # resolution (in terms of number of vertices)
-    'REDUCED_FREESURFER': 0.3,
-
-    # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
-    # labels
-    'SEG_GROUND_TRUTH': 'voxelized_meshes',
-
-    # Whether to use curvatures of the meshes. If set to True, the ground truth
-    # points are vertices and not sampled surface points
-    'PROVIDE_CURVATURES': False,
-
-    # The optimizer used for training
-    'OPTIMIZER_CLASS': torch.optim.Adam,
-
-    # Parameters for the optimizer. A separate learning rate for the graph
-    # network can be specified
-    'OPTIM_PARAMS': {
-        'lr': 1e-4, # voxel lr
-        'graph_lr': 5e-5,
-        'betas': [0.9, 0.999],
-        'eps': 1e-8,
-        'weight_decay': 0.0
-    },
-
-    # Data augmentation
-    'AUGMENT_TRAIN': False,
-
-    # Whether or not to use Pytorch's automatic mixed precision
-    'MIXED_PRECISION': True,
-
-    # The used loss functions for the voxel segmentation
-    'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
-
-    # The weights for the voxel loss functions
-    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
-
-    # The used loss functions for the mesh
-    'MESH_LOSS_FUNC': [ChamferLoss(),
-                       LaplacianLoss(),
-                       NormalConsistencyLoss(),
-                       EdgeLoss(0.0)],
-
-    # The weights for the mesh loss functions, given are the values from
-    # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
-    # [0.3, 0.05, 0.46, 0.16]
-    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
-
-    # Penalize large vertex displacements, can be seen as a regularization loss
-    # function weight
-    'PENALIZE_DISPLACEMENT': 0.0,
-
-    # The number of sample points for the mesh loss computation if done as by
-    # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
-    # of the voxel ground truth
-    'N_SAMPLE_POINTS': 3000,
-
-    # The way the weighted average of the losses is computed,
-    # e.g. 'linear' weighted average, 'geometric' mean
-    'LOSS_AVERAGING': 'linear',
-
-    # Log losses etc. every n iterations or 'epoch'
-    'LOG_EVERY': 'epoch',
-
-    # Evaluate model every n epochs
-    'EVAL_EVERY': 1,
-
-    # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
-    # options
-    'EVAL_METRICS': [
-        'SymmetricHausdorff',
-        'JaccardVoxel',
-        'JaccardMesh',
-        'Chamfer',
-        'CorticalThicknessError',
-        'AverageDistance'
-    ],
-
-    # Main validation metric according to which the best model is determined.
-    # Note: This one must also be part of 'EVAL_METRICS'!
-    'MAIN_EVAL_METRIC': 'JaccardMesh',
-
-    # The number of image dimensions. This parameter is deprecated since
-    # dimensionality is now inferred from the patch size.
-    'NDIMS': 3,
-
-    # Vox2Cortex params
+    # Model params
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'ENCODER_CHANNELS': [16, 32, 64, 128, 256],
@@ -286,7 +156,67 @@ hyper_ps_default={
         'AGGREGATE': 'trilinear',
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]],
+        # Define the measure of uncertainty, possible values: None, 'mc_x' (x is the
+        # number of forward passes in Monte Carlo uncertainty quantification)
+        'UNCERTAINTY': None,
     },
+
+
+    ### Data ###
+
+    # The dataset to use
+    'DATASET': 'ADNI_CSR_small',
+
+    # The number of image dimensions. This parameter is deprecated since
+    # dimensionality is now inferred from the patch size.
+    'NDIMS': 3,
+
+    # The number of vertex classes to distinguish (including background)
+    'N_V_CLASSES': 2,
+
+    # The number of mesh classes. This is usually the number of non-connected
+    # components/structures
+    'N_M_CLASSES': 2,
+
+    # The number of reference points in a cortex structure
+    'N_REF_POINTS_PER_STRUCTURE': 40962,
+
+    # Either use a mesh or a pointcloud as ground truth. Basically, if one
+    # wants to compute only point losses like the Chamfer loss, a pointcloud is
+    # sufficient while other losses like cosine distance between vertex normals
+    # require a mesh (pointcloud + faces)
+    'MESH_TARGET_TYPE': "mesh",
+
+    # The type of meshes used, either 'freesurfer' or 'marching cubes'
+    'MESH_TYPE': 'freesurfer',
+
+    # The structure type for cortex data, either 'cerebral_cortex' or
+    # 'white_matter' or both
+    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
+
+    # Check if data has been transformed correctly. This leads potentially to a
+    # larger memory consumption since meshes are voxelized and voxel labels are
+    # loaded (even though only one of them is typically used)
+    'SANITY_CHECK_DATA': True,
+
+    # Activate/deactivate patch mode for the cortex dataset. Possible values
+    # are "no", "single-patch", "multi-patch"
+    'PATCH_MODE': "no",
+
+    # Freesurfer ground truth meshes with reduced resolution. 1.0 = original
+    # resolution (in terms of number of vertices)
+    'REDUCED_FREESURFER': 0.3,
+
+    # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
+    # labels
+    'SEG_GROUND_TRUTH': 'voxelized_meshes',
+
+    # Whether to use curvatures of the meshes. If set to True, the ground truth
+    # points are vertices and not sampled surface points
+    'PROVIDE_CURVATURES': False,
+
+    # Data augmentation
+    'AUGMENT_TRAIN': False,
 
     # input should be cubic. Otherwise, input should be padded accordingly.
     'PATCH_SIZE': [64, 64, 64],
@@ -308,16 +238,111 @@ hyper_ps_default={
     # IDs for 'train', 'validation', and 'test'
     'FIXED_SPLIT': False,
 
-    # The directory where experiments are stored
-    'EXPERIMENT_BASE_DIR': "../experiments/",
 
-    # Directory of raw data
-    'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
+    ### Evaluation ###
 
-    # Directory of preprocessed data, e.g., containing thickness values from
-    # FreeSurfer
-    'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
+    # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
+    # options
+    'EVAL_METRICS': [
+        'SymmetricHausdorff',
+        'JaccardVoxel',
+        'JaccardMesh',
+        'Chamfer',
+        'CorticalThicknessError',
+        'AverageDistance'
+    ],
 
-    # Define the measure of uncertainty, possible values: 'mc', None
-    'UNCERTAINTY': None,
+    # Main validation metric according to which the best model is determined.
+    # Note: This one must also be part of 'EVAL_METRICS'!
+    'MAIN_EVAL_METRIC': 'JaccardMesh',
+
+    # For testing the model from a certain training epoch; if None, the final
+    # model is used
+    'TEST_MODEL_EPOCH': None,
+
+    # The number of vertices in a single template structure used during testing
+    # (may be different than 'N_TEMPLATE_VERTICES'; -1 means that
+    # 'N_TEMPLATE_VERTICES' is used)
+    'N_TEMPLATE_VERTICES_TEST': -1,
+
+    # Either 'test' or 'validation'
+    'TEST_SPLIT': 'test',
+
+
+    ### Learning ###
+
+    # The mode for reduction of mesh regularization losses, either 'linear' or
+    # 'none'
+    'REDUCE_REG_LOSS_MODE': 'none',
+
+    # The batch size used during training
+    'BATCH_SIZE': 1,
+
+    # Optionally provide a norm for gradient clipping
+    'CLIP_GRADIENT': False,
+
+    # Accumulate n gradients before doing a backward pass
+    'ACCUMULATE_N_GRADIENTS': 1,
+
+    # The number of training epochs
+    'N_EPOCHS': 5,
+
+    # The optimizer used for training
+    'OPTIMIZER_CLASS': torch.optim.Adam,
+
+    # Parameters for the optimizer. A separate learning rate for the graph
+    # network can be specified
+    'OPTIM_PARAMS': {
+        'lr': 1e-4, # voxel lr
+        'graph_lr': 5e-5,
+        'betas': [0.9, 0.999],
+        'eps': 1e-8,
+        'weight_decay': 0.0
+    },
+
+    # Whether or not to use Pytorch's automatic mixed precision
+    'MIXED_PRECISION': True,
+
+    # The used loss functions for the voxel segmentation
+    'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
+
+    # The weights for the voxel loss functions
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
+
+    # The used loss functions for the mesh
+    'MESH_LOSS_FUNC': [
+        ChamferLoss(),
+        LaplacianLoss(),
+        NormalConsistencyLoss(),
+        EdgeLoss(0.0)
+    ],
+
+    # The weights for the mesh loss functions, given are the values from
+    # Wickramasinghe et al. Kong et al. used a geometric averaging and weights
+    # [0.3, 0.05, 0.46, 0.16]
+    'MESH_LOSS_FUNC_WEIGHTS': [1.0, 0.1, 0.1, 1.0],
+
+    # Penalize large vertex displacements, can be seen as a regularization loss
+    # function weight
+    'PENALIZE_DISPLACEMENT': 0.0,
+
+    # The number of sample points for the mesh loss computation if done as by
+    # Wickramasinghe 2020, i.e. sampling n random points from the outer surface
+    # of the voxel ground truth
+    'N_SAMPLE_POINTS': 3000,
+
+    # The way the weighted average of the losses is computed,
+    # e.g. 'linear' weighted average, 'geometric' mean
+    'LOSS_AVERAGING': 'linear',
+
+    # Log losses etc. every n iterations or 'epoch'
+    'LOG_EVERY': 'epoch',
+
+    # Evaluate model every n epochs
+    'EVAL_EVERY': 1,
+
+    # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
+    # improvement for 'LR_DECAY_AFTER' epochs
+    'LR_DECAY_RATE': 0.5,
+    'LR_DECAY_AFTER': -1, # -1 = no decay
 }

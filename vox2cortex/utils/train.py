@@ -539,12 +539,14 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
 
     solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
 
-    solver.train(model=model,
-                 training_set=training_set,
-                 n_epochs=hps['N_EPOCHS'],
-                 batch_size=hps['BATCH_SIZE'],
-                 eval_every=hps['EVAL_EVERY'],
-                 start_epoch=start_epoch)
+    solver.train(
+        model=model,
+        training_set=training_set,
+        n_epochs=hps['N_EPOCHS'],
+        batch_size=hps['BATCH_SIZE'],
+        eval_every=hps['EVAL_EVERY'],
+        start_epoch=start_epoch
+    )
 
     finish_wandb_run()
     trainLogger.info("Training finished.")
