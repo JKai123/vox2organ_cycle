@@ -33,17 +33,17 @@ DATASET_PARAMS = (
     'PREPROCESSED_DATA_DIR'
 )
 
-# Directory for output to check
-CHECK_DIR = "../to_check"
-
-# Miscellanous output
-MISC_DIR = "../misc"
-
 hyper_ps_default={
 
     # >>> Note: Using tuples (...) instead of lists [...] may lead to problems
     # when resuming broken trainings (json converts tuples to lists when dumping).
     # Therefore, it is recommended to use lists for parameters here.
+
+    # Directory for output to check
+    'CHECK_DIR' = "../to_check"
+
+    # Miscellanous output
+    'MISC_DIR' = "../misc"
 
     # The name of an experiment (=base folder for all data stored throughout
     # training and testing)
@@ -56,7 +56,7 @@ hyper_ps_default={
     'ARCHITECTURE': 'vox2cortex',
 
     # The dataset to use
-    'DATASET': 'TO BE SPECIFIED',
+    'DATASET': 'ADNI_CSR_small',
 
     # The loglevel for output logs
     'LOGLEVEL': 'INFO',
@@ -239,10 +239,7 @@ hyper_ps_default={
     # dimensionality is now inferred from the patch size.
     'NDIMS': 3,
 
-    # Voxel2Mesh original parameters
-    # (from https://github.com/cvlab-epfl/voxel2mesh).
-    # Note that not for all models/architectures all of
-    # those parameters are relevant.
+    # Vox2Cortex params
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
         'ENCODER_CHANNELS': [16, 32, 64, 128, 256],

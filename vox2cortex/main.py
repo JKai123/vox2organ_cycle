@@ -11,11 +11,7 @@ from torch.optim import AdamW
 from data.supported_datasets import (
     dataset_paths,
 )
-from utils.params import (
-    hyper_ps_default,
-    CHECK_DIR,
-    MISC_DIR,
-)
+from params.default import hyper_ps_default
 from utils.modes import ExecModes
 from utils.utils import update_dict
 from utils.train import training_routine
@@ -360,14 +356,15 @@ def main(hps):
             hps['N_M_CLASSES'],
             hps['N_TEMPLATE_VERTICES'],
             hps['SELECT_PATCH_SIZE'],
-            hps['PATCH_SIZE'])
+            hps['PATCH_SIZE']
+        )
     )
 
     # Create output dirs
-    if not os.path.isdir(MISC_DIR):
-        os.mkdir(MISC_DIR)
-    if not os.path.isdir(CHECK_DIR):
-        os.mkdir(CHECK_DIR)
+    if not os.path.isdir(hps['MISC_DIR']):
+        os.mkdir(hps['MISC_DIR'])
+    if not os.path.isdir(hps['CHECK_DIR']):
+        os.mkdir(hps['CHECK_DIR'])
 
     # Run
     routine = mode_handler[mode]
