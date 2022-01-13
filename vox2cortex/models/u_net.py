@@ -127,7 +127,7 @@ class ResidualUNetDecoder(nn.Module):
     :returns: Segmentation output
     """
     def __init__(self, encoder, decoder_channels, num_classes, patch_shape,
-                 deep_supervision, p_dropout, ndims=3):
+                 deep_supervision, p_dropout, ndims=3, init_last_zero=False):
         super().__init__()
         # Decoder has one step less
         num_steps = encoder.num_steps - 1
@@ -191,8 +191,13 @@ class ResidualUNetDecoder(nn.Module):
         )
 
         # Segmenation layer
-        self.final_layer = ConvLayer(self.channels[-1], num_classes, 1,
-                                     bias=False)
+        self.final_layer = ConvLayer(
+            self.channels[-1], num_classes, 1, bias=False
+        )
+
+        # Initialize the last layer with zeros
+        if init_last_zero:
+            nn.init.constant_(self.final_layer.weight)
 
         self.decoder = nn.ModuleList(up_layers)
 
@@ -230,19 +235,25 @@ class ResidualUNet(nn.Module):
     """
     def __init__(self, num_classes: int, num_input_channels: int, patch_shape,
                  down_channels, up_channels, deep_supervision,
-                 voxel_decoder: bool, p_dropout: float=None, ndims=3):
+                 voxel_decoder: bool, p_dropout: float=None, ndims=3,
+                 init_last_zero=False):
         assert len(up_channels) == len(down_channels) - 1,\
                 "Encoder should have one more step than decoder."
         super().__init__()
         self.num_classes = num_classes
 
-        self.encoder = ResidualUNetEncoder(num_input_channels, down_channels,
-                                           p_dropout, ndims=ndims)
+        self.encoder = ResidualUNetEncoder(
+            num_input_channels, down_channels, p_dropout, ndims=ndims
+        )
         if voxel_decoder:
-            self.decoder = ResidualUNetDecoder(self.encoder, up_channels,
-                                               num_classes, patch_shape,
-                                               deep_supervision,
-                                               p_dropout, ndims=ndims)
+            self.decoder = ResidualUNetDecoder(
+                self.encoder,
+                up_channels,
+                num_classes, patch_shape,
+                deep_supervision,
+                p_dropout, ndims=ndims,
+                init_last_zero=init_last_zero
+            )
         else:
             self.decoder = None
 

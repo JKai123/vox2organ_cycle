@@ -7,6 +7,7 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import re
 import logging
+import warnings
 from copy import deepcopy
 
 import json
@@ -202,7 +203,7 @@ class Solver():
 
         # Magnitude of displacement vectors: mean over steps, classes, and batch
         disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
-        if iteration % self.log_every == 0:
+        if iteration % self.log_every == 0 and disps is not None:
             log_deltaV(disps, iteration)
 
         losses = {}
@@ -217,11 +218,17 @@ class Solver():
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
                     model.__class__.pred_to_pred_deltaV_meshes(pred),
-                    mesh_target)
+                    mesh_target
+                )
             else:
                 raise ValueError("Unknown loss averaging.")
 
-            losses['TotalLoss'] = loss_total + self.penalize_displacement * disps
+            if disps is not None:
+                losses['TotalLoss'] = loss_total + self.penalize_displacement * disps
+            else:
+                losses['TotalLoss'] = loss_total
+                if self.penalize_displacement != 0:
+                    warnings.warn("Parameter PENALIZE_DISPLACEMENT ignored.")
 
         # log
         if iteration % self.log_every == 0:
@@ -536,6 +543,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     )
 
     ###### Training ######
+
     model = ModelHandler[hps['ARCHITECTURE']].value(
         ndims=hps['NDIMS'],
         n_v_classes=hps['N_V_CLASSES'],
