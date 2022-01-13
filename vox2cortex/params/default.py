@@ -40,10 +40,10 @@ hyper_ps_default={
     # Therefore, it is recommended to use lists for parameters here.
 
     # Directory for output to check
-    'CHECK_DIR' = "../to_check"
+    'CHECK_DIR': "../to_check",
 
     # Miscellanous output
-    'MISC_DIR' = "../misc"
+    'MISC_DIR': "../misc",
 
     # The name of an experiment (=base folder for all data stored throughout
     # training and testing)

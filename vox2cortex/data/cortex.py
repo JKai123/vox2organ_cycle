@@ -22,7 +22,6 @@ from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
 from tqdm import tqdm
 
-from utils.params import CHECK_DIR
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
@@ -153,6 +152,8 @@ class Cortex(DatasetHandler):
     As a consequence, the ground truth can only consist of vertices and not of
     sampled surface points.
     :param seg_ground_truth: Either 'voxelized_meshes' or 'aseg'
+    :param check_dir: An output dir where data is stored that should be
+    checked.
     """
 
     img_filename = "mri.nii.gz"
@@ -175,6 +176,7 @@ class Cortex(DatasetHandler):
                  provide_curvatures=False,
                  preprocessed_data_dir=None,
                  seg_ground_truth='voxelized_meshes',
+                 check_dir='../check',
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -188,6 +190,7 @@ class Cortex(DatasetHandler):
          self.voxelized_mesh_label_names) = _get_seg_and_mesh_label_names(
             structure_type, patch_mode, len(patch_size)
         )
+        self.check_dir = check_dir
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
         self._preprocessed_data_dir = preprocessed_data_dir
@@ -315,10 +318,13 @@ class Cortex(DatasetHandler):
                     out_fn = self._files[i].replace("/", "_")
                     show_difference(
                         vl,  vm,
-                        f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
+                        os.path.join(
+                            self.check_dir, f"diff_mesh_voxel_label_{out_fn}.png"
+                        )
                     )
                     print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                          " voxelized mesh label, check files at ../to_check/")
+                          " voxelized mesh label, check files at"
+                          f"{self.check_dir}")
 
         # Use voxelized meshes as voxel ground truth
         if self.seg_ground_truth == 'voxelized_meshes':

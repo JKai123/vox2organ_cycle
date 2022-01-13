@@ -17,7 +17,7 @@ from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
-from utils.params import DATASET_PARAMS, DATASET_SPLIT_PARAMS
+from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
     BEST_MODEL_NAME,
