@@ -102,6 +102,7 @@ hyper_ps_groups = {
     # Experiments with cortical flow architecture
     'Cortical Flow single-patch': {
         'ARCHITECTURE': 'corticalflow',
+        'N_TEMPLATE_VERTICES': 41602,
         'MODEL_CONFIG': {
             # Cortical flow model
             # 'UNPOOL_INDICES': [1,1,1],

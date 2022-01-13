@@ -186,9 +186,10 @@ class ResidualUNetDecoder(nn.Module):
                     ConvLayer(self.channels[i], num_classes, 1, bias=False)
                 ))
 
-        self.deep_supervision_layers = nn.ModuleList(
-            deep_supervision_layers
-        )
+        if deep_supervision:
+            self.deep_supervision_layers = nn.ModuleList(
+                deep_supervision_layers
+            )
 
         # Segmenation layer
         self.final_layer = ConvLayer(
@@ -219,7 +220,7 @@ class ResidualUNetDecoder(nn.Module):
             x = layer[1](x)
             up_skips.append(x)
 
-            if i in self.deep_supervision_pos:
+            if self.deep_supervision and i in self.deep_supervision_pos:
                 seg.append(self.deep_supervision_layers[i_ds](x))
                 i_ds += 1
 

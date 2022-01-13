@@ -202,7 +202,10 @@ class Solver():
                                "../misc/voxel_pred_img_train.nii.gz")
 
         # Magnitude of displacement vectors: mean over steps, classes, and batch
-        disps = model.__class__.pred_to_displacements(pred).mean(dim=(0,1,2))
+        disps = model.__class__.pred_to_displacements(pred)
+        if disps is not None:
+            disps = disps.mean(dim=(0,1,2))
+
         if iteration % self.log_every == 0 and disps is not None:
             log_deltaV(disps, iteration)
 

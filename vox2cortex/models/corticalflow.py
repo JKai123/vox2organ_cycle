@@ -8,12 +8,14 @@ __email__ = "fabi.bongratz@gmail.com"
 from typing import Union, Tuple
 
 import torch
+import torch.nn as nn
 from torch.cuda.amp import autocast
 
 from models.base_model import V2MModel
 from models.u_net import ResidualUNet
 from utils.mesh import MeshesOfMeshes
 from utils.file_handle import read_obj
+from utils.mesh import verts_faces_to_Meshes
 from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices
@@ -22,11 +24,12 @@ from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_trilinear,
 )
 
+# No autocast for grid sample
 def DMDBlock(discrete_flow, mesh, n_integration, patch_size):
     """ Forward pass
     """
-    # Flow has shape HxWxDxdim
-    ndims = discrete_flow.shape[-1]
+    # Flow has shape BxCxHxWxD
+    ndims = discrete_flow.shape[1]
 
     # Stepsize
     h = 1 / float(n_integration)
@@ -47,16 +50,12 @@ def DMDBlock(discrete_flow, mesh, n_integration, patch_size):
         ).view(B, -1, ndims)
 
         # Get flow at vertex positions
-        # Avoid bug related to automatic mixed precision, see also
-        # https://github.com/pytorch/pytorch/issues/42218
-        with autocast(enabled=False):
-            # Trilinear interpolation of flow at vertex positions
-            flow = aggregate_trilinear(
-                discrete_flow, verts_img_co, mode='trilinear'
-            ).view(B, M, V, ndims)
+        flow = aggregate_trilinear(
+            discrete_flow, verts_img_co, mode='bilinear'
+        ).view(B, M, V, ndims)
 
-            # V <- V + h * Flow
-            vertices_padded += h * flow
+        # V <- V + h * Flow
+        vertices_padded += h * flow
 
     return mesh
 
@@ -92,6 +91,9 @@ class CorticalFlow(V2MModel):
 
         super().__init__()
 
+        self.eps = 1e-2
+        self.uncertainty = None
+
         self.patch_size = patch_size
 
         # Set of UNets
@@ -120,16 +122,16 @@ class CorticalFlow(V2MModel):
                 )
             )
 
+        self.u_nets = nn.ModuleList(self.u_nets)
+
         # Template
         raw_sphere_vertices, raw_sphere_faces, _ = read_obj(mesh_template)
         self.sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
         self.sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
 
         # Batch size 1
-        self.sphere_vertices = self.sphere_vertices.view_as(
-            raw_sphere_vertices
-        )[None]
-        self.sphere_faces = self.sphere_faces.view_as(raw_sphere_faces)[None]
+        self.sphere_vertices = self.sphere_vertices[None]
+        self.sphere_faces = self.sphere_faces[None]
 
 
     def forward(self, x):
@@ -147,7 +149,7 @@ class CorticalFlow(V2MModel):
 
         for s, u_net in enumerate(self.u_nets):
             # Predicted flow field
-            discrete_flow = u_net(u_net_input)
+            discrete_flow = u_net(u_net_input)[2][-1]
 
             # New input: image and previous flow
             u_net_input = torch.cat([x, discrete_flow], dim=1)
@@ -156,12 +158,14 @@ class CorticalFlow(V2MModel):
             # flow field + 1; this ensures hL < 1 for sure but could lead to
             # unnecessary many steps
             flow_magnitude = discrete_flow.norm(dim=-1)
-            n_integration = int(torch.ceil(2 * flow_magnitude.max()).item())
+            n_integration = int(torch.ceil(2 * flow_magnitude.max() + self.eps).item())
 
-            # Mesh deformation
-            pred_meshes.append(
-                DMDBlock(pred_meshes[s], discrete_flow, n_integration, self.patch_size)
-            )
+            # Mesh deformation; autocast not possible due to F.grid_sample
+            with autocast(enabled=False):
+                discrete_flow_32 = discrete_flow.float()
+                pred_meshes.append(
+                    DMDBlock(discrete_flow_32, pred_meshes[s], n_integration, self.patch_size)
+                )
 
         return [pred_meshes]
 
@@ -226,7 +230,7 @@ class CorticalFlow(V2MModel):
     @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
-        vertices, faces = self.__class__.pred_to_verts_and_faces(pred)
+        vertices, faces = CorticalFlow.pred_to_verts_and_faces(pred)
         pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
 
         return pred_meshes
