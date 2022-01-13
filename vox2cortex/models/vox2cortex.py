@@ -22,7 +22,6 @@ class Vox2Cortex(V2MModel):
 
     :param n_v_classes: Number of voxel classes to distinguish
     :param n_m_classes: Number of mesh classes to distinguish
-    :param patch_shape: The shape of the input patches, e.g. (64, 64, 64)
     :param num_input_channels: The number of channels of the input image.
     :param encoder_channels: The number of channels of the encoder
     :param decoder_channels: The number of channels of the decoder
@@ -61,7 +60,6 @@ class Vox2Cortex(V2MModel):
     def __init__(self,
                  n_v_classes: int,
                  n_m_classes: int,
-                 patch_shape: Union[list, tuple],
                  num_input_channels: int,
                  encoder_channels: Union[list, tuple],
                  decoder_channels: Union[list, tuple],
@@ -89,33 +87,37 @@ class Vox2Cortex(V2MModel):
         super().__init__()
 
         # Voxel network
-        self.voxel_net = ResidualUNet(num_classes=n_v_classes,
-                                      num_input_channels=num_input_channels,
-                                      patch_shape=patch_shape,
-                                      down_channels=encoder_channels,
-                                      up_channels=decoder_channels,
-                                      deep_supervision=deep_supervision,
-                                      voxel_decoder=voxel_decoder,
-                                      p_dropout=p_dropout_unet,
-                                      ndims=ndims)
+        self.voxel_net = ResidualUNet(
+            num_classes=n_v_classes,
+            num_input_channels=num_input_channels,
+            patch_shape=patch_size,
+            down_channels=encoder_channels,
+            up_channels=decoder_channels,
+            deep_supervision=deep_supervision,
+            voxel_decoder=voxel_decoder,
+            p_dropout=p_dropout_unet,
+            ndims=ndims
+        )
         # Graph network
-        self.graph_net = GraphDecoder(norm=norm,
-                                      mesh_template=mesh_template,
-                                      unpool_indices=unpool_indices,
-                                      use_adoptive_unpool=use_adoptive_unpool,
-                                      graph_channels=graph_channels,
-                                      skip_channels=encoder_channels+decoder_channels,
-                                      weighted_edges=weighted_edges,
-                                      propagate_coords=propagate_coords,
-                                      patch_size=patch_size,
-                                      aggregate_indices=aggregate_indices,
-                                      aggregate=aggregate,
-                                      k_struct_neighbors=k_struct_neighbors,
-                                      exchange_coords=exchange_coords,
-                                      GC=gc,
-                                      p_dropout=p_dropout_graph,
-                                      group_structs=group_structs,
-                                      ndims=ndims)
+        self.graph_net = GraphDecoder(
+            norm=norm,
+            mesh_template=mesh_template,
+            unpool_indices=unpool_indices,
+            use_adoptive_unpool=use_adoptive_unpool,
+            graph_channels=graph_channels,
+            skip_channels=encoder_channels+decoder_channels,
+            weighted_edges=weighted_edges,
+            propagate_coords=propagate_coords,
+            patch_size=patch_size,
+            aggregate_indices=aggregate_indices,
+            aggregate=aggregate,
+            k_struct_neighbors=k_struct_neighbors,
+            exchange_coords=exchange_coords,
+            GC=gc,
+            p_dropout=p_dropout_graph,
+            group_structs=group_structs,
+            ndims=ndims
+        )
 
     @measure_time
     def forward(self, x):
