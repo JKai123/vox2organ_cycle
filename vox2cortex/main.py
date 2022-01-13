@@ -41,11 +41,6 @@ hyper_ps_overfit = {
 # Parameters that are overwritten frequently. For groups of parameters that are
 # fixed together, see params.experiments
 hyper_ps = {
-    #######################
-    'EXPERIMENT_NAME': None,  # Attention: "debug" overwrites previous dir"
-                              # should be set with console argument
-    #######################
-
     # Parameter group
     'GROUP_NAME': 'default',
 

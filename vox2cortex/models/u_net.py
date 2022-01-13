@@ -197,7 +197,7 @@ class ResidualUNetDecoder(nn.Module):
 
         # Initialize the last layer with zeros
         if init_last_zero:
-            nn.init.constant_(self.final_layer.weight)
+            nn.init.constant_(self.final_layer.weight, 0.0)
 
         self.decoder = nn.ModuleList(up_layers)
 

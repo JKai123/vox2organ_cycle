@@ -62,7 +62,8 @@ hyper_ps_default={
     ### Experiment description ###
 
     # The name of an experiment (=base folder for all data stored throughout
-    # training and testing)
+    # training and testing);
+    # Attention: 'debug' overwrites previous debug experiment
     'EXPERIMENT_NAME': None,
 
     # Project name used for wandb
