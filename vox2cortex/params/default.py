@@ -120,18 +120,18 @@ hyper_ps_default={
     # wants to compute only point losses like the Chamfer loss, a pointcloud is
     # sufficient while other losses like cosine distance between vertex normals
     # require a mesh (pointcloud + faces)
-    'MESH_TARGET_TYPE': "pointcloud",
+    'MESH_TARGET_TYPE': "mesh",
 
     # The type of meshes used, either 'freesurfer' or 'marching cubes'
-    'MESH_TYPE': 'marching cubes',
+    'MESH_TYPE': 'freesurfer',
 
     # The mode for reduction of mesh regularization losses, either 'linear' or
     # 'none'
     'REDUCE_REG_LOSS_MODE': 'none',
 
     # The structure type for cortex data, either 'cerebral_cortex' or
-    # 'white_matter'
-    'STRUCTURE_TYPE': "white_matter",
+    # 'white_matter' or both
+    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
 
     # Check if data has been transformed correctly. This leads potentially to a
     # larger memory consumption since meshes are voxelized and voxel labels are
@@ -156,7 +156,7 @@ hyper_ps_default={
 
     # Freesurfer ground truth meshes with reduced resolution. 1.0 = original
     # resolution (in terms of number of vertices)
-    'REDUCED_FREESURFER': 1.0,
+    'REDUCED_FREESURFER': 0.3,
 
     # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
     # labels
@@ -183,13 +183,13 @@ hyper_ps_default={
     'AUGMENT_TRAIN': False,
 
     # Whether or not to use Pytorch's automatic mixed precision
-    'MIXED_PRECISION': False,
+    'MIXED_PRECISION': True,
 
     # The used loss functions for the voxel segmentation
     'VOXEL_LOSS_FUNC': [torch.nn.CrossEntropyLoss()],
 
     # The weights for the voxel loss functions
-    'VOXEL_LOSS_FUNC_WEIGHTS': [1.],
+    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0],
 
     # The used loss functions for the mesh
     'MESH_LOSS_FUNC': [ChamferLoss(),
@@ -216,7 +216,7 @@ hyper_ps_default={
     'LOSS_AVERAGING': 'linear',
 
     # Log losses etc. every n iterations or 'epoch'
-    'LOG_EVERY': 1,
+    'LOG_EVERY': 'epoch',
 
     # Evaluate model every n epochs
     'EVAL_EVERY': 1,
@@ -224,11 +224,12 @@ hyper_ps_default={
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [
-        'Wasserstein',
         'SymmetricHausdorff',
         'JaccardVoxel',
         'JaccardMesh',
-        'Chamfer'
+        'Chamfer',
+        'CorticalThicknessError',
+        'AverageDistance'
     ],
 
     # Main validation metric according to which the best model is determined.

@@ -12,124 +12,46 @@ from data.supported_datasets import (
     dataset_paths,
 )
 from params.default import hyper_ps_default
+from params.groups import hyper_ps_groups
 from utils.modes import ExecModes
 from utils.utils import update_dict
 from utils.train import training_routine
 from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
-from utils.losses import (
-    ChamferAndNormalsLoss,
-    LaplacianLoss,
-    NormalConsistencyLoss,
-    EdgeLoss
-)
-from utils.utils_voxel2meshplusplus.graph_conv import (
-    GraphConvNorm,
-)
 from utils.ablation_study import (
     AVAILABLE_ABLATIONS,
     set_ablation_params_
 )
 
 
-# Parameter groups (typically changed together)
-PARAM_GROUPS = {
-    # Parameters set in dependence of 'PATCH_MODE'
-    'PATCH_MODE': {
-        "no": {
-            # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
-            # weights should respect this order!
-            'MESH_LOSS_FUNC_WEIGHTS': [
-                [1.0] * 4, # Chamfer
-                [0.01] * 2 + [0.0125] * 2, # Cosine,
-                [0.1] * 2 + [0.25] * 2, # Laplace,
-                [0.001] * 2 + [0.00225] * 2, # NormalConsistency
-                [5.0] * 4 # Edge
-            ],
-            'N_M_CLASSES': 4,
-            'PATCH_SIZE': [128, 144, 128],
-            'SELECT_PATCH_SIZE': [192, 208, 192],
-            'N_TEMPLATE_VERTICES': 42016,
-            'MODEL_CONFIG': {
-                'GROUP_STRUCTS': [[0, 1], [2, 3]],
-            },
-        },
-        "single-patch": {
-            # Order of structures: rh_white, rh_pial
-            'MESH_LOSS_FUNC_WEIGHTS': [
-                [1.0] * 2, # Chamfer
-                [0.01] + [0.0125] , # Cosine,
-                [0.1] + [0.25], # Laplace,
-                [0.001] + [0.00225], # NormalConsistency
-                [5.0] * 2 # Edge
-            ],
-            'N_M_CLASSES': 2,
-            'PATCH_SIZE': [64, 144, 128],
-            'SELECT_PATCH_SIZE': [96, 208, 192],
-            'N_TEMPLATE_VERTICES': 41602,
-            'MODEL_CONFIG': {
-                'GROUP_STRUCTS': [[0], [1]], # False for single-surface reconstruction
-            },
-        }
-    },
-
-    # Bayesian network for uncertainty
-    'UNCERTAINTY': {
-        None: { # No uncertainty measure
-            'MODEL_CONFIG': {
-                'P_DROPOUT_UNET': None,
-                'P_DROPOUT_GRAPH': None,
-            }
-        },
-        'mc': { # Monte Carlo dropout during training and testing
-            'MODEL_CONFIG': {
-                'P_DROPOUT_UNET': 0.2,
-                'P_DROPOUT_GRAPH': 0.2,
-            }
-        }
-    },
-
-    # Overwrite params for overfitting (often useful for debugging and development)
-    'OVERFIT': {
-        True: {
-        # Learning
-        'BATCH_SIZE': 1,
-        'SANITY_CHECK_DATA': True
-        },
-        False: {} # No changes
-    },
+# Overwrite params for overfitting (often useful for debugging and development)
+hyper_ps_overfit = {
+    # Learning
+    'BATCH_SIZE': 1,
+    'SANITY_CHECK_DATA': True
 }
 
 
-# Overwrite default parameters
+# Parameters that are overwritten frequently. For groups of parameters that are
+# fixed together, see params.experiments
 hyper_ps = {
-    # Overwriting std values from utils.params
     #######################
     'EXPERIMENT_NAME': None,  # Attention: "debug" overwrites previous dir"
                               # should be set with console argument
     #######################
 
+    # Parameter group
+    'GROUP_NAME': 'uncategorized',
+
     # Data
-    'NDIMS': 3,
-    'AUGMENT_TRAIN': False,
-    'PROJ_NAME': "cortex",
-    'MESH_TARGET_TYPE': "mesh",
-    'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
     'PROVIDE_CURVATURES': True,
-    'PATCH_MODE': "single-patch",
     'SANITY_CHECK_DATA': False, # Save some memory
-    'MESH_TYPE': 'freesurfer',
-    'REDUCED_FREESURFER': 0.3,
 
     # Learning
     'N_EPOCHS': 100,
-    'BATCH_SIZE': 2,
-    'EVAL_EVERY': 2,
-    'LOG_EVERY': 'epoch',
-    'ACCUMULATE_N_GRADIENTS': 1,
-    'MIXED_PRECISION': True,
-    'PENALIZE_DISPLACEMENT': 0.0,
+    'BATCH_SIZE': 4,
+    'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
     'OPTIMIZER_CLASS': torch.optim.AdamW,
     'OPTIM_PARAMS': {
@@ -139,44 +61,7 @@ hyper_ps = {
     # Inference
     'UNCERTAINTY': 'mc',
 
-    # Loss function
-    'LOSS_AVERAGING': 'linear',
-    'VOXEL_LOSS_FUNC_WEIGHTS': [1.0], # BCE
-    'MESH_LOSS_FUNC': [
-       ChamferAndNormalsLoss(curv_weight_max=5.0),
-       LaplacianLoss(),
-       NormalConsistencyLoss(),
-       EdgeLoss(0.0)
-    ],
-
-    # Model
-    'MODEL_CONFIG': {
-        'GRAPH_CHANNELS': [256, 64, 64, 64, 64],
-        'UNPOOL_INDICES': [0,0,0,0],
-        'AGGREGATE_INDICES': [
-            [3,4,5,6],
-            [2,3,6,7],
-            [1,2,7,8],
-            [0,1,7,8] # 8 = last decoder skip
-        ],
-        'NORM': 'batch', # Only for graph convs
-        'DECODER_CHANNELS': [64, 32, 16, 8],
-        'DEEP_SUPERVISION': True,
-        'WEIGHTED_EDGES': False,
-        'PROPAGATE_COORDS': True,
-        'VOXEL_DECODER': True,
-        'GC': GraphConvNorm
-    },
-
     # Evaluation
-    'EVAL_METRICS': [
-        'SymmetricHausdorff',
-        'JaccardVoxel',
-        'JaccardMesh',
-        'Chamfer',
-        'CorticalThicknessError',
-        'AverageDistance'
-    ],
     'TEST_SPLIT': 'validation',
 }
 
@@ -243,7 +128,9 @@ def main(hps):
                            type=str,
                            dest='group_name',
                            default=hyper_ps_default['GROUP_NAME'],
-                           help="Specify the name of the wandb group.")
+                           help="Specify the name of the experiment group."
+                           " Corresponding parameters are chosen from"
+                           " params/groups.py")
     argparser.add_argument('--device',
                            type=str,
                            dest='device',
@@ -283,6 +170,8 @@ def main(hps):
                            " enumerated with exp_i and stored in"
                            " ../experiments.")
     args = argparser.parse_args()
+
+    # Store command line params
     hps['EXPERIMENT_NAME'] = args.exp_name
     hps['ARCHITECTURE'] = args.architecture
     hps['DATASET'] = args.dataset
@@ -296,6 +185,7 @@ def main(hps):
     hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
     hps['TEST_MODEL_EPOCH'] = args.test
     hps['N_TEMPLATE_VERTICES_TEST'] = args.n_test_vertices
+
     if args.ablation_study:
         hps['ABLATION_STUDY'] = args.ablation_study[0]
     else:
@@ -311,17 +201,21 @@ def main(hps):
     # Fill hyperparameters with defaults
     hps = update_dict(hyper_ps_default, hps)
 
-    # Set dataset paths
-    update_dict(hps, dataset_paths[args.dataset])
+    # Overwrite with group-specific params
+    hps = update_dict(hps, hyper_ps_groups[hps['GROUP_NAME']])
 
-    # Update params for parameter groups
-    for k, v in PARAM_GROUPS.items():
-        hps = update_dict(hps, v[hps[k]])
+    # Set dataset paths
+    hps = update_dict(hps, dataset_paths[args.dataset])
+
+    # Potentially set params for ablation study
+    if args.ablation_study:
+        set_ablation_params_(hps, args.ablation_study[0])
 
     # Set the number of test vertices
     if hps['N_TEMPLATE_VERTICES_TEST'] == -1:
         hps['N_TEMPLATE_VERTICES_TEST'] = hps['N_TEMPLATE_VERTICES']
 
+    # Set execution mode
     if args.params_to_tune or args.params_to_fine_tune:
         mode = ExecModes.TUNE
     else:
@@ -334,17 +228,6 @@ def main(hps):
         if not args.test and not args.train:
             print("Please use either --train or --test or both.")
             return
-
-    # Set params for ablation study
-    if args.ablation_study:
-        set_ablation_params_(hps, args.ablation_study[0])
-
-    # No voxel decoder --> set voxel loss weights to 0
-    if not hps['MODEL_CONFIG']['VOXEL_DECODER']:
-        hps['VOXEL_LOSS_FUNC_WEIGHTS'] = []
-        hps['VOXEL_LOSS_FUNC'] = []
-        if 'JaccardVoxel' in hps['EVAL_METRICS']:
-            hps['EVAL_METRICS'].remove('JaccardVoxel')
 
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
@@ -359,6 +242,10 @@ def main(hps):
             hps['PATCH_SIZE']
         )
     )
+
+    # Potentially overfit
+    if hps['OVERFIT']:
+        hps = update_dict(hps, hyper_ps_overfit)
 
     # Create output dirs
     if not os.path.isdir(hps['MISC_DIR']):
