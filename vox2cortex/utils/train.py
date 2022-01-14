@@ -246,6 +246,7 @@ class Solver():
               batch_size: int,
               eval_every: int,
               start_epoch: int,
+              freeze_pre_trained: bool,
               save_models: bool=True):
         """
         Training procedure
@@ -258,6 +259,8 @@ class Solver():
         :param eval_every: Evaluate the model every n epochs.
         :param start_epoch: Start at this epoch with counting, should be 1
         besides previous training is resumed.
+        :param freeze_pre_trained: Freeze pre-trained parameters during
+        training.
         :param save_models: Save the final and best model.
         """
 
@@ -319,7 +322,7 @@ class Solver():
         iteration = (start_epoch - 1) * len(training_loader) + 1
 
         for epoch in range(start_epoch, n_epochs+1):
-            model.train()
+            model.train(freeze_pre_trained)
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)
@@ -566,6 +569,10 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
             models_to_epochs = json.load(f)
         start_epoch = models_to_epochs[INTERMEDIATE_MODEL_NAME] + 1
         trainLogger.info("Resuming training from epoch %d", start_epoch)
+    elif hps['PRE_TRAINED_MODEL_PATH'] is not None:
+        # Load a pre-trained (sub-) model
+        model.load_part(hps['PRE_TRAINED_MODEL_PATH'])
+        start_epoch = 1 # Start epoch counting nonetheless from 1
     else:
         # New training
         start_epoch = 1
@@ -583,7 +590,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         n_epochs=hps['N_EPOCHS'],
         batch_size=hps['BATCH_SIZE'],
         eval_every=hps['EVAL_EVERY'],
-        start_epoch=start_epoch
+        start_epoch=start_epoch,
+        freeze_pre_trained=hps['FREEZE_PRE_TRAINED']
     )
 
     finish_wandb_run()

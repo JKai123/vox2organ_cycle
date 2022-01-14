@@ -5,7 +5,7 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
-from typing import Union, Tuple
+from typing import Sequence
 
 import torch
 import torch.nn as nn
@@ -78,9 +78,9 @@ class CorticalFlow(V2MModel):
         self,
         n_m_classes: int,
         num_input_channels: int,
-        patch_size: Tuple[int, int, int],
-        encoder_channels: Union[list, tuple],
-        decoder_channels: Union[list, tuple],
+        patch_size: Sequence[int],
+        encoder_channels: Sequence[Sequence],
+        decoder_channels: Sequence[Sequence],
         mesh_template: str,
         # unpool_indices: Union[list, tuple], # TODO: Implement
         p_dropout_unet: float,
@@ -100,11 +100,8 @@ class CorticalFlow(V2MModel):
         self.u_nets = []
         for s, (ec, dc) in enumerate(zip(encoder_channels, decoder_channels)):
             # First UNet only gets the image, all others also get the previous
-            # deformation field
-            if s == 0:
-                n_c_input = num_input_channels
-            else:
-                n_c_input = num_input_channels + ndims
+            # deformation fields
+            n_c_input = num_input_channels + s * ndims
 
             # Add UNet
             self.u_nets.append(
@@ -151,8 +148,8 @@ class CorticalFlow(V2MModel):
             # Predicted flow field
             discrete_flow = u_net(u_net_input)[2][-1]
 
-            # New input: image and previous flow
-            u_net_input = torch.cat([x, discrete_flow], dim=1)
+            # New input: add predicted flow
+            u_net_input = torch.cat([u_net_input, discrete_flow], dim=1)
 
             # Heuristic: number of integration steps = 2 * maximum amplitude of
             # flow field + 1; this ensures hL < 1 for sure but could lead to

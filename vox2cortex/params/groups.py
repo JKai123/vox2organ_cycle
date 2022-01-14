@@ -102,12 +102,21 @@ hyper_ps_groups = {
     # Experiments with cortical flow architecture
     'Cortical Flow single-patch': {
         'ARCHITECTURE': 'corticalflow',
+        'FREEZE_PRE_TRAINED': True,
         'N_TEMPLATE_VERTICES': 41602,
         'MODEL_CONFIG': {
             # Cortical flow model
             # 'UNPOOL_INDICES': [1,1,1],
-            'ENCODER_CHANNELS': [[16, 32, 64, 128, 256]],
-            'DECODER_CHANNELS': [[128, 64, 32, 16]],
+            'ENCODER_CHANNELS': [
+                [16, 32, 64, 128, 256],
+                [16, 32, 64],
+                [16, 32, 64]
+            ],
+            'DECODER_CHANNELS': [
+                [128, 64, 32, 16],
+                [32, 16],
+                [32, 16]
+            ],
         },
         'PATCH_SIZE': [96, 208, 192],
         'SELECT_PATCH_SIZE': [96, 208, 192],

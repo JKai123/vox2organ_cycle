@@ -112,6 +112,9 @@ hyper_ps_default={
     # Whether to use a reduced (smaller) template
     'REDUCED_TEMPLATE': True,
 
+    # A path to a pre-trained (sub-) model
+    'PRE_TRAINED_MODEL_PATH': None,
+
     # Model params
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
@@ -260,6 +263,9 @@ hyper_ps_default={
 
 
     ### Learning ###
+
+    # Freeze pre-trained model parameters
+    'FREEZE_PRE_TRAINED': False,
 
     # The mode for reduction of mesh regularization losses, either 'linear' or
     # 'none'

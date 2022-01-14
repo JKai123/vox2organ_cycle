@@ -60,6 +60,8 @@ def log_grad(model_parameters, iteration):
     """
     total_norm = 0.
     for p in model_parameters:
+        if not p.requires_grad:
+            continue
         param_norm = p.grad.detach().data.norm(2)
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** 0.5
