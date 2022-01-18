@@ -541,16 +541,16 @@ class Cortex(DatasetHandler):
                     print("[Warning] No test files.")
 
                 # Choose valid
-                if "ADNI" in raw_data_dir:
-                    files_train = valid_ids_ADNI_CSR(files_train)
-                    files_val = valid_ids_ADNI_CSR(files_val)
-                    files_test = valid_ids_ADNI_CSR(files_test)
-                elif "OASIS" in raw_data_dir:
-                    files_train = valid_ids_OASIS(files_train)
-                    files_val = valid_ids_OASIS(files_val)
-                    files_test = valid_ids_OASIS(files_test)
-                else:
-                    raise NotImplementedError()
+                # if "ADNI" in raw_data_dir:
+                    # files_train = valid_ids_ADNI_CSR(files_train)
+                    # files_val = valid_ids_ADNI_CSR(files_val)
+                    # files_test = valid_ids_ADNI_CSR(files_test)
+                # elif "OASIS" in raw_data_dir:
+                    # files_train = valid_ids_OASIS(files_train)
+                    # files_val = valid_ids_OASIS(files_val)
+                    # files_test = valid_ids_OASIS(files_test)
+                # else:
+                    # raise NotImplementedError()
             else:
                 raise TypeError("Wrong type of parameter 'fixed_split'."
                                 f" Got {type(fixed_split)} but should be"
