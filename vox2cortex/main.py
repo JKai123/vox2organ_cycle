@@ -42,7 +42,7 @@ hyper_ps = {
     #######################
 
     # Parameter group
-    'GROUP_NAME': 'uncategorized',
+    'GROUP_NAME': 'Bayesian Vox2Cortex no-patch',
 
     # Data
     'PROVIDE_CURVATURES': True,
@@ -50,12 +50,12 @@ hyper_ps = {
 
     # Learning
     'N_EPOCHS': 100,
-    'BATCH_SIZE': 4,
+    'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
     'OPTIMIZER_CLASS': torch.optim.AdamW,
     'OPTIM_PARAMS': {
-        'weight_decay': 1e-3
+        'weight_decay': 1e-4
     },
 
     # Inference
@@ -72,7 +72,7 @@ mode_handler = {
     ExecModes.TUNE.value: tuning_routine
 }
 
-def main(hps):
+def main(hyper_ps):
     """
     Main function for training, validation, test
     """
@@ -171,7 +171,19 @@ def main(hps):
                            " ../experiments.")
     args = argparser.parse_args()
 
-    # Store command line params
+    # Default params
+    hps = hyper_ps_default
+
+    # Overwrite with group-specific params
+    hps = update_dict(hps, hyper_ps_groups[hyper_ps['GROUP_NAME']])
+
+    # Overwrite with 'often-to-change' or 'under-investigation' params
+    hps = update_dict(hps, hyper_ps)
+
+    # Set dataset paths
+    hps = update_dict(hps, dataset_paths[args.dataset])
+
+    # Set command line params
     hps['EXPERIMENT_NAME'] = args.exp_name
     hps['ARCHITECTURE'] = args.architecture
     hps['DATASET'] = args.dataset
@@ -196,16 +208,8 @@ def main(hps):
             "Cannot tune and fine-tune parameters at the same time."
         )
 
+    # Training device
     torch.cuda.set_device(args.device)
-
-    # Fill hyperparameters with defaults
-    hps = update_dict(hyper_ps_default, hps)
-
-    # Overwrite with group-specific params
-    hps = update_dict(hps, hyper_ps_groups[hps['GROUP_NAME']])
-
-    # Set dataset paths
-    hps = update_dict(hps, dataset_paths[args.dataset])
 
     # Potentially set params for ablation study
     if args.ablation_study:
