@@ -172,10 +172,13 @@ def main(hyper_ps):
     args = argparser.parse_args()
 
     # Default params
-    hps = hyper_ps_default
+    hps = hyper_ps_default.copy()
 
     # Overwrite with group-specific params
-    hps = update_dict(hps, hyper_ps_groups[hyper_ps['GROUP_NAME']])
+    group_name = args.group_name if (
+        args.group_name != hyper_ps_default['GROUP_NAME']
+    ) else hyper_ps.get('GROUP_NAME', args.group_name)
+    hps = update_dict(hps, hyper_ps_groups[group_name])
 
     # Overwrite with 'often-to-change' or 'under-investigation' params
     hps = update_dict(hps, hyper_ps)
@@ -183,20 +186,28 @@ def main(hyper_ps):
     # Set dataset paths
     hps = update_dict(hps, dataset_paths[args.dataset])
 
-    # Set command line params
-    hps['EXPERIMENT_NAME'] = args.exp_name
-    hps['ARCHITECTURE'] = args.architecture
-    hps['DATASET'] = args.dataset
-    hps['LOGLEVEL'] = args.loglevel
-    hps['PROJ_NAME'] = args.proj_name
-    hps['GROUP_NAME'] = args.group_name
-    hps['DEVICE'] = args.device
-    hps['OVERFIT'] = args.overfit
-    hps['TIME_LOGGING'] = args.time
-    hps['PARAMS_TO_TUNE'] = args.params_to_tune
-    hps['PARAMS_TO_FINE_TUNE'] = args.params_to_fine_tune
-    hps['TEST_MODEL_EPOCH'] = args.test
-    hps['N_TEMPLATE_VERTICES_TEST'] = args.n_test_vertices
+    # Set command line params if they are different from the defaults; if this
+    # is true, they overwrite previously set parameters
+    ovwr= lambda key, value: (
+        value if hyper_ps_default[key] != value else hps[key]
+    )
+    hps['EXPERIMENT_NAME'] = ovwr('EXPERIMENT_NAME', args.exp_name)
+    hps['ARCHITECTURE'] = ovwr('ARCHITECTURE', args.architecture)
+    hps['DATASET'] = ovwr('DATASET', args.dataset)
+    hps['LOGLEVEL'] = ovwr('LOGLEVEL', args.loglevel)
+    hps['PROJ_NAME'] = ovwr('PROJ_NAME', args.proj_name)
+    hps['GROUP_NAME'] = ovwr('GROUP_NAME', args.group_name)
+    hps['DEVICE'] = ovwr('DEVICE', args.device)
+    hps['OVERFIT'] = ovwr('OVERFIT', args.overfit)
+    hps['TIME_LOGGING'] = ovwr('TIME_LOGGING', args.time)
+    hps['PARAMS_TO_TUNE'] = ovwr('PARAMS_TO_TUNE', args.params_to_tune)
+    hps['TEST_MODEL_EPOCH'] = ovwr('TEST_MODEL_EPOCH', args.test)
+    hps['PARAMS_TO_FINE_TUNE'] = ovwr(
+        'PARAMS_TO_FINE_TUNE', args.params_to_fine_tune
+    )
+    hps['N_TEMPLATE_VERTICES_TEST'] = ovwr(
+        'N_TEMPLATE_VERTICES_TEST', args.n_test_vertices
+    )
 
     if args.ablation_study:
         hps['ABLATION_STUDY'] = args.ablation_study[0]

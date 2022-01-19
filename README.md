@@ -27,7 +27,7 @@ For further information about command-line options see
 ```
     python3 main.py --help
 ```
-All model parameters (and also for optimization, testing, tuning, etc.) are set in `vox2cortex.main`. For an extensive documentation and default parameters see `vox2cortex.utils.params`.
+All model parameters (and also for optimization, testing, tuning, etc.) can be set in `vox2cortex.main`. Groups of parameters can be specified in `vox2cortex.params.groups` and defaults are in `vox2cortex.params.defaults`. Some parameters can even be overridden from the command line, the overall hierarchy is defaults < groups < main < command-line. For an extensive documentation of all project-wide parameters see `vox2cortex.params.default`.
 
 Further scripts facilitating the general workflow can be found in `vox2cortex.scripts`, e.g., for template creation. This folder also contains scripts for model evaluation that operate directly on predicted meshes (in contrast to in `vox2cortex.utils.evaluation` that operates on model predictions and therefore requires the model to be available).
 
