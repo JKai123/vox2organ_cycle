@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import copy
+import json
 import inspect
 import collections.abc
 from enum import Enum
@@ -142,9 +143,34 @@ def update_dict(d, u):
             d[k] = v_u
     return d
 
+def string_list(l: list):
+    """
+    Make list jsonable.
+
+    :param list l: The list that should be made serializable/writable.
+    :returns: The list with objects converted to their names.
+    """
+    u = []
+    for e in l:
+        if inspect.isclass(e) or inspect.isfunction(e):
+            # Class or function
+            u.append(e.__name__)
+        elif isinstance(e, collections.abc.MutableSequence):
+            # List
+            u.append(string_list(list(e)))
+        elif isinstance(e, tuple):
+            # Tuple
+            u.append(string_list(e))
+        elif not is_jsonable(e):
+            # Non-trivial objects
+            u.append(str(e))
+        else:
+            u.append(e)
+    return u
+
 def string_dict(d: dict):
     """
-    Convert classes and functions to their name and every object to its string.
+    Make dict jsonable.
 
     :param dict d: The dict that should be made serializable/writable.
     :returns: The dict with objects converted to their names.
@@ -156,28 +182,24 @@ def string_dict(d: dict):
             u[k] = string_dict(u.get(k, {}))
         elif isinstance(v, collections.abc.MutableSequence):
             # Lists
-            seq = u.get(k, []).copy()
-            for e in seq:
-                # Class or function
-                if inspect.isclass(e) or inspect.isfunction(e):
-                    u[k].append(e.__name__)
-                    u[k].remove(e)
-                elif not all(isinstance(v_i, (int, float, str)) for v_i in v):
-                    # Everything else than int, float, str to str
-                    u[k].remove(e)
-                    u[k].append(str(e))
-
-        # Class or function
+            u[k] = string_list(u.get(k, []))
         elif inspect.isclass(v) or inspect.isfunction(v):
+            # Class or function
             u[k] = v.__name__
         elif isinstance(v, tuple):
-            if not all(isinstance(v_i, (int, float, str)) for v_i in v):
-                # Tuple with something else than int, float, str
-                u[k] = str(v)
-        elif not isinstance(v, (int, float, str)):
-            # Everything else to string
+            # Tuple
+            u[k] = string_list(u.get(k, []))
+        elif not is_jsonable(v):
+            # Non-trivial objects
             u[k] = str(v)
     return u
+
+def is_jsonable(x):
+    try:
+        json.dumps(x)
+        return True
+    except:
+        return False
 
 def crop_slices(shape1, shape2):
     """ From https://github.com/cvlab-epfl/voxel2mesh """
