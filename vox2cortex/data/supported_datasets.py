@@ -94,6 +94,13 @@ dataset_paths = {
                         "OASIS_val.txt",
                         "OASIS_test.txt"] # Read from files
     },
+    SupportedDatasets.OASIS_FS72.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/FS72",
+        'N_REF_POINTS_PER_STRUCTURE': 26100,
+        'FIXED_SPLIT': ["OASIS_train.txt",
+                        "OASIS_val.txt",
+                        "OASIS_test.txt"] # Read from files
+    },
     SupportedDatasets.TRT_CSR_Data.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/TRT_CSR_Data/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/TRT_CSR_Data/",

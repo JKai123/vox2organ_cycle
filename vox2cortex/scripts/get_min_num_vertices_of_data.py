@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from data.supported_datasets import valid_ids
 
-directory = "/mnt/nas/Data_Neuro/ADNI_CSR/"
+directory = "/mnt/nas/Data_Neuro/OASIS/CSR_data/"
 
 files = valid_ids(directory)
 files.sort()

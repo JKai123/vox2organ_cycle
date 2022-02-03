@@ -103,6 +103,7 @@ hyper_ps_groups = {
     'Cortical Flow single-patch': {
         'ARCHITECTURE': 'corticalflow',
         'FREEZE_PRE_TRAINED': True,
+        'N_M_CLASSES': 2,
         'N_TEMPLATE_VERTICES': 41602,
         'MODEL_CONFIG': {
             # Cortical flow model
@@ -147,7 +148,8 @@ hyper_ps_groups = {
     'Cortical Flow no-patch': {
         'ARCHITECTURE': 'corticalflow',
         'FREEZE_PRE_TRAINED': True,
-        'N_TEMPLATE_VERTICES': 41602,
+        'N_M_CLASSES': 4,
+        'N_TEMPLATE_VERTICES': 42016,
         'MODEL_CONFIG': {
             # Cortical flow model
             # 'UNPOOL_INDICES': [1,1,1],
@@ -168,11 +170,11 @@ hyper_ps_groups = {
            ChamferLoss(),
            EdgeLoss(0.0)
         ],
-        'PATCH_MODE': 'single-patch',
+        'PATCH_MODE': 'no',
         # Order of structures: rh_white, rh_pial
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [1.0] * 2, # Chamfer
-            [1.0] * 2 # Edge
+            [1.0] * 4, # Chamfer
+            [1.0] * 4 # Edge
         ],
         # No voxel decoder --> set voxel loss weights to 0
         'VOXEL_LOSS_FUNC_WEIGHTS': [],
