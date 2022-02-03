@@ -143,5 +143,49 @@ hyper_ps_groups = {
         'OPTIM_PARAMS': {
             'graph_lr': None,
         },
-    }
+    },
+    'Cortical Flow no-patch': {
+        'ARCHITECTURE': 'corticalflow',
+        'FREEZE_PRE_TRAINED': True,
+        'N_TEMPLATE_VERTICES': 41602,
+        'MODEL_CONFIG': {
+            # Cortical flow model
+            # 'UNPOOL_INDICES': [1,1,1],
+            'ENCODER_CHANNELS': [
+                [16, 32, 64, 128, 256],
+                [16, 32, 64],
+                [16, 32, 64]
+            ],
+            'DECODER_CHANNELS': [
+                [128, 64, 32, 16],
+                [32, 16],
+                [32, 16]
+            ],
+        },
+        'PATCH_SIZE': [192, 208, 192],
+        'SELECT_PATCH_SIZE': [192, 208, 192],
+        'MESH_LOSS_FUNC': [
+           ChamferLoss(),
+           EdgeLoss(0.0)
+        ],
+        'PATCH_MODE': 'single-patch',
+        # Order of structures: rh_white, rh_pial
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [1.0] * 2, # Chamfer
+            [1.0] * 2 # Edge
+        ],
+        # No voxel decoder --> set voxel loss weights to 0
+        'VOXEL_LOSS_FUNC_WEIGHTS': [],
+        'VOXEL_LOSS_FUNC': [],
+        'EVAL_METRICS': [
+            'SymmetricHausdorff',
+            'JaccardMesh',
+            'Chamfer',
+            'CorticalThicknessError',
+            'AverageDistance'
+        ],
+        'OPTIM_PARAMS': {
+            'graph_lr': None,
+        },
+    },
 }
