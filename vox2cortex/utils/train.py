@@ -501,6 +501,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
             wandb_proj_name=hps['PROJ_NAME'],
             wandb_group_name=hps['GROUP_NAME'],
             wandb_job_type='train',
+            entity=hps['ENTITY'],
             params=hps_to_write
         )
     elif hps['USE_WANDB']:

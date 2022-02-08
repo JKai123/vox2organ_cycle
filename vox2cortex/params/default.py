@@ -77,6 +77,9 @@ hyper_ps_default={
     # Project name used for wandb
     'PROJ_NAME': 'vox2cortex',
 
+    # Entity of wandb, e.g. group name
+    'ENTITY': 'team-segmentation',
+
     # The loglevel for output logs
     'LOGLEVEL': 'INFO',
 
