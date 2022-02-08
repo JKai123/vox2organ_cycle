@@ -119,6 +119,10 @@ def main(hyper_ps):
                            dest='loglevel',
                            default=hyper_ps_default['LOGLEVEL'],
                            help="Specify log level.")
+    argparser.add_argument('--no-wandb',
+                           dest='use_wandb',
+                           action='store_false',
+                           help="Don't use wandb logging.")
     argparser.add_argument('--proj',
                            type=str,
                            dest='proj_name',
@@ -208,6 +212,7 @@ def main(hyper_ps):
     hps['N_TEMPLATE_VERTICES_TEST'] = ovwr(
         'N_TEMPLATE_VERTICES_TEST', args.n_test_vertices
     )
+    hps['USE_WANDB'] = args.use_wandb
 
     if args.ablation_study:
         hps['ABLATION_STUDY'] = args.ablation_study[0]

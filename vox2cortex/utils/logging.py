@@ -112,22 +112,22 @@ def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
                        id=None):
     """ Initialization for logging with wandb
     """
-    global wandb_run
     global use_wandb
-    use_wandb = True if not debug else False
-    if use_wandb:
-        wandb_run = wandb.init(
-            name=exp_name,
-            dir=log_dir,
-            config=params,
-            project=wandb_proj_name,
-            group=wandb_group_name,
-            job_type=wandb_job_type,
-            notes=notes,
-            id=exp_name if id is None else id,
-            resume="allow",
-            reinit=True
-        )
+    global wandb_run
+
+    use_wandb = True
+    wandb_run = wandb.init(
+        name=exp_name,
+        dir=log_dir,
+        config=params,
+        project=wandb_proj_name,
+        group=wandb_group_name,
+        job_type=wandb_job_type,
+        notes=notes,
+        id=exp_name if id is None else id,
+        resume="allow",
+        reinit=True
+    )
 
 def finish_wandb_run():
     global wandb_run
@@ -163,8 +163,17 @@ def init_std_logging(name, log_dir, loglevel, mode):
     consoleHandler.setFormatter(consoleFormatter)
     logger.addHandler(consoleHandler)
 
-def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, mode: ExecModes,
-                 proj_name: str, group_name: str, params: dict, time_logging: bool):
+def init_logging(
+    logger_name: str,
+    exp_name: str,
+    log_dir: str,
+    loglevel: str,
+    mode: ExecModes,
+    proj_name: str,
+    group_name: str,
+    params: dict,
+    time_logging: bool
+):
     """
     Init a logger with given name.
 
@@ -176,26 +185,17 @@ def init_logging(logger_name: str, exp_name: str, log_dir: str, loglevel: str, m
     :param str proj_name: The project name of the wandb logger.
     :param str group_name: The group name of the experiment.
     :param dict params: The experiment configuration.
-    :param bool measure_time: Enable time measurement for some functions.
+    :param bool time_logging: Enable time measurement for some functions.
     """
-    # no wanb when debugging or not in training mode
     global debug
+    global log_time
+
     if exp_name == 'debug' or loglevel == 'DEBUG':
-        use_wandb = False
         debug = True
         loglevel='DEBUG'
 
     init_std_logging(name=logger_name, log_dir=log_dir, loglevel=loglevel, mode=mode)
 
-    if mode == ExecModes.TRAIN:
-        init_wandb_logging(exp_name=exp_name,
-                           log_dir=log_dir,
-                           wandb_proj_name=proj_name,
-                           wandb_group_name=group_name,
-                           wandb_job_type=mode.name.lower(),
-                           params=params)
-
-    global log_time
     log_time = time_logging
     if time_logging:
         # Enable time logging

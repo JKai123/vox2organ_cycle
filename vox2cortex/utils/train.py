@@ -25,6 +25,7 @@ from utils.losses import (
 )
 from utils.logging import (
     init_logging,
+    init_wandb_logging,
     finish_wandb_run,
     log_losses,
     log_epoch,
@@ -481,16 +482,30 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     model_config = dict((k.lower(), v) for k, v in hps['MODEL_CONFIG'].items())
 
     # Configure logging
-    init_logging(logger_name=ExecModes.TRAIN.name,
-                 exp_name=experiment_name,
-                 log_dir=log_dir,
-                 loglevel=loglevel,
-                 mode=ExecModes.TRAIN,
-                 proj_name=hps['PROJ_NAME'],
-                 group_name=hps['GROUP_NAME'],
-                 params=hps_to_write,
-                 time_logging=hps['TIME_LOGGING'])
+    init_logging(
+        logger_name=ExecModes.TRAIN.name,
+        exp_name=experiment_name,
+        log_dir=log_dir,
+        loglevel=loglevel,
+        mode=ExecModes.TRAIN,
+        proj_name=hps['PROJ_NAME'],
+        group_name=hps['GROUP_NAME'],
+        params=hps_to_write,
+        time_logging=hps['TIME_LOGGING']
+    )
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+    if hps['USE_WANDB'] and experiment_name != 'debug' and loglevel != 'DEBUG':
+        init_wandb_logging(
+            exp_name=experiment_name,
+            log_dir=log_dir,
+            wandb_proj_name=hps['PROJ_NAME'],
+            wandb_group_name=hps['GROUP_NAME'],
+            wandb_job_type='train',
+            params=hps_to_write
+        )
+    elif hps['USE_WANDB']:
+        trainLogger.info("No wandb logging in debug mode.")
+
     trainLogger.info("Start training '%s'...", experiment_name)
 
     ###### Load data ######

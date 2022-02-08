@@ -80,6 +80,9 @@ hyper_ps_default={
     # The loglevel for output logs
     'LOGLEVEL': 'INFO',
 
+    # Whether to use wandb for logging
+    'USE_WANDB': True,
+
     # Wandb logging group
     'GROUP_NAME': 'uncategorized',
 
