@@ -53,9 +53,6 @@ hyper_ps = {
     ],
     'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
 
-    # Pre-trained model
-    'PRE_TRAINED_MODEL_PATH': "../experiments/exp_9/intermediate.model",
-
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
 
