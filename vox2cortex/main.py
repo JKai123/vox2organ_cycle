@@ -28,7 +28,6 @@ from utils.ablation_study import (
 # Overwrite params for overfitting (often useful for debugging and development)
 hyper_ps_overfit = {
     # Learning
-    'BATCH_SIZE': 1,
     'SANITY_CHECK_DATA': True
 }
 
@@ -45,7 +44,6 @@ hyper_ps = {
     'GROUP_NAME': 'Bayesian Vox2Cortex no-patch',
 
     # Data
-    'PROVIDE_CURVATURES': True,
     'SANITY_CHECK_DATA': False, # Save some memory
 
     # Learning
@@ -178,6 +176,9 @@ def main(hyper_ps):
     # Default params
     hps = hyper_ps_default.copy()
 
+    # Set dataset paths
+    hps = update_dict(hps, dataset_paths[args.dataset])
+
     # Overwrite with group-specific params
     group_name = args.group_name if (
         args.group_name != hyper_ps_default['GROUP_NAME']
@@ -186,9 +187,6 @@ def main(hyper_ps):
 
     # Overwrite with 'often-to-change' or 'under-investigation' params
     hps = update_dict(hps, hyper_ps)
-
-    # Set dataset paths
-    hps = update_dict(hps, dataset_paths[args.dataset])
 
     # Set command line params if they are different from the defaults; if this
     # is true, they overwrite previously set parameters

@@ -152,21 +152,6 @@ hyper_ps_groups = {
             'GROUP_STRUCTS': [[0, 1], [2, 3]],
         }
     },
-
-    # Experiments with cortical flow architecture
-    'Cortical Flow': {
-        # No voxel decoder --> set voxel loss weights to 0
-        'VOXEL_LOSS_FUNC_WEIGHTS': [],
-        'VOXEL_LOSS_FUNC': [],
-        'EVAL_METRICS': [
-            'SymmetricHausdorff',
-            'JaccardMesh',
-            'Chamfer',
-            'CorticalThicknessError',
-            'AverageDistance'
-        ],
-    }
-
 }
 
 

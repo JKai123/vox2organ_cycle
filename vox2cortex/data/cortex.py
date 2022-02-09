@@ -7,7 +7,6 @@ __email__ = "fabi.bongratz@gmail.com"
 import os
 import random
 import logging
-from copy import deepcopy
 from collections.abc import Sequence
 from typing import Union
 
@@ -25,7 +24,7 @@ from tqdm import tqdm
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
-from utils.logging import measure_time
+from utils.logging import measure_time, raise_warning
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
 from utils.ico_template import (
     generate_sphere_template,
@@ -34,9 +33,7 @@ from utils.ico_template import (
 from utils.utils import (
     choose_n_random_points,
     voxelize_mesh,
-    voxelize_contour,
     create_mesh_from_voxels,
-    create_mesh_from_pixels,
     mirror_mesh_at_plane,
     normalize_min_max,
 )
@@ -52,7 +49,6 @@ from data.dataset import (
 )
 from data.supported_datasets import (
     valid_ids,
-    valid_ids_ADNI_CSR,
 )
 from data.cortex_labels import (
     combine_labels,
@@ -154,6 +150,9 @@ class Cortex(DatasetHandler):
     :param seg_ground_truth: Either 'voxelized_meshes' or 'aseg'
     :param check_dir: An output dir where data is stored that should be
     checked.
+    :param gt_points_type: If 'vertices': ground truth points are vertices. If
+    'surface': ground truth points are sampled randomly from the surface; the
+    latter does not allow for 'provide_curvatures'.
     """
 
     img_filename = "mri.nii.gz"
@@ -172,11 +171,12 @@ class Cortex(DatasetHandler):
                  patch_origin=(0,0,0),
                  select_patch_size=None,
                  reduced_freesurfer: int=None,
-                 mesh_type='marching cubes',
+                 mesh_type='freesurfer',
                  provide_curvatures=False,
                  preprocessed_data_dir=None,
                  seg_ground_truth='voxelized_meshes',
-                 check_dir='../check',
+                 check_dir='../to_check',
+                 gt_points_type='vertices',
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -208,7 +208,6 @@ class Cortex(DatasetHandler):
         assert self.n_m_classes == kwargs.get(
             "n_m_classes", len(self.mesh_label_names)
         ), "Number of mesh classes incorrect."
-        self.provide_curvatures = provide_curvatures
         assert seg_ground_truth in ('voxelized_meshes', 'aseg')
         self.seg_ground_truth = seg_ground_truth
         self.n_ref_points_per_structure = n_ref_points_per_structure
@@ -220,6 +219,15 @@ class Cortex(DatasetHandler):
         self.radii_y = None
         self.radii_z = None
         self.n_min_vertices, self.n_max_vertices = None, None
+        self.gt_points_type = gt_points_type
+        if gt_points_type == 'surface' and provide_curvatures:
+            raise_warning(
+                "Providing curvatures requires gt_points_type to be 'vertices'"
+            )
+        # No curvatures for sampled surface points
+        self.provide_curvatures = provide_curvatures if (
+            gt_points_type == 'vertices'
+        ) else False
         # +1 for background
         self.n_v_classes = len(self.seg_label_names) + 1 if (
             self.seg_ground_truth == 'aseg'
@@ -248,9 +256,9 @@ class Cortex(DatasetHandler):
         # Do not store meshes in train split
         remove_meshes = self._mode == DataModes.TRAIN
         # Point, normal, and potentially curvature labels
-        self.point_labels,\
-                self.normal_labels,\
-                self.curvatures = self._load_ref_points_all(remove_meshes)
+        (self.point_labels,
+         self.normal_labels,
+         self.curvatures) = self._load_ref_points_all(remove_meshes)
 
         assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
@@ -322,9 +330,10 @@ class Cortex(DatasetHandler):
                             self.check_dir, f"diff_mesh_voxel_label_{out_fn}.png"
                         )
                     )
-                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                          " voxelized mesh label, check files at"
-                          f"{self.check_dir}")
+                    raise_warning(
+                        f"Small IoU ({iou}) of voxel label and voxelized mesh"
+                        f" label, check files at {self.check_dir}"
+                    )
 
         # Use voxelized meshes as voxel ground truth
         if self.seg_ground_truth == 'voxelized_meshes':
@@ -526,19 +535,19 @@ class Cortex(DatasetHandler):
                     files_train = list(map(convert, open(train_split, 'r').readlines()))
                 except:
                     files_train = []
-                    print("[Warning] No training files.")
+                    raise_warning("No training files.")
                 val_split = os.path.join(raw_data_dir, fixed_split[1])
                 try:
                     files_val = list(map(convert, open(val_split, 'r').readlines()))
                 except:
                     files_val = []
-                    print("[Warning] No validation files.")
+                    raise_warning("No validation files.")
                 test_split = os.path.join(raw_data_dir, fixed_split[2])
                 try:
                     files_test = list(map(convert, open(test_split, 'r').readlines()))
                 except:
                     files_test = []
-                    print("[Warning] No test files.")
+                    raise_warning("No test files.")
 
                 # Choose valid
                 # if "ADNI" in raw_data_dir:
@@ -629,8 +638,7 @@ class Cortex(DatasetHandler):
                             *args, **kwargs):
         """
         One data item has the form
-        (image, voxel label, points, faces, normals)
-        with types all of type torch.Tensor
+        (image, voxel label, points, faces, normals, curvatures).
         """
         # Use mesh target type of object if not specified
         if mesh_target_type is None:
@@ -912,9 +920,11 @@ class Cortex(DatasetHandler):
                         # Insert a dummy if dataset is test split
                         if self._mode != DataModes.TEST:
                             raise e
-                        print(f"[Warning] No mesh for file {fn}/{mn},"
-                              " inserting dummy.")
                         mesh = trimesh.creation.icosahedron()
+                        raise_warning(
+                            f"No mesh for file {fn}/{mn},"
+                            " inserting dummy."
+                        )
                 # World --> voxel coordinates
                 voxel_verts, voxel_faces = transform_mesh_affine(
                     mesh.vertices, mesh.faces, world2vox_affine
@@ -960,17 +970,26 @@ class Cortex(DatasetHandler):
 
     def _get_ref_points_from_index(self, index):
         """ Choose n reference points together with their normals and
-        curvature. """
+        optionally curvature.
+        """
         # Points/vertices
+        if (self.gt_points_type == 'vertices' and
+            self.n_ref_points_per_structure < self.n_min_vertices):
+            raise_warning(
+                "Padded vertices will not be ignored in ground truth."
+            )
         p, idx = choose_n_random_points(
             self.point_labels[index],
             self.n_ref_points_per_structure,
             return_idx=True,
-            # Ignoring padded vertices is only possible if the
+            # Ignoring padded vertices is only necessary if point labels are
+            # vertices and only possible if the
             # number of required vertices is smaller than the
             # minimum number of vertices in the dataset
-            ignore_padded=(self.n_ref_points_per_structure <
-                           self.n_min_vertices)
+            ignore_padded=(
+                self.gt_points_type=='vertices' and
+                self.n_ref_points_per_structure < self.n_min_vertices
+            )
         )
         # Normals
         n = self.normal_labels[index][idx.unbind(1)].view(
@@ -982,50 +1001,65 @@ class Cortex(DatasetHandler):
                 self.n_m_classes, -1, 1
             )
         else:
-            c = np.array([])
+            c = np.empty(p.shape[:-1] + (0,), dtype=np.uint8)
 
         return p, n, c
 
 
     def _load_ref_points_all(self, remove_meshes=False):
-        """ Sample surface points from meshes and optionally remove them (to
-        save memory)"""
+        """ Either sample surface points from meshes or set vertices as
+        reference points together with curvature and normals. Reference meshes
+        are potentially removed to save memory.
+        """
         points, normals = [], []
         curvs = [] if self.provide_curvatures else None
-        for i, m in tqdm(enumerate(self.mesh_labels), leave=True, position=0,
-                      desc="Get point labels from meshes..."):
-            if self.provide_curvatures:
+
+        # Iterate over mesh labels
+        for i, m in tqdm(
+            enumerate(self.mesh_labels),
+            leave=True,
+            position=0,
+            desc="Get point labels from meshes..."
+        ):
+            # Vertex gt points
+            if self.gt_points_type == 'vertices':
                 # Choose a certain number of vertices
                 m_ = m.to_pytorch3d_Meshes()
                 p = m_.verts_padded()
                 # Choose normals with the same indices as vertices
                 n = m_.verts_normals_padded()
-                # Choose curvatures with the same indices as vertices
-                c = curv_from_cotcurv_laplacian(
-                    m_.verts_packed(), m_.faces_packed()
-                ).view(self.n_m_classes, -1, 1)
                 # Sanity check
                 assert torch.allclose(
                     m_.verts_normals_padded(), m.normals, atol=1e-05
                 ), "Inconsistent normals!"
+                if self.provide_curvatures:
+                    # Choose curvatures with the same indices as vertices
+                    c = curv_from_cotcurv_laplacian(
+                        m_.verts_packed(), m_.faces_packed()
+                    ).view(self.n_m_classes, -1, 1)
 
-                # Remove to save memory
-                if remove_meshes:
-                    self.mesh_labels[i] = None
-
-            else: # No curvatures
-                # Sample from mesh surface, probably less memory efficient
-                # than with curvatures
+            # Surface points sampled from mesh
+            elif self.gt_points_type == 'surface':
                 p, n = sample_points_from_meshes(
                     m.to_pytorch3d_Meshes(),
                     self.n_ref_points_per_structure,
                     return_normals=True
                 )
 
+            else:
+                raise ValueError(
+                    f"Unknown gt_points_type {self.gt_points_type}"
+                )
+
             points.append(p)
             normals.append(n)
             if self.provide_curvatures:
                 curvs.append(c)
+
+            # Remove meshes to save memory
+            if remove_meshes:
+                self.mesh_labels[i] = None
+
 
         return points, normals, curvs
 
@@ -1080,8 +1114,9 @@ class Cortex(DatasetHandler):
                 except Exception as e:
                     # Insert dummy if file could not
                     # be found
-                    print(f"[Warning] File {morph_fn} could not be found,"
-                          " inserting dummy.")
+                    raise_warning(
+                        f"File {morph_fn} could not be found, inserting dummy."
+                    )
                     morph_label = np.zeros(self.mesh_labels[
                         self._files.index(fn)
                     ].vertices[self.mesh_label_names.index(mn)].shape[0])
