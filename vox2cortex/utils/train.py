@@ -299,7 +299,7 @@ class Solver():
             self.optim,
             base_lr=[p['lr'] for p in self.optim.param_groups],
             max_lr=[4 * p['lr'] for p in self.optim.param_groups],
-            step_size_up=int(len(training_set)/batch_size)*10,
+            step_size_up=int(np.ceil(len(training_set)/batch_size))*10,
             cycle_momentum=False
         )
 
