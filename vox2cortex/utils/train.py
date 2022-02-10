@@ -11,6 +11,7 @@ from copy import deepcopy
 import json
 import torch
 import numpy as np
+from torch.nn import Dropout
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
@@ -82,6 +83,7 @@ class Solver():
     :param penalize_displacement: Weight for penalizing large displacements,
     can be seen as an additional regularization loss
     :param clip_gradient: Clip gradient at this norm if specified (not False)
+    :param uncertainty: Measure uncertainty during evaluation if equal to 'mc'
 
     """
 
@@ -105,6 +107,7 @@ class Solver():
                  reduce_reg_loss_mode,
                  penalize_displacement,
                  clip_gradient,
+                 uncertainty,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -113,6 +116,7 @@ class Solver():
         self.scaler = GradScaler() # for mixed precision
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
+        self.uncertainty = uncertainty
         self.voxel_loss_func_weights = voxel_loss_func_weights
         self.reduce_reg_loss_mode = reduce_reg_loss_mode
         assert len(voxel_loss_func) == len(voxel_loss_func_weights),\
@@ -335,6 +339,13 @@ class Solver():
                 epoch == n_epochs or
                 epoch == start_epoch):
                 model.eval()
+
+                # Potentially set Dropout layers active
+                if self.uncertainty == 'mc':
+                    for layer in model.modules():
+                        if isinstance(layer, Dropout):
+                            layer.train()
+
                 val_results = self.evaluator.evaluate(model, epoch,
                                                       save_meshes=5)
                 log_val_results(val_results, iteration - 1)

@@ -101,6 +101,7 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
             seg_label_names = (("right_white_matter",
                                 "right_cerebral_cortex"),)
             mesh_label_names = ("rh_white", "rh_pial")
+            voxelized_mesh_label_names = (("rh_white", "rh_pial"),)
         else:
             # Not patch mode
             seg_label_names = (("left_white_matter",

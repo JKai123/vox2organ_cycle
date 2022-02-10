@@ -9,6 +9,7 @@ import logging
 import json
 
 import torch
+from torch.nn import Dropout
 
 from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict, update_dict
@@ -185,6 +186,12 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             model.load_state_dict(torch.load(model_path, map_location='cpu'))
             model.cuda()
             model.eval()
+
+            # Potentially set Dropout layers active
+            if hps['UNCERTAINTY'] == 'mc':
+                for layer in model.modules():
+                    if isinstance(layer, Dropout):
+                        layer.train()
 
             results = evaluator.evaluate(
                 model, epoch, save_meshes=len(test_set),

@@ -47,6 +47,7 @@ class GraphDecoder(nn.Module):
                  aggregate_indices: Tuple[Tuple[int]],
                  exchange_coords: bool,
                  group_structs: Tuple[Tuple[int]]=None,
+                 p_dropout: float=None,
                  k_struct_neighbors=5,
                  ndims: int=3,
                  aggregate: str='trilinear',
@@ -73,6 +74,7 @@ class GraphDecoder(nn.Module):
         self.unpool_indices = unpool_indices
         self.use_adoptive_unpool = use_adoptive_unpool
         self.GC = GC
+        self.p_dropout = p_dropout
         self.patch_size = patch_size
         self.ndims = ndims
         self.group_structs = group_structs
@@ -84,8 +86,13 @@ class GraphDecoder(nn.Module):
 
         # Initial creation of latent features from coordinates
         self.graph_conv_first = Features2FeaturesResidual(
-            ndims, graph_channels[0], n_f2f_hidden_layer, norm=norm,
-            GC=GC, weighted_edges=weighted_edges
+            ndims,
+            graph_channels[0],
+            n_f2f_hidden_layer,
+            norm=norm,
+            GC=GC,
+            p_dropout=None, # no dropout here
+            weighted_edges=weighted_edges
         )
 
         # Graph decoder
@@ -122,6 +129,7 @@ class GraphDecoder(nn.Module):
                 hidden_layer_count=n_f2f_hidden_layer,
                 norm=norm,
                 GC=GC,
+                p_dropout=p_dropout,
                 weighted_edges=weighted_edges
             )]
             for _ in range(n_residual_blocks - 1):
@@ -131,6 +139,7 @@ class GraphDecoder(nn.Module):
                     hidden_layer_count=n_f2f_hidden_layer,
                     norm=norm,
                     GC=GC,
+                    p_dropout=p_dropout,
                     weighted_edges=False # No weighted edges here
                 ))
 

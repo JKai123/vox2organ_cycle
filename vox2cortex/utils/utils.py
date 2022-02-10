@@ -7,6 +7,7 @@ import os
 import copy
 import json
 import inspect
+import warnings
 import collections.abc
 from enum import Enum
 from typing import Union, Tuple
@@ -135,12 +136,16 @@ def update_dict(d, u):
     """
 
     for k, v_u in u.items():
+        if k not in d.keys():
+            warnings.warn(f"Key {k} not in dict that is updated.")
+
         if isinstance(v_u, collections.abc.Mapping):
             v_d = d.get(k, {})
             v_d = v_d if isinstance(v_d, collections.abc.Mapping) else {}
             d[k] = update_dict(v_d, v_u)
         else:
             d[k] = v_u
+
     return d
 
 def string_list(l: list):

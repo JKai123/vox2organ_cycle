@@ -46,7 +46,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
     :param patch_size: The used patch size of input images.
     :param aggregate_indices: Where to take the features from the UNet
     :param aggregate: 'trilinear', 'bilinear', or 'lns'
-    :param p_dropout: Dropout probability for UNet blocks
+    :param p_dropout_unet: Dropout probability for UNet blocks
+    :param p_dropout_graph: Dropout probability for  graph conv blocks
     :param ndims: Dimensionality of images
     :param group_structs: Group the structures in the graph network, e.g.,
     group left and right white matter hemisphere into group "white matter".
@@ -79,7 +80,8 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                  patch_size: Tuple[int, int, int],
                  aggregate: str,
                  aggregate_indices: Tuple[Tuple[int]],
-                 p_dropout: float,
+                 p_dropout_unet: float,
+                 p_dropout_graph: float,
                  ndims: int,
                  group_structs: Tuple[Tuple[int]],
                  k_struct_neighbors: int,
@@ -96,7 +98,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       up_channels=decoder_channels,
                                       deep_supervision=deep_supervision,
                                       voxel_decoder=voxel_decoder,
-                                      p_dropout=p_dropout,
+                                      p_dropout=p_dropout_unet,
                                       ndims=ndims)
         # Graph network
         self.graph_net = GraphDecoder(norm=norm,
@@ -113,6 +115,7 @@ class Voxel2MeshPlusPlusGeneric(V2MModel):
                                       k_struct_neighbors=k_struct_neighbors,
                                       exchange_coords=exchange_coords,
                                       GC=gc,
+                                      p_dropout=p_dropout_graph,
                                       group_structs=group_structs,
                                       ndims=ndims)
 

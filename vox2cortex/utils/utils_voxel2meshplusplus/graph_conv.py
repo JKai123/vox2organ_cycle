@@ -39,7 +39,7 @@ class Features2FeaturesResidual(nn.Module):
     """ A residual graph conv block consisting of 'hidden_layer_count' many graph convs """
 
     def __init__(self, in_features, out_features, hidden_layer_count,
-                 norm='batch', GC=GraphConv, weighted_edges=False):
+                 norm='batch', GC=GraphConv, p_dropout=None, weighted_edges=False):
         assert norm in ('none', 'layer', 'batch'), "Invalid norm."
 
         super().__init__()
@@ -53,6 +53,12 @@ class Features2FeaturesResidual(nn.Module):
             self.norm_first = nn.LayerNorm(out_features)
         else: # none
             self.norm_first = IdLayer()
+
+        # Optional dropout layer
+        if p_dropout is not None:
+            self.dropout = nn.Dropout(p_dropout)
+        else:
+            self.dropout = IdLayer()
 
         gconv_hidden = []
         for _ in range(hidden_layer_count):
@@ -83,8 +89,8 @@ class Features2FeaturesResidual(nn.Module):
                 # Conv --> Norm --> Addition --> ReLU
                 features = F.relu(nl(gconv(features, edges)) + res)
             else:
-                # Conv --> Norm --> ReLU
-                features = F.relu(nl(gconv(features, edges)))
+                # Conv --> Norm --> ReLU (--> Dropout)
+                features = self.dropout(F.relu(nl(gconv(features, edges))))
 
         return features
 
