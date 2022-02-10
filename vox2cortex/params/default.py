@@ -340,9 +340,4 @@ hyper_ps_default={
 
     # Evaluate model every n epochs
     'EVAL_EVERY': 1,
-
-    # Decay the learning rate by multiplication with 'LR_DECAY_RATE' if no
-    # improvement for 'LR_DECAY_AFTER' epochs
-    'LR_DECAY_RATE': 0.5,
-    'LR_DECAY_AFTER': -1, # -1 = no decay
 }
