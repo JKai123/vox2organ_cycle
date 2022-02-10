@@ -116,7 +116,7 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
 
     return seg_label_names, mesh_label_names, voxelized_mesh_label_names
 
-class Cortex(DatasetHandler):
+class CortexDataset(DatasetHandler):
     """ Cortex dataset
 
     It loads all data specified by 'ids' directly into memory.
@@ -598,27 +598,33 @@ class Cortex(DatasetHandler):
 
         # Create train, validation, and test datasets
         if 'train' in load_only:
-            train_dataset = Cortex(files_train,
-                                   DataModes.TRAIN,
-                                   raw_data_dir,
-                                   augment=augment_train,
-                                   **kwargs)
+            train_dataset = CortexDataset(
+                files_train,
+                DataModes.TRAIN,
+                raw_data_dir,
+                augment=augment_train,
+                **kwargs
+            )
         else:
             train_dataset = None
         if 'validation' in load_only:
-            val_dataset = Cortex(files_val,
-                                 DataModes.VALIDATION,
-                                 raw_data_dir,
-                                 augment=False,
-                                 **kwargs)
+            val_dataset = CortexDataset(
+                files_val,
+                DataModes.VALIDATION,
+                raw_data_dir,
+                augment=False,
+                **kwargs
+            )
         else:
             val_dataset = None
         if 'test' in load_only:
-            test_dataset = Cortex(files_test,
-                                  DataModes.TEST,
-                                  raw_data_dir,
-                                  augment=False,
-                                  **kwargs)
+            test_dataset = CortexDataset(
+                files_test,
+                DataModes.TEST,
+                raw_data_dir,
+                augment=False,
+                **kwargs
+            )
         else:
             test_dataset = None
 
