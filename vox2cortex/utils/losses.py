@@ -50,39 +50,6 @@ def point_weigths_from_curvature(curvatures: torch.Tensor,
 
     return weights
 
-def meshes_to_edge_normals_2D_packed(meshes: Meshes):
-    """ Helper function to get normals of 2D meshes (contours) for every edge.
-    The normals have the same length as the respective edge they belong
-    to."""
-    verts_packed = meshes.verts_packed()
-    edges_packed = meshes.faces_packed() # edges=faces
-
-    v0_idx, v1_idx = edges_packed[:, 0], edges_packed[:, 1]
-
-    # Normal of edge [x,y] is [-y,x]
-    normals = (verts_packed[v1_idx] - verts_packed[v0_idx]).flip(
-        dims=[1]) * torch.tensor([-1.0, 1.0]).to(meshes.device)
-
-    # Length of normals is automatically equal to the edge length as the normals
-    # are just rotated edges.
-
-    return normals, v0_idx, v1_idx
-
-def meshes_to_vertex_normals_2D_packed(meshes: Meshes):
-    """ Helper function to get normals of 2D meshes (contours) for every vertex.
-    The normals are defined as the sum of the normals of the two adjacent edges
-    of the vertex. """
-    # Normals of edges
-    edge_normals, v0_idx, v1_idx = meshes_to_edge_normals_2D_packed(
-        meshes
-    )
-    # (Normals at vertices) = (sum of normals at adjacent edges of the
-    # respective edge length)
-    normals_next = edge_normals[torch.argsort(v0_idx)]
-    normals_prev = edge_normals[torch.argsort(v1_idx)]
-
-    return normals_next + normals_prev
-
 class MeshLoss(ABC):
     """ Abstract base class for all mesh losses. """
 
@@ -153,12 +120,7 @@ class ChamferLoss(MeshLoss):
 
         if isinstance(target, pytorch3d.structures.Meshes):
             n_points = torch.min(target.num_verts_per_mesh())
-            if target.verts_padded().shape[1] == 3:
-                target_ = sample_points_from_meshes(target, n_points)
-            else: # 2D --> choose vertex points
-                target_ = choose_n_random_points(
-                    target.verts_padded(), n_points
-                )
+            target_ = sample_points_from_meshes(target, n_points)
             if self.curv_weight_max is not None:
                 raise RuntimeError("Cannot apply curvature weights for"
                                    " targets of type 'Meshes'.")
@@ -173,12 +135,7 @@ class ChamferLoss(MeshLoss):
                 target_curvs, target_points, self.curv_weight_max
             ) if self.curv_weight_max else None
 
-        if pred_meshes.verts_packed().shape[-1] == 3:
-            pred_points = sample_points_from_meshes(pred_meshes, n_points)
-        else: # 2D
-            pred_points = choose_n_random_points(
-                pred_meshes.verts_padded(), n_points
-            )
+        pred_points = sample_points_from_meshes(pred_meshes, n_points)
 
         pred_lengths = (~torch.isclose(
             pred_points, self.ignore_coordinates.to(pred_points.device)
@@ -214,35 +171,13 @@ class ChamferAndNormalsLoss(MeshLoss):
         target_points, target_normals = target[0], target[1]
         assert target_points.ndim == 3 and target_normals.ndim == 3
         n_points = target_points.shape[1]
-        if target_points.shape[-1] == 3: # 3D
-            pred_points, pred_normals = sample_points_from_meshes(
-                pred_meshes, n_points, return_normals=True
-            )
-            target_curvs = target[2]
-            point_weights = point_weigths_from_curvature(
-                target_curvs, target_points, self.curv_weight_max
-            ) if self.curv_weight_max else None
-        else: # 2D
-            pred_points, idx = choose_n_random_points(
-                pred_meshes.verts_padded(), n_points, return_idx=True
-            )
-            pred_normals = meshes_to_vertex_normals_2D_packed(pred_meshes)
-            # Select the normals of the corresponding points
-            pt_shape = pred_points.shape
-            pred_normals = pred_normals.view(
-                pt_shape)[idx.unbind(1)].view(pt_shape)
-            # Normals are required to be 3 dim. for chamfer function
-            N, V, _ = target_normals.shape
-            target_normals = torch.cat(
-                [target_normals,
-                 torch.zeros((N,V,1)).to(target_normals.device)], dim=2
-            )
-            pred_normals = torch.cat(
-                [pred_normals,
-                 torch.zeros((N,V,1)).to(pred_normals.device)], dim=2
-            )
-            if self.curv_weight_max is not None:
-                raise RuntimeError("Cannot apply curvature weights in 2D.")
+        pred_points, pred_normals = sample_points_from_meshes(
+            pred_meshes, n_points, return_normals=True
+        )
+        target_curvs = target[2]
+        point_weights = point_weigths_from_curvature(
+            target_curvs, target_points, self.curv_weight_max
+        ) if self.curv_weight_max else None
 
         pred_lengths = (~torch.isclose(
             pred_points, self.ignore_coordinates.to(pred_points.device)
@@ -273,21 +208,11 @@ class LaplacianLoss(MeshLoss):
     @autocast(enabled=False)
     def get_loss(self, pred_meshes, target=None):
         # pytorch3d loss for 3D
-        if pred_meshes.verts_padded().shape[-1] == 3:
-            loss = mesh_laplacian_smoothing(
-                Meshes(pred_meshes.verts_padded().float(),
-                       pred_meshes.faces_padded().float()),
-                method='uniform'
-            )
-        # 2D
-        else:
-            verts_packed = pred_meshes.verts_packed()
-            edges_packed = pred_meshes.faces_packed() # faces = edges
-            V = len(verts_packed)
-            # Uniform Laplacian
-            with torch.no_grad():
-                L = laplacian(verts_packed, edges_packed)
-            loss = L.mm(verts_packed).norm(dim=1).sum() / V
+        loss = mesh_laplacian_smoothing(
+            Meshes(pred_meshes.verts_padded().float(),
+                   pred_meshes.faces_padded().float()),
+            method='uniform'
+        )
 
         return loss
 
@@ -296,14 +221,6 @@ class NormalConsistencyLoss(MeshLoss):
     def __init(self):
         super().__init__()
     def get_loss(self, pred_meshes, target=None):
-        # 2D: assumes clock-wise ordering of vertex indices in each edge
-        if pred_meshes.verts_padded().shape[-1] == 2:
-            normals, v0_idx, v1_idx = meshes_to_edge_normals_2D_packed(pred_meshes)
-            loss = 1 - torch.cosine_similarity(normals[v0_idx],
-                                               normals[v1_idx])
-            return loss.sum() / len(v0_idx)
-
-        # 3D: pytorch3d
         return mesh_normal_consistency(pred_meshes)
 
 
@@ -316,15 +233,6 @@ class EdgeLoss(MeshLoss):
         return f"EdgeLoss({self.target_length})"
 
     def get_loss(self, pred_meshes, target=None):
-        # 2D
-        if pred_meshes.verts_padded().shape[2] == 2:
-            verts_packed = pred_meshes.verts_packed()
-            edges_packed = pred_meshes.faces_packed() # edges=faces
-            verts_edges = verts_packed[edges_packed]
-            v0, v1 = verts_edges.unbind(1)
-            loss = ((v0 - v1).norm(dim=1, p=2) - self.target_length) ** 2.0
-            return loss.sum() / len(edges_packed)
-        # 3D
         return mesh_edge_loss(pred_meshes, target_length=self.target_length)
 
 
