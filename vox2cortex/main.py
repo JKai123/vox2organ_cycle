@@ -250,17 +250,6 @@ def main(hyper_ps):
     # Add patch size to model config
     hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
 
-    # Automatically choose template
-    hps['MODEL_CONFIG']['MESH_TEMPLATE'] = os.path.join(
-        hps['TEMPLATE_PATH'],
-        hps['TEMPLATE_NAME'](
-            hps['N_M_CLASSES'],
-            hps['N_TEMPLATE_VERTICES'],
-            hps['SELECT_PATCH_SIZE'],
-            hps['PATCH_SIZE']
-        )
-    )
-
     # Potentially overfit
     if hps['OVERFIT']:
         hps = update_dict(hps, hyper_ps_overfit)

@@ -5,6 +5,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import os
+import re
 import logging
 from copy import deepcopy
 
@@ -16,13 +17,12 @@ from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import CyclicLR
-from pytorch3d.structures import Pointclouds, Meshes
 
+from data.dataset_split_handler import dataset_split_handler
+from models.model_handler import ModelHandler
+from utils.template import load_mesh_template
 from utils.utils import string_dict, score_is_better
-from utils.losses import (
-    ChamferAndNormalsLoss,
-    ChamferLoss,
-)
+from utils.losses import ChamferAndNormalsLoss
 from utils.logging import (
     init_logging,
     init_wandb_logging,
@@ -35,15 +35,13 @@ from utils.logging import (
     measure_time,
     write_img_if_debug,
     log_deltaV,
-    log_model_tensorboard_if_debug,
-    log_val_results)
+    log_val_results
+)
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.losses import (
     all_linear_loss_combine,
 )
-from data.dataset_split_handler import dataset_split_handler
-from models.model_handler import ModelHandler
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
     BEST_MODEL_NAME,
@@ -123,13 +121,9 @@ class Solver():
         self.mesh_loss_func_weights_start = mesh_loss_func_weights
         self.penalize_displacement = penalize_displacement
         self.clip_gradient = clip_gradient
-        if any([isinstance(lf, ChamferAndNormalsLoss)
-                 for lf in self.mesh_loss_func]):
+        if any(isinstance(lf, ChamferAndNormalsLoss)
+               for lf in self.mesh_loss_func):
             assert len(mesh_loss_func) + 1 == len(mesh_loss_func_weights),\
-                    "Number of weights must be equal to number of mesh losses."
-        elif any([isinstance(lf, ChamferAndNormalsAndCurvatureLoss)
-                 for lf in self.mesh_loss_func]):
-            assert len(mesh_loss_func) + 2 == len(mesh_loss_func_weights),\
                     "Number of weights must be equal to number of mesh losses."
         else:
             assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
@@ -444,7 +438,6 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     """
 
     ###### Prepare training experiment ######
-
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
 
     if not resume:
@@ -514,20 +507,41 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         load_only=('train', 'validation'),
         **hps_lower
     )
-
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
     trainLogger.info("Minimum number of vertices in training set: %d.",
                      training_set.n_min_vertices)
 
-    ###### Training ######
+    ##### Load template ######
+    trans_affine = validation_set.get_item_and_mesh_from_index(0)[
+        'trans_affine_label'
+    ]
+    # All meshes should have the same transformation matrix
+    assert all(
+        np.allclose(
+            trans_affine,
+            validation_set.get_item_and_mesh_from_index(i)[
+                'trans_affine_label'
+            ]
+        )
+        for i in range(len(validation_set))
+    )
+    rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
+    template = load_mesh_template(
+        hps['MESH_TEMPLATE_PATH'],
+        list(map(rm_suffix, training_set.mesh_label_names)),
+        trans_affine=trans_affine
+    )
 
-    model = ModelHandler[hps['ARCHITECTURE']].value(\
-                                        ndims=hps['NDIMS'],
-                                        n_v_classes=hps['N_V_CLASSES'],
-                                        n_m_classes=hps['N_M_CLASSES'],
-                                        patch_shape=hps['PATCH_SIZE'],
-                                        **model_config)
+    ###### Training ######
+    model = ModelHandler[hps['ARCHITECTURE']].value(
+        ndims=hps['NDIMS'],
+        n_v_classes=hps['N_V_CLASSES'],
+        n_m_classes=hps['N_M_CLASSES'],
+        patch_shape=hps['PATCH_SIZE'],
+        mesh_template=template,
+        **model_config
+    )
     trainLogger.info("%d parameters in the model.", model.count_parameters())
     if resume:
         # Load state and epoch
@@ -544,8 +558,9 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         start_epoch = 1
 
     # Evaluation during training on validation set
-    evaluator = ModelEvaluator(eval_dataset=validation_set,
-                               save_dir=experiment_dir, **hps_lower)
+    evaluator = ModelEvaluator(
+        eval_dataset=validation_set, save_dir=experiment_dir, **hps_lower
+    )
 
     solver = Solver(evaluator=evaluator, save_path=experiment_dir, **hps_lower)
 

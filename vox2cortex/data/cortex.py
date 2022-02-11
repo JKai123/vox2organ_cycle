@@ -27,7 +27,7 @@ from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time, raise_warning
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
-from utils.ico_template import (
+from utils.template import (
     generate_sphere_template,
     generate_ellipsoid_template
 )

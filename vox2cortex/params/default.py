@@ -116,6 +116,10 @@ hyper_ps_default={
     # The number of vertices in a single template structure
     'N_TEMPLATE_VERTICES': 162,
 
+    # Template folder containing lh_white.ply, ... and
+    # lh_white.aparc.annot, ...
+    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage/v2c_template/',
+
     # Model params
     'MODEL_CONFIG': {
         'FIRST_LAYER_CHANNELS': 16,
@@ -128,7 +132,6 @@ hyper_ps_default={
         'NORM': 'none', # Only for graph convs, batch norm always used in voxel layers
         # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
-        'MESH_TEMPLATE': '../supplementary_material/spheres/icosahedron_162.obj',
         'UNPOOL_INDICES': [0,1,0,1,0],
         'USE_ADOPTIVE_UNPOOL': False,
         # Weighted feature aggregation in graph convs (only possible with

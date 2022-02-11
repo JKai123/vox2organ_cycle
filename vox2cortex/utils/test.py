@@ -15,6 +15,7 @@ from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
+from utils.template import load_mesh_template
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
@@ -106,14 +107,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
-    # Choose template according to the number of template vertices specified
-    # (which may be different than during training)
-    if hps['N_TEMPLATE_VERTICES'] != hps['N_TEMPLATE_VERTICES_TEST']:
-        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            hps['MODEL_CONFIG']['MESH_TEMPLATE'].replace(
-                str(hps['N_TEMPLATE_VERTICES']), str(hps['N_TEMPLATE_VERTICES_TEST'])
-            )
-    testLogger.info("Using template %s", hps['MODEL_CONFIG']['MESH_TEMPLATE'])
+    testLogger.info("Using template %s", hps['MESH_TEMPLATE_PATH'])
 
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict_to_lower_dict(training_hps)
@@ -139,10 +133,32 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         test_set = val_set
     testLogger.info("%d test files.", len(test_set))
 
+    # Load template
+    # All meshes should have the same transformation matrix
+    trans_affine = test_set.get_item_and_mesh_from_index(0)[
+        'trans_affine_label'
+    ]
+    assert all(
+        np.allclose(
+            trans_affine,
+            test_set.get_item_and_mesh_from_index(i)[
+                'trans_affine_label'
+            ]
+        )
+        for i in range(len(test_set))
+    )
+    rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
+    template = load_mesh_template(
+        hps['MESH_TEMPLATE_PATH'],
+        list(map(rm_suffix, training_set.mesh_label_names)),
+        trans_affine=trans_affine
+    )
+
     # Use current hps for testing. In particular, the evaluation metrics may be
     # different than during training.
-    evaluator = ModelEvaluator(eval_dataset=test_set, save_dir=test_dir,
-                               **hps_lower)
+    evaluator = ModelEvaluator(
+        eval_dataset=test_set, save_dir=test_dir, **hps_lower
+    )
 
     # Test models
     model = ModelHandler[training_hps['ARCHITECTURE']].value(

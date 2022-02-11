@@ -20,9 +20,8 @@ from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_structural_features,
     aggregate_from_indices
 )
-from utils.file_handle import read_obj
 from utils.logging import measure_time
-from utils.mesh import MeshesOfMeshes
+from utils.mesh import MeshesOfMeshes, Mesh
 from utils.coordinate_transform import (
     normalize_vertices,
     unnormalize_vertices,
@@ -35,7 +34,7 @@ class GraphDecoder(nn.Module):
     """
     def __init__(self,
                  norm: str,
-                 mesh_template: str,
+                 mesh_template: Mesh,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
                  graph_channels: Union[list, tuple],
@@ -167,37 +166,12 @@ class GraphDecoder(nn.Module):
         self.f2v_layers.apply(zero_weight_init)
 
         # Template (batch size 1)
-        sphere_path = mesh_template
-        raw_sphere_vertices, raw_sphere_faces, _ = read_obj(sphere_path)
-        raw_sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
-        raw_sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
-
-        # Re-normalize single-sphere template, keep others unmodified
-        if "/spheres/" in sphere_path or "icocircle" in sphere_path:
-            # Image coords
-            self.sphere_vertices, self.sphere_faces = unnormalize_vertices(
-                raw_sphere_vertices.view(-1, self.ndims),
-                patch_size,
-                raw_sphere_faces.view(-1, self.ndims)
-            )
-            # Mesh coords
-            self.sphere_vertices = normalize_vertices_per_max_dim(
-                self.sphere_vertices,
-                patch_size
-            ).view(raw_sphere_vertices.shape)[None]
-
-        else:
-            self.sphere_vertices = raw_sphere_vertices
-            self.sphere_faces = raw_sphere_faces
-
-        self.sphere_vertices = self.sphere_vertices.view_as(
-            raw_sphere_vertices
-        )[None]
-        self.sphere_faces = self.sphere_faces.view_as(raw_sphere_faces)[None]
+        self.sphere_vertices = mesh_template.vertices.cuda()[None]
+        self.sphere_faces = mesh_template.faces.cuda()[None]
 
         # Assert correctness of the structure grouping
         if group_structs:
-            n_m_classes = raw_sphere_vertices.shape[0]
+            n_m_classes = self.sphere_vertices.shape[1]
             gs_tensor = torch.tensor(group_structs)
             gs_unique = set(torch.unique(gs_tensor).tolist())
             assert len(set(range(n_m_classes)) - gs_unique) == 0,\

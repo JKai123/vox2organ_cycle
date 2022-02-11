@@ -1,13 +1,22 @@
 
-""" Utility functions for sphere templates. """
+""" Utility functions for templates. """
 
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
-from trimesh import Trimesh
+import os
+from collections.abc import Sequence
+
+import torch
+import trimesh
+import numpy as np
+import nibabel as nib
 from trimesh.scene.scene import Scene
 from pytorch3d.utils import ico_sphere
-import torch
+from pytorch3d.structures import Meshes
+
+from utils.coordinate_transform import transform_mesh_affine
+from utils.mesh import Mesh
 
 def generate_sphere_template(centers: dict, radii: dict, level=6):
     """ Generate a template with spheres centered at centers and corresponding
@@ -34,7 +43,7 @@ def generate_sphere_template(centers: dict, radii: dict, level=6):
         v = v.cpu().numpy()
         f = sphere.faces_packed().cpu().numpy()
 
-        mesh = Trimesh(v, f)
+        mesh = trimesh.Trimesh(v, f)
 
         scene.add_geometry(mesh, geom_name=k)
 
@@ -71,8 +80,50 @@ def generate_ellipsoid_template(centers: dict, radii_x: dict, radii_y: dict,
         v = v.cpu().numpy()
         f = sphere.faces_packed().cpu().numpy()
 
-        mesh = Trimesh(v, f)
+        mesh = trimesh.Trimesh(v, f)
 
         scene.add_geometry(mesh, geom_name=k)
 
     return scene
+
+
+def load_mesh_template(
+    path: str,
+    mesh_label_names: Sequence,
+    mesh_suffix: str=".smoothed",
+    feature_suffix: str=".aparc.annot",
+    trans_affine=torch.eye(4)
+):
+    vertices = []
+    faces = []
+    normals = []
+    features = []
+
+    # Load meshes and parcellation
+    for mn in mesh_label_names:
+        m = trimesh.load_mesh(
+            os.path.join(path, mn + mesh_suffix + ".ply"),
+            process=False
+        )
+        vertices.append(torch.from_numpy(m.vertices))
+        faces.append(torch.from_numpy(m.faces))
+
+        features.append(
+            torch.from_numpy(
+                nib.freesurfer.io.read_annot(
+                   os.path.join(path, mn + feature_suffix)
+                )[0].astype(np.float32)
+            )
+        )
+
+    vertices = torch.stack(vertices).float()
+    faces = torch.stack(faces).long()
+    features = torch.stack(features).float().unsqueeze(-1)
+
+    # Transform meshes
+    vertices, faces = transform_mesh_affine(vertices, faces, trans_affine)
+
+    # Compute normals
+    normals = Meshes(vertices, faces).verts_normals_padded()
+
+    return Mesh(vertices, faces, normals, features)
