@@ -4,6 +4,7 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import re
 import os
 import random
 import logging
@@ -128,7 +129,6 @@ class CortexDataset(DatasetHandler):
     corresponding to sample ids
     :param augment: Use image augmentation during training if 'True'
     :param patch_size: The patch size of the images, e.g. (256, 256, 256)
-    :param mesh_target_type: 'mesh' or 'pointcloud'
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param structure_type: Either 'white_matter' or 'cerebral_cortex'
@@ -162,11 +162,10 @@ class CortexDataset(DatasetHandler):
                  ids: Sequence,
                  mode: DataModes,
                  raw_data_dir: str,
-                 augment: bool,
                  patch_size,
-                 mesh_target_type: str,
                  n_ref_points_per_structure: int,
-                 structure_type: Union[str, Sequence],
+                 structure_type: Union[str, Sequence]=('white_matter', 'cerebral_cortex'),
+                 augment: bool=False,
                  patch_mode: str="no",
                  patch_origin=(0,0,0),
                  select_patch_size=None,
@@ -195,7 +194,6 @@ class CortexDataset(DatasetHandler):
         self._raw_data_dir = raw_data_dir
         self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
-        self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
         self._mc_step_size = kwargs.get('mc_step_size', 1)
         self.trans_affine = []
@@ -347,8 +345,9 @@ class CortexDataset(DatasetHandler):
             self.mesh_labels
          )
 
-        self.thickness_per_vertex = self._get_per_vertex_label("thickness",
-                                                               subfolder="")
+        self.thickness_per_vertex = self._get_morph_label(
+            "thickness", subfolder=""
+        )
 
 
     def _transform_meshes_as_images(self, img_transforms):
@@ -489,13 +488,14 @@ class CortexDataset(DatasetHandler):
 
         return path
 
-    @staticmethod
-    def split(raw_data_dir,
-              augment_train,
+    @classmethod
+    def split(cls,
+              raw_data_dir,
               save_dir,
+              augment_train=False,
               dataset_seed=0,
               dataset_split_proportions=None,
-              fixed_split: Union[dict, bool, Sequence]=False,
+              fixed_split: Union[dict, Sequence]=None,
               overfit=False,
               load_only=('train', 'validation', 'test'),
               **kwargs):
@@ -510,8 +510,8 @@ class CortexDataset(DatasetHandler):
         :param save_dir: A directory where the split ids can be saved.
         :param fixed_split: A dict containing file ids for 'train',
         'validation', and 'test'. If specified, values of dataset_seed,
-        overfit, and dataset_split_proportions will be ignored. If only 'True',
-        the fixed split IDs are read from a file.
+        overfit, and dataset_split_proportions will be ignored. Alternatively,
+        a sequence of files containing ids can be given.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
         :param load_only: Only return the splits specified (in the order train,
@@ -521,7 +521,7 @@ class CortexDataset(DatasetHandler):
         """
 
         # Decide between fixed and random split
-        if fixed_split:
+        if fixed_split is not None:
             if isinstance(fixed_split, dict):
                 files_train = fixed_split['train']
                 files_val = fixed_split['validation']
@@ -598,30 +598,30 @@ class CortexDataset(DatasetHandler):
 
         # Create train, validation, and test datasets
         if 'train' in load_only:
-            train_dataset = CortexDataset(
-                files_train,
-                DataModes.TRAIN,
-                raw_data_dir,
+            train_dataset = cls(
+                ids=files_train,
+                mode=DataModes.TRAIN,
+                raw_data_dir=raw_data_dir,
                 augment=augment_train,
                 **kwargs
             )
         else:
             train_dataset = None
         if 'validation' in load_only:
-            val_dataset = CortexDataset(
-                files_val,
-                DataModes.VALIDATION,
-                raw_data_dir,
+            val_dataset = cls(
+                ids=files_val,
+                mode=DataModes.VALIDATION,
+                raw_data_dir=raw_data_dir,
                 augment=False,
                 **kwargs
             )
         else:
             val_dataset = None
         if 'test' in load_only:
-            test_dataset = CortexDataset(
-                files_test,
-                DataModes.TEST,
-                raw_data_dir,
+            test_dataset = cls(
+                ids=files_test,
+                mode=DataModes.TEST,
+                raw_data_dir=raw_data_dir,
                 augment=False,
                 **kwargs
             )
@@ -640,26 +640,22 @@ class CortexDataset(DatasetHandler):
                 self.curvatures = self._load_ref_points()
 
     @measure_time
-    def get_item_from_index(self, index: int, mesh_target_type: str=None,
-                            *args, **kwargs):
+    def get_item_from_index(
+        self,
+        index: int,
+        mesh_target_type='mesh_no_faces'
+    ):
         """
-        One data item has the form
-        (image, voxel label, points, faces, normals, curvatures).
+        One data item of a certain type.
         """
-        # Use mesh target type of object if not specified
-        if mesh_target_type is None:
-            mesh_target_type = self._mesh_target_type
-
         # Raw data
         img = self.images[index]
         voxel_label = self.voxel_labels[index]
-        (target_points,
-         target_faces,
-         target_normals,
-         target_curvs) = self._get_mesh_target(index, mesh_target_type)
+        mesh_label = list(self._get_mesh_target(index, mesh_target_type))
 
         # Potentially augment
         if self._augment:
+            target_points, target_normals = mesh_label[0], mesh_label[1]
             assert all(
                 (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
             ), "Padding must be symmetric for augmentation."
@@ -686,58 +682,71 @@ class CortexDataset(DatasetHandler):
             img = torch.from_numpy(img)
             voxel_label = torch.from_numpy(voxel_label)
 
+            # Insert back to mesh label
+            mesh_label[0], mesh_label[1] = target_points, target_normals
 
         # Channel dimension
         img = img[None]
 
-        logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
-                                                      self._files[index])
+        logging.getLogger(ExecModes.TRAIN.name).debug(
+            "Dataset file %s", self._files[index]
+        )
 
         return (img,
                 voxel_label,
-                target_points,
-                target_faces,
-                target_normals,
-                target_curvs)
+                *mesh_label)
+
+    def _get_full_mesh_target(self, index):
+        points = self.mesh_labels[index].vertices
+        normals = self.mesh_labels[index].normals
+        faces = self.mesh_labels[index].faces
+        mesh = self.mesh_labels[index].to_pytorch3d_Meshes()
+        curvs = curv_from_cotcurv_laplacian(
+            mesh.verts_packed(),
+            mesh.faces_packed()
+        ).view(self.n_m_classes, -1, 1)
+
+        return points, normals, curvs, faces
+
+    def _get_mesh_target_no_faces(self, index):
+        points, normals, curvs = self._get_ref_points_from_index(index)
+
+        return points, normals, curvs
 
     def _get_mesh_target(self, index, target_type):
         """ Ground truth points and optionally normals """
-        if target_type == 'pointcloud':
-            points = self.point_labels[index]
-            normals = np.array([]) # Empty, not used
-            faces = np.array([]) # Empty, not used
-            curvs = np.array([]) # Empty, not used
-        elif target_type == 'mesh':
-            points, normals, curvs = self._get_ref_points_from_index(index)
-            faces = np.array([]) # Empty, not used
-        elif target_type == 'full_mesh':
-            points = self.mesh_labels[index].vertices
-            normals = self.mesh_labels[index].normals
-            faces = self.mesh_labels[index].faces
-            mesh = self.mesh_labels[index].to_pytorch3d_Meshes()
-            curvs = curv_from_cotcurv_laplacian(
-                mesh.verts_packed(),
-                mesh.faces_packed()
-            ).view(self.n_m_classes, -1, 1)
-        else:
-            raise ValueError("Invalid mesh target type.")
+        if target_type == 'mesh_no_faces':
+            # GT faces are usually not needed
+            return self._get_mesh_target_no_faces(index)
+        if target_type == 'full_mesh':
+            return self._get_full_mesh_target(index)
 
-        return points, faces, normals, curvs
+        raise ValueError("Invalid mesh target type.")
 
     def get_item_and_mesh_from_index(self, index):
-        """ Get image, segmentation ground truth and reference mesh"""
+        """ Get image, segmentation ground truth and full reference mesh. In
+        contrast to 'get_item_from_index', this function is usually used for
+        evaluation where the full mesh is needed in contrast to training where
+        different information might be required, e.g., no faces.
+        """
         (img,
          voxel_label,
          vertices,
-         faces,
-         normals, _) = self.get_item_from_index(
+         normals,
+         _, # curvs not required
+         faces) = self.get_item_from_index(
             index, mesh_target_type='full_mesh'
         )
         thickness = self.get_thickness_from_index(index)
         mesh_label = Mesh(vertices, faces, normals, thickness)
         trans_affine_label = self.trans_affine[index]
 
-        return img, voxel_label, mesh_label, trans_affine_label
+        return {
+            "img": img,
+            "voxel_label": voxel_label,
+            "mesh_label": mesh_label,
+            "trans_affine_label": trans_affine_label
+        }
 
     def get_thickness_from_index(self, index: int):
         """ Return per-vertex thickness of the ith dataset element if possible."""
@@ -914,14 +923,15 @@ class CortexDataset(DatasetHandler):
             file_faces = []
             for mn in meshnames:
                 try:
-                    mesh = trimesh.load_mesh(os.path.join(
-                        self._raw_data_dir, fn, mn + ".stl"
-                    ))
+                    mesh = trimesh.load_mesh(
+                        os.path.join(self._raw_data_dir, fn, mn + ".stl")
+                    )
                 except ValueError:
                     try:
-                        mesh = trimesh.load_mesh(os.path.join(
-                            self._raw_data_dir, fn, mn + ".ply"
-                        ))
+                        mesh = trimesh.load_mesh(
+                            os.path.join(self._raw_data_dir, fn, mn + ".ply"),
+                            process=False
+                        )
                     except Exception as e:
                         # Insert a dummy if dataset is test split
                         if self._mode != DataModes.TEST:
@@ -974,7 +984,7 @@ class CortexDataset(DatasetHandler):
 
         return data
 
-    def _get_ref_points_from_index(self, index):
+    def _get_ref_points_from_index(self, index, return_idx=False):
         """ Choose n reference points together with their normals and
         optionally curvature.
         """
@@ -1008,6 +1018,9 @@ class CortexDataset(DatasetHandler):
             )
         else:
             c = np.empty(p.shape[:-1] + (0,), dtype=np.uint8)
+
+        if return_idx:
+            return p, n, c, idx
 
         return p, n, c
 
@@ -1091,7 +1104,7 @@ class CortexDataset(DatasetHandler):
                              atol=7e-03)
         )
 
-    def _get_per_vertex_label(self, morphology, subfolder="surf"):
+    def _get_morph_label(self, morphology, subfolder="surf"):
         """ Load per-vertex labels, e.g., thickness values, from a freesurfer
         morphology (curv) file in the preprocessed data (FS) directory for each
         dataset sample.
@@ -1143,3 +1156,127 @@ class CortexDataset(DatasetHandler):
             morph_labels.append(torch.stack(file_labels_padded))
 
         return morph_labels
+
+
+class CortexParcellationDataset(CortexDataset):
+    """ CortexParcellationDataset extends CortexDataset to parcellation labels.
+    """
+    def __init__(
+        self,
+        ids: Sequence,
+        mode: DataModes,
+        raw_data_dir: str,
+        patch_size,
+        n_ref_points_per_structure: int,
+        **kwargs
+    ):
+        super().__init__(
+            ids,
+            mode,
+            raw_data_dir,
+            patch_size,
+            n_ref_points_per_structure,
+            **kwargs
+        )
+
+        (self.mesh_parc_labels,
+         self.parc_colors,
+         self.parc_info) = self.load_vertex_parc_labels()
+
+        breakpoint()
+
+    def _get_mesh_target_no_faces(self, index):
+        (points,
+         normals,
+         curvs,
+         mesh_parc_labels) = self._get_ref_points_from_index(index)
+
+        return points, normals, curvs, mesh_parc_labels
+
+    def get_item_and_mesh_from_index(self, index):
+        """ Get image, segmentation ground truth and full reference mesh. In
+        contrast to 'get_item_from_index', this function is usually used for
+        evaluation where the full mesh is needed in contrast to training where
+        different information might be required, e.g., no faces.
+        """
+        (img,
+         voxel_label,
+         mesh_label,
+         trans_affine_label) = super().get_item_and_mesh_from_index(index)
+
+        # Parcellation labels as mesh features
+        mesh_label.features = self.mesh_parc_labels[index]
+
+        return {
+            "img": img,
+            "voxel_label": voxel_label,
+            "mesh_label": mesh_label,
+            "trans_affine_label": trans_affine_label
+        }
+
+    def _get_ref_points_from_index(self, index, return_idx=False):
+        """ Choose n reference points together with their normals, parcellation
+        labels and optionally curvature.
+        """
+        pts, normals, curvs, idx = super()._get_ref_points_from_index(
+            index, return_idx=True
+        )
+
+        # Parcellation labels
+        parcs = self.mesh_parc_labels[index][idx.unbind(1)].view(
+            self.n_m_classes, -1, 1
+        )
+
+        if return_idx:
+            return pts, normals, curvs, parcs, idx
+
+        return pts, normals, curvs, parcs
+
+    def load_vertex_parc_labels(self):
+        """ Load labels (classes) for each vertex.
+        """
+        vertex_labels = []
+        label_info = None
+        label_colors = None
+        V_max = 0
+
+        # Iterate over subjects
+        for fn in tqdm(
+            self._files,
+            leave=True,
+            position=0,
+            desc="Loading parcellation labels..."
+        ):
+            file_dir = os.path.join(
+                self._raw_data_dir, fn
+            )
+            file_labels = []
+            V_max = 0
+            for mn in self.mesh_label_names:
+                # Filenames have the form
+                # 'lh_white_reduced.aparc.DKTatlas40.annot'
+                label_fn = re.sub(r"_0\..", "", mn) + ".aparc.DKTatlas40.annot"
+                label_fn = os.path.join(file_dir, label_fn)
+                (label,
+                 label_colors,
+                 label_info) = nib.freesurfer.io.read_annot(label_fn)
+
+                # !!!! Shift labels from [-1, 35] to [0, 36]
+                label = label + 1
+
+                file_labels.append(
+                    torch.from_numpy(label)
+                )
+                if label.shape[0] > V_max:
+                    V_max = label.shape[0]
+
+            # Pad values with -1
+            file_labels_padded = []
+            for fl in file_labels:
+                file_labels_padded.append(
+                    F.pad(fl, (0, V_max - fl.shape[0]), value=-1)
+                )
+
+            vertex_labels.append(torch.stack(file_labels_padded))
+
+        return vertex_labels, label_colors, label_info

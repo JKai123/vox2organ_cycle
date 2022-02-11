@@ -26,12 +26,15 @@ class Mesh():
     :param normals: Vertex normals
     :param features: Vertex features
     """
-    def __init__(self, vertices, faces, normals=None, features=None):
+    def __init__(self, vertices, faces, normals=None, features=None,
+                 verts_padding=0.0, faces_padding=-1):
         self._vertices = vertices
         self._faces = faces
         self._ndims = vertices.shape[-1]
         self.normals = normals
         self.features = features
+        self.verts_padding = verts_padding
+        self.faces_padding = faces_padding
 
     @property
     def vertices(self):
@@ -88,7 +91,9 @@ class Mesh():
             else: # Vx3, Fx3
                 vertices = self.vertices.cpu().numpy()
                 # Remove padded faces
-                faces = self.faces[(self.faces != -1).any(dim=1)].cpu().numpy()
+                faces = self.faces[
+                    (self.faces != self.faces_padding).any(dim=1)
+                ].cpu().numpy()
         else:
             # numpy
             vertices = self.vertices
@@ -116,6 +121,37 @@ class Mesh():
         'store_with_features'.  """
         t_mesh = self.to_trimesh()
         t_mesh.export(path)
+
+        return
+
+    def store_sub_meshes(self, path: str):
+        """ Store each 'submesh' individually. """
+        if self.vertices.dim() == 2:
+            self.store(path)
+            return
+
+        if self.vertices.dim() != 3:
+            raise ValueError("Invalid dim of mesh tensor.")
+
+        for i, (v, f, ff) in enumerate(
+            zip(self.vertices, self.faces, self.features)
+        ):
+            to_np = lambda x: x if isinstance(
+                x, np.ndarray
+            ) else x.cpu().numpy()
+            v, f, ff = to_np(v), to_np(f), to_np(ff)
+
+            nV = (v != self.verts_padding).sum(axis=0)[0]
+            nF = (f != self.faces_padding).sum(axis=0)[0]
+
+            mesh_type = path.split(".")[-1]
+            Trimesh(v[:nV], f[:nF], process=False).export(
+                "".join(path.split(".")[:-1]) + str(i) + "." + mesh_type
+            )
+            np.save(
+                "".join(path.split(".")[:-1]) + str(i) + ".features.npy",
+                ff[:nV]
+            )
 
     def store_with_features(self, path: str, vmin: float=0.1, vmax: float=3.0):
         """ Store a mesh together with its morphology features. Default vmin

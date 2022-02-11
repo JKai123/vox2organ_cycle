@@ -82,18 +82,21 @@ class ModelEvaluator():
         # Iterate over data split
         for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
             data = self._dataset.get_item_and_mesh_from_index(i)
-            write_img_if_debug(data[1].squeeze().cpu().numpy(),
-                               "../misc/raw_voxel_target_img_eval.nii.gz")
-            write_img_if_debug(data[0].squeeze().cpu().numpy(),
+            write_img_if_debug(data['img'].squeeze().cpu().numpy(),
                                "../misc/raw_voxel_input_img_eval.nii.gz")
+            write_img_if_debug(data['voxel_label'].squeeze().cpu().numpy(),
+                               "../misc/raw_voxel_target_img_eval.nii.gz")
             with torch.no_grad():
-                pred = model(data[0][None].cuda())
+                pred = model(data['img'][None].cuda())
 
             for metric in self._eval_metrics:
-                res = EvalMetricHandler[metric](pred, data,
-                                                self._n_v_classes,
-                                                self._n_m_classes,
-                                                model_class)
+                res = EvalMetricHandler[metric](
+                    pred,
+                    data,
+                    self._n_v_classes,
+                    self._n_m_classes,
+                    model_class
+                )
                 add_to_results_(results_all, metric, res)
 
             if i < save_meshes: # Store meshes for visual inspection
@@ -133,7 +136,7 @@ class ModelEvaluator():
                     except:
                         print("Error while deleting file ", f)
         # Data
-        img = data[0].squeeze()
+        img = data['img'].squeeze()
         if img.ndim == 3:
             img_filename = filename + "_mri.nii.gz"
             img_filename = os.path.join(self._mesh_dir, img_filename)
@@ -142,7 +145,7 @@ class ModelEvaluator():
                 nib.save(nib_img, img_filename)
 
         # Label
-        gt_mesh = data[2]
+        gt_mesh = data['mesh_label']
         ndims = gt_mesh.ndims
         logging.getLogger(ExecModes.TEST.name).debug(
             "%d vertices in ground truth mesh",
