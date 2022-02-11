@@ -153,7 +153,7 @@ class ModelEvaluator():
         )
         # Store ground truth if it does not exist yet
         if ndims == 3:
-            trans_affine = data[3]
+            trans_affine = data['trans_affine_label']
             # Back to original coordinate space
             if convert_to_orig_coords:
                 new_vertices, new_faces = transform_mesh_affine(

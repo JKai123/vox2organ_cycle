@@ -218,7 +218,7 @@ hyper_ps_default={
 
     # Whether to use curvatures of the meshes. If set to True, the ground truth
     # points are vertices and not sampled surface points
-    'PROVIDE_CURVATURES': False,
+    'PROVIDE_CURVATURES': True,
 
     # Data augmentation
     'AUGMENT_TRAIN': False,

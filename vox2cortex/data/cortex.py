@@ -990,7 +990,7 @@ class CortexDataset(DatasetHandler):
         """
         # Points/vertices
         if (self.gt_points_type == 'vertices' and
-            self.n_ref_points_per_structure < self.n_min_vertices):
+            self.n_ref_points_per_structure > self.n_min_vertices):
             raise_warning(
                 "Padded vertices will not be ignored in ground truth."
             )
@@ -1183,8 +1183,6 @@ class CortexParcellationDataset(CortexDataset):
          self.parc_colors,
          self.parc_info) = self.load_vertex_parc_labels()
 
-        breakpoint()
-
     def _get_mesh_target_no_faces(self, index):
         (points,
          normals,
@@ -1199,20 +1197,12 @@ class CortexParcellationDataset(CortexDataset):
         evaluation where the full mesh is needed in contrast to training where
         different information might be required, e.g., no faces.
         """
-        (img,
-         voxel_label,
-         mesh_label,
-         trans_affine_label) = super().get_item_and_mesh_from_index(index)
+        data = super().get_item_and_mesh_from_index(index)
 
         # Parcellation labels as mesh features
-        mesh_label.features = self.mesh_parc_labels[index]
+        data['mesh_label'].features = self.mesh_parc_labels[index]
 
-        return {
-            "img": img,
-            "voxel_label": voxel_label,
-            "mesh_label": mesh_label,
-            "trans_affine_label": trans_affine_label
-        }
+        return data
 
     def _get_ref_points_from_index(self, index, return_idx=False):
         """ Choose n reference points together with their normals, parcellation

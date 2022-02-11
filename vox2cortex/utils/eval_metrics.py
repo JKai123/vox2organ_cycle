@@ -115,7 +115,7 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
         raise ValueError("Cortical thickness score requires 2 or 4 surface meshes.")
 
     gt_mesh = data['mesh_label']
-    trans_affine = data[3]
+    trans_affine = data['trans_affine_label']
     # Back to original coordinate space
     new_vertices, new_faces = transform_mesh_affine(
         gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)

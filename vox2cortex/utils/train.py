@@ -180,23 +180,21 @@ class Solver():
     @measure_time
     def compute_loss(self, model, data, iteration) -> torch.tensor:
         # Chop data
-        x, y, points, faces, normals, curvs = data
+        x, y, points, normals, curvs, parcs = data
         self.trainLogger.debug(
             "%d reference points in ground truth", points.shape[-2]
         )
-        if normals.nelement() == 0:
-            # Only point reference
-            mesh_target = [Pointclouds(p).cuda() for p in points.permute(1,0,2,3)]
-        else:
-            # Points and normals and curvatures as reference. Loss calculation
-            # iterates over number of mesh classes (structures) --> change
-            # channel and batch dimension.
-            mesh_target = [
-                (p.cuda(), n.cuda(), c.cuda()) for p, n, c in
-                zip(points.permute(1,0,2,3),
+        # Loss calculation iterates over number of mesh classes (structures)
+        # --> change channel and batch dimension.
+        mesh_target = [
+            (pnt.cuda(), norm.cuda(), curv.cuda(), parc.cuda())
+            for pnt, norm, curv, parc in zip(
+                points.permute(1,0,2,3),
                 normals.permute(1,0,2,3),
-                curvs.permute(1,0,2,3))
-            ]
+                curvs.permute(1,0,2,3),
+                parcs.permute(1,0,2,3)
+            )
+        ]
 
         # Predict
         with autocast(self.mixed_precision):
