@@ -90,8 +90,8 @@ def generate_ellipsoid_template(centers: dict, radii_x: dict, radii_y: dict,
 def load_mesh_template(
     path: str,
     mesh_label_names: Sequence,
-    mesh_suffix: str=".smoothed",
-    feature_suffix: str=".aparc.annot",
+    mesh_suffix: str="smoothed_reduced.ply",
+    feature_suffix: str="_reduced.aparc.annot",
     trans_affine=torch.eye(4)
 ):
     vertices = []
@@ -102,7 +102,7 @@ def load_mesh_template(
     # Load meshes and parcellation
     for mn in mesh_label_names:
         m = trimesh.load_mesh(
-            os.path.join(path, mn + mesh_suffix + ".ply"),
+            os.path.join(path, mn + mesh_suffix),
             process=False
         )
         vertices.append(torch.from_numpy(m.vertices))

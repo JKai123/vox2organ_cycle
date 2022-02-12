@@ -47,7 +47,7 @@ hyper_ps = {
     'SANITY_CHECK_DATA': False, # Save some memory
 
     # Learning
-    'N_EPOCHS': 100,
+    'N_EPOCHS': 1,
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
@@ -60,7 +60,7 @@ hyper_ps = {
     'UNCERTAINTY': 'mc',
 
     # Evaluation
-    'TEST_SPLIT': 'validation',
+    'TEST_SPLIT': 'test',
 }
 
 mode_handler = {
@@ -147,11 +147,11 @@ def main(hyper_ps):
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
-    argparser.add_argument('--n_test_vertices',
-                           type=int,
-                           default=hyper_ps_default['N_TEMPLATE_VERTICES_TEST'],
-                           help="Set the number of template vertices during"
-                           " testing.")
+    argparser.add_argument('--test_on_large',
+                           dest='reduced_template',
+                           action='store_false',
+                           default=hyper_ps_default['REDUCED_TEMPLATE'],
+                           help="Test on the large fsaverage template.")
     argparser.add_argument('--ablation_study',
                            type=str,
                            nargs=1,
@@ -207,8 +207,8 @@ def main(hyper_ps):
     hps['PARAMS_TO_FINE_TUNE'] = ovwr(
         'PARAMS_TO_FINE_TUNE', args.params_to_fine_tune
     )
-    hps['N_TEMPLATE_VERTICES_TEST'] = ovwr(
-        'N_TEMPLATE_VERTICES_TEST', args.n_test_vertices
+    hps['REDUCED_TEMPLATE'] = ovwr(
+        'REDUCED_TEMPLATE', args.reduced_template
     )
     hps['USE_WANDB'] = args.use_wandb
 
@@ -228,10 +228,6 @@ def main(hyper_ps):
     # Potentially set params for ablation study
     if args.ablation_study:
         set_ablation_params_(hps, args.ablation_study[0])
-
-    # Set the number of test vertices
-    if hps['N_TEMPLATE_VERTICES_TEST'] == -1:
-        hps['N_TEMPLATE_VERTICES_TEST'] = hps['N_TEMPLATE_VERTICES']
 
     # Set execution mode
     if args.params_to_tune or args.params_to_fine_tune:

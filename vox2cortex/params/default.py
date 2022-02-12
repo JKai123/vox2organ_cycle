@@ -48,15 +48,6 @@ hyper_ps_default={
     # Miscellanous output
     'MISC_DIR': "../misc",
 
-    # The path where templates are stored
-    'TEMPLATE_PATH': "../supplementary_material/white_pial/",
-
-    # The template name in dependence of the number of vertices N,
-    # 'SELECT_PATH_SIZE' (sps) and 'PATCH_SIZE' (ps)
-    'TEMPLATE_NAME': (
-        lambda M, N, sps, ps: f"cortex_{M}_1000_3_smoothed_{N}_sps{sps}_ps{ps}.obj"
-    ),
-
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",
 
@@ -113,12 +104,12 @@ hyper_ps_default={
     # The architecture to use
     'ARCHITECTURE': 'vox2cortex',
 
-    # The number of vertices in a single template structure
-    'N_TEMPLATE_VERTICES': 162,
-
     # Template folder containing lh_white.ply, ... and
     # lh_white.aparc.annot, ...
-    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage/v2c_template/',
+    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage70/v2c_template/',
+
+    # Whether to use a reduced (smaller) template
+    'REDUCED_TEMPLATE': True,
 
     # Model params
     'MODEL_CONFIG': {
@@ -267,11 +258,6 @@ hyper_ps_default={
     # For testing the model from a certain training epoch; if None, the final
     # model is used
     'TEST_MODEL_EPOCH': None,
-
-    # The number of vertices in a single template structure used during testing
-    # (may be different than 'N_TEMPLATE_VERTICES'; -1 means that
-    # 'N_TEMPLATE_VERTICES' is used)
-    'N_TEMPLATE_VERTICES_TEST': -1,
 
     # Either 'test' or 'validation'
     'TEST_SPLIT': 'test',

@@ -37,7 +37,6 @@ hyper_ps_groups = {
         'N_M_CLASSES': 2,
         'PATCH_SIZE': [64, 144, 128],
         'SELECT_PATCH_SIZE': [96, 208, 192],
-        'N_TEMPLATE_VERTICES': 41602,
         'MODEL_CONFIG': {
             # Bayesian vox2cortex
             'UNCERTAINTY': 'mc_10',
@@ -82,7 +81,6 @@ hyper_ps_groups = {
         'N_M_CLASSES': 2,
         'PATCH_SIZE': [64, 144, 128],
         'SELECT_PATCH_SIZE': [96, 208, 192],
-        'N_TEMPLATE_VERTICES': 41602,
         'MODEL_CONFIG': {
             # Bayesian vox2cortex
             'UNCERTAINTY': 'mc_10',
@@ -128,7 +126,6 @@ hyper_ps_groups = {
         'N_M_CLASSES': 4,
         'PATCH_SIZE': [128, 144, 128],
         'SELECT_PATCH_SIZE': [192, 208, 192],
-        'N_TEMPLATE_VERTICES': 42016,
         'MODEL_CONFIG': {
             # Bayesian vox2cortex
             'UNCERTAINTY': 'mc_10',

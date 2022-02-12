@@ -4,12 +4,14 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import re
 import os
 import logging
 import json
 
 import torch
 from torch.nn import Dropout
+import numpy as np
 
 from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict, update_dict
@@ -95,7 +97,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         experiment_dir,
         test_split
         + "_template_"
-        + str(hps['N_TEMPLATE_VERTICES_TEST'])
+        + ("reduced" if hps['REDUCED_TEMPLATE'] else "full")
         + f"_{hps['DATASET']}"
     )
     if not os.path.isdir(test_dir):
@@ -107,7 +109,11 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
-    testLogger.info("Using template %s", hps['MESH_TEMPLATE_PATH'])
+    testLogger.info(
+        "Using template %s reduced=%b",
+        hps['MESH_TEMPLATE_PATH'],
+        hps['REDUCED_TEMPLATE']
+    )
 
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict_to_lower_dict(training_hps)
@@ -116,7 +122,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Check if model configs are equal (besides template)
     for k, v in string_dict(model_config).items():
         v_train = training_hps_lower['model_config'][k]
-        if v_train != v and k != 'mesh_template':
+        if v_train != v:
             raise RuntimeError(f"Hyperparameter {k.upper()} is not equal to the"\
                                " model that should be tested. Values are "\
                                f" {v_train} and {v}.")
@@ -148,9 +154,17 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         for i in range(len(test_set))
     )
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
+    if hps['REDUCED_TEMPLATE']:
+        mesh_suffix: str="_smoothed_reduced.ply"
+        feature_suffix: str="_reduced.aparc.annot"
+    else:
+        mesh_suffix: str="_smoothed.ply"
+        feature_suffix: str=".aparc.annot"
     template = load_mesh_template(
         hps['MESH_TEMPLATE_PATH'],
-        list(map(rm_suffix, training_set.mesh_label_names)),
+        list(map(rm_suffix, test_set.mesh_label_names)),
+        mesh_suffix=mesh_suffix,
+        feature_suffix=feature_suffix,
         trans_affine=trans_affine
     )
 
@@ -166,6 +180,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         n_v_classes=training_hps['N_V_CLASSES'],
         n_m_classes=training_hps['N_M_CLASSES'],
         patch_shape=training_hps['PATCH_SIZE'],
+        mesh_template=template,
         **model_config
     ).float()
 

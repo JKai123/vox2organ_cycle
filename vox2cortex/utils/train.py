@@ -527,9 +527,17 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         for i in range(len(validation_set))
     )
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
+    if hps['REDUCED_TEMPLATE']:
+        mesh_suffix: str="_smoothed_reduced.ply"
+        feature_suffix: str="_reduced.aparc.annot"
+    else:
+        mesh_suffix: str="_smoothed.ply"
+        feature_suffix: str=".aparc.annot"
     template = load_mesh_template(
         hps['MESH_TEMPLATE_PATH'],
         list(map(rm_suffix, training_set.mesh_label_names)),
+        mesh_suffix=mesh_suffix,
+        feature_suffix=feature_suffix,
         trans_affine=trans_affine
     )
 
