@@ -126,10 +126,10 @@ class Vox2Cortex(V2MModel):
         pred_meshes, pred_deltaV = self.graph_net(encoder_skips + decoder_skips)
 
         # pred has the form
-        # ( - batch of pytorch3d prediction Meshes with the last 3 features
-        #     being the actual coordinates
+        #   - batch of predicted meshes
         #   - batch of voxel predictions,
-        #   - batch of displacements)
+        #   - batch of displacements (also stored as meshes but with
+        #   coordinates representing displacements)
         pred = (pred_meshes, seg_out, pred_deltaV)
 
         return pred
