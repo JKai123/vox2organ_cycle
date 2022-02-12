@@ -112,7 +112,7 @@ def load_mesh_template(
             torch.from_numpy(
                 nib.freesurfer.io.read_annot(
                    os.path.join(path, mn + feature_suffix)
-                )[0].astype(np.float32)
+                )[0].astype(np.float32) + 1.0 # Remap -1 --> 0
             )
         )
 

@@ -1251,7 +1251,7 @@ class CortexParcellationDataset(CortexDataset):
                  label_colors,
                  label_info) = nib.freesurfer.io.read_annot(label_fn)
 
-                # !!!! Shift labels from [-1, 35] to [0, 36]
+                # !!!! Remap labels from [-1, 35] to [0, 36]
                 label = label + 1
 
                 file_labels.append(

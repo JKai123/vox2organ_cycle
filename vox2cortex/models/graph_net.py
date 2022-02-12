@@ -166,6 +166,7 @@ class GraphDecoder(nn.Module):
         self.f2v_layers.apply(zero_weight_init)
 
         # Template (batch size 1)
+        self.mesh_template = mesh_template
         self.sphere_vertices = mesh_template.vertices.cuda()[None]
         self.sphere_faces = mesh_template.faces.cuda()[None]
 
@@ -303,8 +304,9 @@ class GraphDecoder(nn.Module):
                     )
 
                 # New latent features
-                new_meshes = MeshesOfMeshes(vertices_padded, faces_padded,
-                                            latent_features_padded)
+                new_meshes = MeshesOfMeshes(
+                    vertices_padded, faces_padded, latent_features_padded
+                )
                 edges_packed = new_meshes.edges_packed()
                 if self.propagate_coords:
                     latent_features_packed = new_meshes.features_verts_packed()
@@ -338,5 +340,13 @@ class GraphDecoder(nn.Module):
 
                 pred_meshes.append(new_meshes)
                 pred_deltaV.append(new_deltaV_mesh)
+
+            # Replace features with template features (e.g. vertex classes)
+            for m in pred_meshes:
+                m.update_features(
+                    self.mesh_template.features.expand(
+                        batch_size, M, V, -1
+                    ).cuda()
+                )
 
         return pred_meshes, pred_deltaV

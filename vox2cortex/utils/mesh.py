@@ -324,6 +324,31 @@ class MeshesOfMeshes():
             return self._features_padded.view(-1, C)
         return None
 
+def vff_to_Meshes(verts, faces, features, ndim):
+    """ Convert lists of vertices and faces to lists of
+    pytorch3d.structures.Meshes. Since pytorch3d meshes do not support
+    features, we treat them as 'verts_normals' (repeated along dim-axis).
+
+    :param verts: Lists of vertices.
+    :param faces: Lists of faces.
+    :param ndim: The list dimensions.
+    :returns: A list of Meshes of dimension n_dim.
+    """
+    meshes = []
+    for v, f, ff in zip(verts, faces, features):
+        if ndim > 1:
+            meshes.append(vff_to_Meshes(v, f, ff, ndim-1))
+        else:
+            meshes.append(
+                Meshes(
+                    verts=list(v),
+                    faces=list(f),
+                    verts_normals=list(ff.expand(-1, -1, 3))
+                )
+            )
+
+    return meshes
+
 def verts_faces_to_Meshes(verts, faces, ndim):
     """ Convert lists of vertices and faces to lists of
     pytorch3d.structures.Meshes

@@ -201,6 +201,91 @@ class ChamferAndNormalsLoss(MeshLoss):
         return torch.stack([d_chamfer, d_cosine])
 
 
+class HackyChamferAndNormalsLoss(ChamferAndNormalsLoss):
+    """ Preliminary implementation of class-specific ChamferAndNormalsLoss.
+    """
+
+    def __init__(self, curv_weight_max=None):
+        super().__init__()
+        self.curv_weight_max = curv_weight_max
+
+    def __str__(self):
+        return f"ChamferAndNormalsLoss(curv_weight_max={self.curv_weight_max})"
+
+    def get_loss(self, pred_meshes, target):
+        # Chop
+        target_points, target_normals, target_curvs, target_classes = target
+        batch_size, n_points, dim = target_points.shape
+        # Normals contain classes
+        pred_classes = pred_meshes.verts_normals_padded()[:, :, 0].long()
+        # TODO: Implement sampling with classes; Attention when giving
+        # pred_meshes to such a method, might use verts_normals which are hacky
+        # here!!!
+        # pred_points, pred_normals = sample_points_from_meshes(
+            # pred_meshes, n_points, return_normals=True
+        # )
+        # Tmp solution: Don't sample but use vertices
+        pred_points = pred_meshes.verts_padded()
+        # True normals
+        pred_normals = Meshes(
+            pred_meshes.verts_padded(),
+            pred_meshes.faces_padded()
+        ).verts_normals_padded()
+
+        point_weights = point_weigths_from_curvature(
+            target_curvs, target_points, self.curv_weight_max
+        ) if self.curv_weight_max else None
+
+        # Ignore here
+        # pred_lengths = (~torch.isclose(
+            # pred_points, self.ignore_coordinates.to(pred_points.device)
+        # ).all(dim=2)).sum(dim=1)
+        # target_lengths = (~torch.isclose(
+            # target_points, self.ignore_coordinates.to(pred_points.device)
+        # ).all(dim=2)).sum(dim=1)
+
+        d_chamfer = 0.0
+        d_cosine = 0.0
+        weight_sum = 0.0
+        # Iterate over vertex classes
+        classes= target_classes[target_classes != -1].unique()
+        for cls in classes:
+            pred_cls = pred_classes == cls
+            pred_p = pred_points[pred_cls].view((batch_size, -1, dim))
+            pred_n = pred_normals[pred_cls].view((batch_size, -1, dim))
+
+            target_cls = (target_classes == cls).squeeze(-1)
+            target_p = target_points[target_cls].view((batch_size, -1, dim))
+            target_n = target_normals[target_cls].view((batch_size, -1, dim))
+            point_w = point_weights[target_cls].view((batch_size, -1, 1))
+
+            losses = chamfer_distance(
+                pred_p,
+                target_p,
+                x_normals=pred_n,
+                y_normals=target_n,
+                point_weights=point_w,
+                return_point_weight_sum=True,
+                oriented_cosine_similarity=True,
+                batch_reduction='sum',
+                point_reduction='sum'
+            )
+            d_chamfer += losses[0]
+            d_cosine += losses[1]
+            weight_sum += losses[2]
+
+        # Reduction
+        # TODO: Use reduction by point weights
+        # d_chamfer /= weight_sum
+        d_chamfer /= (pred_points.shape[1] + target_points.shape[1])
+        d_chamfer /= batch_size
+        # Cosine distance not weighted
+        d_cosine /= (pred_points.shape[1] + target_points.shape[1])
+        d_cosine /= batch_size
+
+        return torch.stack([d_chamfer, d_cosine])
+
+
 class LaplacianLoss(MeshLoss):
     def __init(self):
         super().__init__()

@@ -23,6 +23,12 @@ from utils.ablation_study import (
     AVAILABLE_ABLATIONS,
     set_ablation_params_
 )
+from utils.losses import (
+    HackyChamferAndNormalsLoss,
+    LaplacianLoss,
+    NormalConsistencyLoss,
+    EdgeLoss
+)
 
 
 # Overwrite params for overfitting (often useful for debugging and development)
@@ -41,13 +47,21 @@ hyper_ps = {
     #######################
 
     # Parameter group
-    'GROUP_NAME': 'Bayesian Vox2Cortex no-patch',
+    'GROUP_NAME': 'default',
+
+    # WIP
+    'MESH_LOSS_FUNC': [
+       HackyChamferAndNormalsLoss(curv_weight_max=5.0),
+       LaplacianLoss(),
+       NormalConsistencyLoss(),
+       EdgeLoss(0.0)
+    ],
 
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
 
     # Learning
-    'N_EPOCHS': 1,
+    'N_EPOCHS': 100,
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
