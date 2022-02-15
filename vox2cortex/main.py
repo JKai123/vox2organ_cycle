@@ -56,6 +56,7 @@ hyper_ps = {
        NormalConsistencyLoss(),
        EdgeLoss(0.0)
     ],
+    'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
 
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
