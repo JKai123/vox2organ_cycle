@@ -110,7 +110,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         training_hps = json.load(f)
 
     testLogger.info(
-        "Using template %s reduced=%b",
+        "Using template %s reduced=%r",
         hps['MESH_TEMPLATE_PATH'],
         hps['REDUCED_TEMPLATE']
     )
