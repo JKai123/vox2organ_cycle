@@ -325,12 +325,12 @@ class MeshesOfMeshes():
         return None
 
 def vff_to_Meshes(verts, faces, features, ndim):
-    """ Convert lists of vertices and faces to lists of
-    pytorch3d.structures.Meshes. Since pytorch3d meshes do not support
-    features, we treat them as 'verts_normals' (repeated along dim-axis).
+    """ Convert lists of vertices, faces, and vertex features to lists of
+    pytorch3d.structures.Meshes.
 
     :param verts: Lists of vertices.
     :param faces: Lists of faces.
+    :param features: Lists of vertex features.
     :param ndim: The list dimensions.
     :returns: A list of Meshes of dimension n_dim.
     """
@@ -343,7 +343,7 @@ def vff_to_Meshes(verts, faces, features, ndim):
                 Meshes(
                     verts=list(v),
                     faces=list(f),
-                    verts_normals=list(ff.expand(-1, -1, 3))
+                    verts_features=list(ff)
                 )
             )
 

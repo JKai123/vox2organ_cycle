@@ -24,7 +24,7 @@ from utils.ablation_study import (
     set_ablation_params_
 )
 from utils.losses import (
-    HackyChamferAndNormalsLoss,
+    ClassAgnosticChamferAndNormalsLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss
@@ -51,7 +51,7 @@ hyper_ps = {
 
     # WIP
     'MESH_LOSS_FUNC': [
-       HackyChamferAndNormalsLoss(curv_weight_max=5.0),
+       ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
        LaplacianLoss(),
        NormalConsistencyLoss(),
        EdgeLoss(0.0)

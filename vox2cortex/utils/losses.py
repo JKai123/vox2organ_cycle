@@ -19,12 +19,15 @@ from typing import Union
 from collections.abc import Sequence
 
 import torch
+import torch.nn.functional as F
 import pytorch3d.structures
-from pytorch3d.structures import Meshes
-from pytorch3d.loss import (chamfer_distance,
-                            mesh_edge_loss,
-                            mesh_laplacian_smoothing,
-                            mesh_normal_consistency)
+from pytorch3d.structures import Meshes, Pointclouds
+from pytorch3d.loss import (
+    chamfer_distance,
+    mesh_edge_loss,
+    mesh_laplacian_smoothing,
+    mesh_normal_consistency
+)
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 
@@ -201,87 +204,96 @@ class ChamferAndNormalsLoss(MeshLoss):
         return torch.stack([d_chamfer, d_cosine])
 
 
-class HackyChamferAndNormalsLoss(ChamferAndNormalsLoss):
+class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
     """ Preliminary implementation of class-specific ChamferAndNormalsLoss.
     """
 
-    def __init__(self, curv_weight_max=None):
+    def __init__(self, curv_weight_max=None, class_weights=None):
         super().__init__()
         self.curv_weight_max = curv_weight_max
+        self.class_weights = class_weights
 
     def __str__(self):
-        return f"ChamferAndNormalsLoss(curv_weight_max={self.curv_weight_max})"
+        return f"ClassAgnosticChamferAndNormalsLoss(curv_weight_max={self.curv_weight_max})"
 
     def get_loss(self, pred_meshes, target):
+        """ ChamferAndNormalsLoss per vertex class, i.e., vertices of a certain
+        class only 'see' ground truth points of the same class.
+        """
+        d_chamfer = 0.0
+        d_cosine = 0.0
+
         # Chop
         target_points, target_normals, target_curvs, target_classes = target
-        batch_size, n_points, dim = target_points.shape
-        # Normals contain classes
-        pred_classes = pred_meshes.verts_normals_padded()[:, :, 0].long()
-        # TODO: Implement sampling with classes; Attention when giving
-        # pred_meshes to such a method, might use verts_normals which are hacky
-        # here!!!
-        # pred_points, pred_normals = sample_points_from_meshes(
-            # pred_meshes, n_points, return_normals=True
-        # )
-        # Tmp solution: Don't sample but use vertices
-        pred_points = pred_meshes.verts_padded()
-        # True normals
-        pred_normals = Meshes(
-            pred_meshes.verts_padded(),
-            pred_meshes.faces_padded()
-        ).verts_normals_padded()
-
+        batch_size, n_points, _ = target_points.shape
+        # Sample points on meshes. Predicted classes are assigned to sampled
+        # points by majority voting
+        pred_points, pred_normals, pred_classes = sample_points_from_meshes(
+            pred_meshes,
+            n_points,
+            return_normals=True,
+            interpolate_features='majority'
+        )
+        # Curvature weights
         point_weights = point_weigths_from_curvature(
             target_curvs, target_points, self.curv_weight_max
         ) if self.curv_weight_max else None
 
-        # Ignore here
-        # pred_lengths = (~torch.isclose(
-            # pred_points, self.ignore_coordinates.to(pred_points.device)
-        # ).all(dim=2)).sum(dim=1)
-        # target_lengths = (~torch.isclose(
-            # target_points, self.ignore_coordinates.to(pred_points.device)
-        # ).all(dim=2)).sum(dim=1)
-
-        d_chamfer = 0.0
-        d_cosine = 0.0
-        weight_sum = 0.0
-        # Iterate over vertex classes
+        # Vertex classes
         classes= target_classes[target_classes != -1].unique()
-        for cls in classes:
-            pred_cls = pred_classes == cls
-            pred_p = pred_points[pred_cls].view((batch_size, -1, dim))
-            pred_n = pred_normals[pred_cls].view((batch_size, -1, dim))
-
-            target_cls = (target_classes == cls).squeeze(-1)
-            target_p = target_points[target_cls].view((batch_size, -1, dim))
-            target_n = target_normals[target_cls].view((batch_size, -1, dim))
-            point_w = point_weights[target_cls].view((batch_size, -1, 1))
+        if self.class_weights is not None:
+            assert len(self.class_weights) == len(classes),\
+                    "There must be exactly one weight per class."
+        # Iterate over vertex classes
+        for c, cls in enumerate(classes):
+            pred_cls = (pred_classes == cls).view(batch_size, n_points)
+            # Batches of points and normals of a certain class
+            pred_p = Pointclouds(
+                [pred_points[i][pred_cls[i]]
+                 for i in range(batch_size)],
+                normals=[pred_normals[i][pred_cls[i]]
+                         for i in range(batch_size)],
+            )
+            target_cls = (target_classes == cls).view(batch_size, n_points)
+            target_p = Pointclouds(
+                [target_points[i][target_cls[i]]
+                 for i in range(batch_size)],
+                normals=[target_normals[i][target_cls[i]]
+                         for i in range(batch_size)],
+            )
+            # Pad point weights with 0
+            n_target = target_p.num_points_per_cloud()
+            n_target_max = n_target.max()
+            point_w = torch.stack(
+                [F.pad(
+                    point_weights[i][target_cls[i]],
+                    (0, 0, 0, n_target_max - n_target[i])
+                ) for i in range(batch_size)]
+            )
 
             losses = chamfer_distance(
                 pred_p,
                 target_p,
-                x_normals=pred_n,
-                y_normals=target_n,
                 point_weights=point_w,
-                return_point_weight_sum=True,
                 oriented_cosine_similarity=True,
-                batch_reduction='sum',
-                point_reduction='sum'
+                batch_reduction='mean',
+                point_reduction='mean',
             )
-            d_chamfer += losses[0]
-            d_cosine += losses[1]
-            weight_sum += losses[2]
 
-        # Reduction
-        # TODO: Use reduction by point weights
-        # d_chamfer /= weight_sum
-        d_chamfer /= (pred_points.shape[1] + target_points.shape[1])
-        d_chamfer /= batch_size
-        # Cosine distance not weighted
-        d_cosine /= (pred_points.shape[1] + target_points.shape[1])
-        d_cosine /= batch_size
+            if self.class_weights is not None:
+                d_chamfer += losses[0] * self.class_weights[c]
+                d_cosine += losses[1] * self.class_weights[c]
+            else:
+                d_chamfer += losses[0]
+                d_cosine += losses[1]
+
+        # Class reduction
+        if self.class_weights is not None:
+            d_chamfer /= torch.sum(torch.tensor(self.class_weights))
+            d_cosine /= torch.sum(torch.tensor(self.class_weights))
+        else:
+            d_chamfer /= len(classes)
+            d_cosine /= len(classes)
 
         return torch.stack([d_chamfer, d_cosine])
 
