@@ -63,16 +63,13 @@ hyper_ps = {
 
     # Learning
     'N_EPOCHS': 100,
-    'BATCH_SIZE': 2,
+    'BATCH_SIZE': 1,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
     'OPTIMIZER_CLASS': torch.optim.AdamW,
     'OPTIM_PARAMS': {
         'weight_decay': 1e-4
     },
-
-    # Inference
-    'UNCERTAINTY': 'mc',
 
     # Evaluation
     'TEST_SPLIT': 'test',

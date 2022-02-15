@@ -79,7 +79,6 @@ class Solver():
     :param penalize_displacement: Weight for penalizing large displacements,
     can be seen as an additional regularization loss
     :param clip_gradient: Clip gradient at this norm if specified (not False)
-    :param uncertainty: Measure uncertainty during evaluation if equal to 'mc'
 
     """
 
@@ -101,7 +100,6 @@ class Solver():
                  reduce_reg_loss_mode,
                  penalize_displacement,
                  clip_gradient,
-                 uncertainty,
                  **kwargs):
 
         self.optim_class = optimizer_class
@@ -110,7 +108,6 @@ class Solver():
         self.scaler = GradScaler() # for mixed precision
         self.evaluator = evaluator
         self.voxel_loss_func = voxel_loss_func
-        self.uncertainty = uncertainty
         self.voxel_loss_func_weights = voxel_loss_func_weights
         self.reduce_reg_loss_mode = reduce_reg_loss_mode
         assert len(voxel_loss_func) == len(voxel_loss_func_weights),\
@@ -332,14 +329,9 @@ class Solver():
                 epoch == start_epoch):
                 model.eval()
 
-                # Potentially set Dropout layers active
-                if self.uncertainty == 'mc':
-                    for layer in model.modules():
-                        if isinstance(layer, Dropout):
-                            layer.train()
-
-                val_results = self.evaluator.evaluate(model, epoch,
-                                                      save_meshes=5)
+                val_results = self.evaluator.evaluate(
+                    model, epoch, save_meshes=5
+                )
                 log_val_results(val_results, iteration - 1)
 
                 # Save model of current epoch
@@ -507,6 +499,8 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         load_only=('train', 'validation'),
         **hps_lower
     )
+    # Only store relevant targets
+    training_set.create_training_targets(remove_meshes=True)
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
     trainLogger.info("Minimum number of vertices in training set: %d.",

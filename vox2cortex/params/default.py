@@ -184,11 +184,6 @@ hyper_ps_default={
     # The type of meshes used, either 'freesurfer' or 'marching cubes'
     'MESH_TYPE': 'freesurfer',
 
-    # The type of ground truth points, either 'vertices' (gt points are
-    # vertices) or 'surface' (gt points are sampled from surface). The latter
-    # does not allow for curvatures associated with the points
-    'GT_POINTS_TYPE': 'vertices',
-
     # The structure type for cortex data, either 'cerebral_cortex' or
     # 'white_matter' or both
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],

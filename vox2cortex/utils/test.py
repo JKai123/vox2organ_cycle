@@ -225,12 +225,6 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             model.cuda()
             model.eval()
 
-            # Potentially set Dropout layers active
-            if hps['UNCERTAINTY'] == 'mc':
-                for layer in model.modules():
-                    if isinstance(layer, Dropout):
-                        layer.train()
-
             results = evaluator.evaluate(
                 model, epoch, save_meshes=len(test_set),
                 remove_previous_meshes=False,
