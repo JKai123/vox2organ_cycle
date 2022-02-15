@@ -37,7 +37,7 @@ from utils.mesh import curv_from_cotcurv_laplacian
 def point_weigths_from_curvature(curvatures: torch.Tensor,
                                  points: torch.Tensor,
                                  max_weight: Union[float, int, torch.Tensor],
-                                 padded_coordinates=(-1.0, -1.0, -1.0)):
+                                 padded_coordinates=(0.0, 0.0, 0.0)):
     """ Calculate Chamfer weights from curvatures such that they are in
     [1, max_weight]. In addition, the weight of padded points is set to zero."""
 
@@ -56,7 +56,7 @@ def point_weigths_from_curvature(curvatures: torch.Tensor,
 class MeshLoss(ABC):
     """ Abstract base class for all mesh losses. """
 
-    def __init__(self, ignore_coordinates=(-1.0, -1.0, -1.0)):
+    def __init__(self, ignore_coordinates=(0.0, 0.0, 0.0)):
         self.ignore_coordinates = torch.tensor(ignore_coordinates)
 
     def __str__(self):
