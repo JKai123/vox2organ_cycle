@@ -42,7 +42,7 @@ hyper_ps_overfit = {
 # fixed together, see params.experiments
 hyper_ps = {
     # Parameter group
-    'GROUP_NAME': 'default',
+    'GROUP_NAME': 'Cortical Flow no-patch',
 
     # WIP
     'MESH_LOSS_FUNC': [
