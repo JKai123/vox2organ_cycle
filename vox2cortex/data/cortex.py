@@ -943,6 +943,8 @@ class CortexParcellationDataset(CortexDataset):
         torch.random.manual_seed(seed)
         points, normals, curvs = super().create_training_targets()
 
+        # !Reset seed
+        torch.random.manual_seed(seed)
         # Iterate over mesh labels
         for i, m in tqdm(
             enumerate(self.mesh_labels),
@@ -956,8 +958,6 @@ class CortexParcellationDataset(CortexDataset):
                 m.faces_list(),
                 verts_features=self.mesh_parc_labels[i]
             )
-            # !Reset seed
-            torch.random.manual_seed(seed)
             p, n, p_class = sample_points_from_meshes(
                 m_new,
                 self.n_ref_points_per_structure,
@@ -965,8 +965,8 @@ class CortexParcellationDataset(CortexDataset):
                 interpolate_features='nearest',
             )
             # The same points should have been sampled again
-            assert torch.equal(p, points[i])
-            assert torch.equal(n, normals[i])
+            assert torch.allclose(p, points[i])
+            assert torch.allclose(n, normals[i])
 
             # Remove meshes to save memory
             if remove_meshes:
