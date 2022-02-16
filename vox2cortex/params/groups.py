@@ -5,8 +5,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from utils.losses import (
-    ChamferLoss,
-    ChamferAndNormalsLoss,
+    ClassAgnosticChamferAndNormalsLoss
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss
@@ -126,13 +125,14 @@ hyper_ps_groups = {
         'PATCH_SIZE': [192, 208, 192],
         'SELECT_PATCH_SIZE': [192, 208, 192],
         'MESH_LOSS_FUNC': [
-           ChamferLoss(),
+           ClassAgnosticChamferAndNormalsLoss(),
            EdgeLoss(0.0)
         ],
         'PATCH_MODE': 'no',
         # Order of structures: rh_white, rh_pial
         'MESH_LOSS_FUNC_WEIGHTS': [
             [1.0] * 4, # Chamfer
+            [0.0] * 4, # Normals
             [1.0] * 4 # Edge
         ],
         # No voxel decoder --> set voxel loss weights to 0
