@@ -5,7 +5,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from utils.losses import (
-    ClassAgnosticChamferAndNormalsLoss
+    ClassAgnosticChamferAndNormalsLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss
@@ -21,7 +21,7 @@ hyper_ps_groups = {
     'default': {
         'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'MESH_LOSS_FUNC': [
-           ChamferAndNormalsLoss(curv_weight_max=5.0),
+           ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
            NormalConsistencyLoss(),
            EdgeLoss(0.0)
@@ -62,7 +62,7 @@ hyper_ps_groups = {
     'one hemisphere': {
         'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'MESH_LOSS_FUNC': [
-           ChamferAndNormalsLoss(curv_weight_max=5.0),
+           ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
            NormalConsistencyLoss(),
            EdgeLoss(0.0)
@@ -145,7 +145,6 @@ hyper_ps_groups = {
             'SymmetricHausdorff',
             'JaccardMesh',
             'Chamfer',
-            'CorticalThicknessError',
             'AverageDistance'
         ],
         'OPTIM_PARAMS': {
