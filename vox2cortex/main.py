@@ -44,14 +44,6 @@ hyper_ps = {
     # Parameter group
     'GROUP_NAME': 'Cortical Flow no-patch',
 
-    # WIP
-    'MESH_LOSS_FUNC': [
-       ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
-       LaplacianLoss(),
-       NormalConsistencyLoss(),
-       EdgeLoss(0.0)
-    ],
-
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
 

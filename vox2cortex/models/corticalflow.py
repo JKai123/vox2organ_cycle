@@ -13,7 +13,7 @@ from torch.cuda.amp import autocast
 
 from models.base_model import V2MModel
 from models.u_net import ResidualUNet
-from utils.mesh import MeshesOfMeshes
+from utils.mesh import MeshesOfMeshes, Mesh
 from utils.file_handle import read_obj
 from utils.mesh import verts_faces_to_Meshes
 from utils.coordinate_transform import (
@@ -81,11 +81,9 @@ class CorticalFlow(V2MModel):
         patch_size: Sequence[int],
         encoder_channels: Sequence[Sequence],
         decoder_channels: Sequence[Sequence],
-        mesh_template: str,
-        # unpool_indices: Union[list, tuple], # TODO: Implement
+        mesh_template: Mesh,
         p_dropout_unet: float,
         ndims: int,
-        # uncertainty: Union[None, str], TODO: Implement
         **kwargs
     ):
 
@@ -121,14 +119,10 @@ class CorticalFlow(V2MModel):
 
         self.u_nets = nn.ModuleList(self.u_nets)
 
-        # Template
-        raw_sphere_vertices, raw_sphere_faces, _ = read_obj(mesh_template)
-        self.sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
-        self.sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
-
-        # Batch size 1
-        self.sphere_vertices = self.sphere_vertices[None]
-        self.sphere_faces = self.sphere_faces[None]
+        # Template (batch size 1)
+        self.mesh_template = mesh_template
+        self.sphere_vertices = mesh_template.vertices.cuda()[None]
+        self.sphere_faces = mesh_template.faces.cuda()[None]
 
 
     def forward(self, x):
