@@ -73,7 +73,7 @@ class ModelEvaluator():
             os.mkdir(self._mesh_dir)
 
     def evaluate(self, model, epoch, save_meshes=5,
-                 remove_previous_meshes=True, store_in_orig_coords=False):
+                 remove_previous_meshes=True):
         """ Evaluate a given model and optionally store predicted meshes. """
 
         results_all = {}
@@ -105,7 +105,6 @@ class ModelEvaluator():
                 self.store_meshes(
                     pred, data, filename, epoch, model_class,
                     remove_previous=remove_previous_meshes,
-                    convert_to_orig_coords=store_in_orig_coords
                 )
 
         # Just consider means over evaluation set
@@ -114,8 +113,7 @@ class ModelEvaluator():
         return results
 
     def store_meshes(self, pred, data, filename, epoch, model_class,
-                     show_all_steps=False, remove_previous=True,
-                     convert_to_orig_coords=False):
+                     show_all_steps=False, remove_previous=True):
         """ Save predicted meshes and ground truth
         """
         if "/" in filename:
@@ -152,25 +150,15 @@ class ModelEvaluator():
             len(gt_mesh.vertices.view(-1, ndims))
         )
         # Store ground truth if it does not exist yet
-        if ndims == 3:
-            trans_affine = data['trans_affine_label']
-            # Back to original coordinate space
-            if convert_to_orig_coords:
-                new_vertices, new_faces = transform_mesh_affine(
-                    gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)
-                )
-            else:
-                new_vertices, new_faces = gt_mesh.vertices, gt_mesh.faces
-            gt_mesh_transformed = Mesh(new_vertices, new_faces, features=gt_mesh.features)
-            gt_filename = filename + "_gt.ply"
-            gt_filename = os.path.join(self._mesh_dir, gt_filename)
-            if not os.path.isfile(gt_filename):
-                if self._n_m_classes in (2, 4):
-                    gt_mesh_transformed.store_with_features(gt_filename)
-                else:
-                    gt_mesh_transformed.store(gt_filename)
-        else:
-            raise ValueError("Wrong dimensionality.")
+        trans_affine = data['trans_affine_label']
+        # Back to original coordinate space
+        new_vertices, new_faces = transform_mesh_affine(
+            gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)
+        )
+        gt_mesh_transformed = Mesh(new_vertices, new_faces, features=gt_mesh.features)
+        gt_filename = filename + "_gt.ply"
+        gt_filename = os.path.join(self._mesh_dir, gt_filename)
+        gt_mesh_transformed.store_with_features(gt_filename)
 
         # Mesh prediction
         vertices, faces = model_class.pred_to_verts_and_faces(pred)
@@ -178,94 +166,37 @@ class ModelEvaluator():
             # Visualize meshes of all steps
             for s, (v_, f_) in enumerate(zip(vertices, faces)):
                 v, f = v_.squeeze(), f_.squeeze()
-                # Optionally convert to original coordinate space
-                if convert_to_orig_coords:
-                    assert ndims == 3, "Only for 3 dim meshes."
-                    v, f = transform_mesh_affine(
-                        v, f, np.linalg.inv(trans_affine)
-                    )
-                if self._n_m_classes in (2, 4) and convert_to_orig_coords:
-                    # Meshes with thickness
-                    pred_meshes = cortical_thickness(v, f)
-                    # Store the mesh of each structure separately
-                    for i, m in enumerate(pred_meshes):
-                        pred_mesh_filename =\
-                                filename + "_epoch" + str(epoch) + "_step" +\
-                                str(s) + "_struc" + str(i) +\
-                                "_meshpred.ply"
-                        pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                          pred_mesh_filename)
-                        m.store_with_features(pred_mesh_filename)
-                else: # Do not consider structures separately
-                    pred_mesh = Mesh(v.cpu(), f.cpu())
-                    logging.getLogger(ExecModes.TEST.name).debug(
-                        "%d vertices in predicted mesh", len(v.view(-1, ndims))
-                    )
-                    if ndims == 3:
-                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                            "_step" + str(s) + "_meshpred.ply"
-                        pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                          pred_mesh_filename)
-                        pred_mesh.store(pred_mesh_filename)
-                    else: # 2D
-                        pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                            "_step" + str(s) + "_meshpred.png"
-                        pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                          pred_mesh_filename)
-                        pred_mesh = pred_mesh.to_pytorch3d_Meshes()
-                        show_img_with_contour(
-                            img,
-                            unnormalize_vertices_per_max_dim(
-                                pred_mesh.verts_packed(), img.shape
-                            ),
-                            pred_mesh.faces_packed(),
-                            pred_mesh_filename
-                        )
-        else:
-            # Only visualize last step
-            v, f = vertices[-1].squeeze(), faces[-1].squeeze()
-            # Optionally transform back to original coordinates
-            if convert_to_orig_coords:
-                assert ndims == 3, "Only for 3 dim meshes."
+                # Back to original coordinate space
                 v, f = transform_mesh_affine(
                     v, f, np.linalg.inv(trans_affine)
                 )
-            if self._n_m_classes in (2, 4) and convert_to_orig_coords:
                 # Meshes with thickness
                 pred_meshes = cortical_thickness(v, f)
                 # Store the mesh of each structure separately
                 for i, m in enumerate(pred_meshes):
-                    pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                        "_struc" + str(i) + "_meshpred.ply"
+                    pred_mesh_filename =\
+                            filename + "_epoch" + str(epoch) + "_step" +\
+                            str(s) + "_struc" + str(i) +\
+                            "_meshpred.ply"
                     pred_mesh_filename = os.path.join(self._mesh_dir,
                                                       pred_mesh_filename)
                     m.store_with_features(pred_mesh_filename)
-            else: # Do not consider structures separately
-                pred_mesh = Mesh(v.cpu(), f.cpu())
-                logging.getLogger(ExecModes.TEST.name).debug(
-                    "%d vertices in predicted mesh", len(v.view(-1, ndims))
-                )
-                if ndims == 3:
-                    pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                        "_meshpred.ply"
-                    pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                      pred_mesh_filename)
-                    pred_mesh.store(pred_mesh_filename)
-                else: # 2D
-                    pred_mesh_filename = filename + "_epoch" + str(epoch) +\
-                        "_meshpred.png"
-                    pred_mesh_filename = os.path.join(self._mesh_dir,
-                                                      pred_mesh_filename)
-                    pred_mesh = pred_mesh.to_pytorch3d_Meshes()
-                    show_img_with_contour(
-                        img,
-                        unnormalize_vertices_per_max_dim(
-                            pred_mesh.verts_packed(),
-                            img.shape
-                        ),
-                        pred_mesh.faces_packed(),
-                        pred_mesh_filename
-                    )
+        else:
+            # Only visualize last step
+            v, f = vertices[-1].squeeze(), faces[-1].squeeze()
+            # Optionally transform back to original coordinates
+            v, f = transform_mesh_affine(
+                v, f, np.linalg.inv(trans_affine)
+            )
+            # Meshes with thickness
+            pred_meshes = cortical_thickness(v, f)
+            # Store the mesh of each structure separately
+            for i, m in enumerate(pred_meshes):
+                pred_mesh_filename = filename + "_epoch" + str(epoch) +\
+                    "_struc" + str(i) + "_meshpred.ply"
+                pred_mesh_filename = os.path.join(self._mesh_dir,
+                                                  pred_mesh_filename)
+                m.store_with_features(pred_mesh_filename)
 
         # Voxel prediction
         voxel_pred = model_class.pred_to_voxel_pred(pred)
@@ -282,13 +213,12 @@ class ModelEvaluator():
                         mc_pred_mesh = create_mesh_from_voxels(
                             voxel_pred_class, self._mc_step_size
                         ).to_trimesh(process=True)
-                        if convert_to_orig_coords:
-                            v, f = transform_mesh_affine(
-                                mc_pred_mesh.vertices,
-                                mc_pred_mesh.faces,
-                                np.linalg.inv(trans_affine)
-                            )
-                            mc_pred_mesh = Mesh(v, f).to_trimesh()
+                        v, f = transform_mesh_affine(
+                            mc_pred_mesh.vertices,
+                            mc_pred_mesh.faces,
+                            np.linalg.inv(trans_affine)
+                        )
+                        mc_pred_mesh = Mesh(v, f).to_trimesh()
                         mc_pred_mesh.export(pred_voxel_filename)
                     except ValueError as e:
                         logging.getLogger(ExecModes.TEST.name).warning(
