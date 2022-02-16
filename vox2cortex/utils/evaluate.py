@@ -107,6 +107,10 @@ class ModelEvaluator():
                     remove_previous=remove_previous_meshes,
                 )
 
+            # Free memory
+            del pred
+            torch.cuda.empty_cache()
+
         # Just consider means over evaluation set
         results = {k: np.mean(v) for k, v in results_all.items()}
 
