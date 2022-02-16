@@ -19,6 +19,7 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
 hyper_ps_groups = {
     # No patch mode, vox2cortex
     'default': {
+        'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'MESH_LOSS_FUNC': [
            ChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
@@ -59,6 +60,7 @@ hyper_ps_groups = {
     },
     # One hemisphere, vox2cortex
     'one hemisphere': {
+        'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'MESH_LOSS_FUNC': [
            ChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
@@ -119,6 +121,7 @@ hyper_ps_groups = {
         },
         # !!!!!!!!!!!!!!!!!!!!!!!
 
+        'N_REF_POINTS_PER_STRUCTURE': 150000, # 150K
         'ARCHITECTURE': 'corticalflow',
         'FREEZE_PRE_TRAINED': True,
         'N_M_CLASSES': 4,

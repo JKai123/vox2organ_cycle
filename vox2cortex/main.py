@@ -51,14 +51,13 @@ hyper_ps = {
        NormalConsistencyLoss(),
        EdgeLoss(0.0)
     ],
-    'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
 
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
 
     # Learning
     'N_EPOCHS': 100,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
     'OPTIMIZER_CLASS': torch.optim.AdamW,
