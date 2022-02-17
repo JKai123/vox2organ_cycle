@@ -264,12 +264,15 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
             # Pad point weights with 0
             n_target = target_p.num_points_per_cloud()
             n_target_max = n_target.max()
-            point_w = torch.stack(
-                [F.pad(
-                    point_weights[i][target_cls[i]],
-                    (0, 0, 0, n_target_max - n_target[i])
-                ) for i in range(batch_size)]
-            )
+            if point_weights is not None:
+                point_w = torch.stack(
+                    [F.pad(
+                        point_weights[i][target_cls[i]],
+                        (0, 0, 0, n_target_max - n_target[i])
+                    ) for i in range(batch_size)]
+                )
+            else:
+                point_w = None
 
             losses = chamfer_distance(
                 pred_p,

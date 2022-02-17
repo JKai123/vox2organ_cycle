@@ -15,7 +15,7 @@ from models.base_model import V2MModel
 from models.u_net import ResidualUNet
 from utils.mesh import MeshesOfMeshes, Mesh
 from utils.file_handle import read_obj
-from utils.mesh import verts_faces_to_Meshes
+from utils.mesh import verts_faces_to_Meshes, vff_to_Meshes
 from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices
@@ -133,6 +133,8 @@ class CorticalFlow(V2MModel):
         temp_faces = torch.cat(B * [self.sphere_faces], dim=0)
         temp_meshes = MeshesOfMeshes(verts=temp_vertices, faces=temp_faces)
 
+        _, M, V, _ = temp_vertices.shape
+
         # First input: only image
         u_net_input = x
 
@@ -157,6 +159,14 @@ class CorticalFlow(V2MModel):
                 pred_meshes.append(
                     DMDBlock(discrete_flow_32, pred_meshes[s], n_integration, self.patch_size)
                 )
+
+        # Replace features with template features (e.g. vertex classes)
+        for m in pred_meshes:
+            m.update_features(
+                self.mesh_template.features.expand(
+                    B, M, V, -1
+                ).cuda()
+            )
 
         return [pred_meshes]
 
@@ -192,6 +202,31 @@ class CorticalFlow(V2MModel):
         return None
 
     @staticmethod
+    def pred_to_vff(pred):
+        """ Get the vertices and faces and features of shape (S,C)
+        """
+        C = pred[0][0].verts_padded().shape[1]
+        S = len(pred[0])
+
+        vertices = []
+        faces = []
+        features = []
+        meshes = pred[0][1:] # Ignore template mesh at pos. 0
+        for s, m in enumerate(meshes):
+            v_s = []
+            f_s = []
+            vf_s = []
+            for c in range(C):
+                v_s.append(m.verts_padded()[:,c,:,:])
+                f_s.append(m.faces_padded()[:,c,:,:])
+                vf_s.append(m.features_padded()[:,c,:,:])
+            vertices.append(torch.stack(v_s))
+            faces.append(torch.stack(f_s))
+            features.append(torch.stack(vf_s))
+
+        return vertices, faces, features
+
+    @staticmethod
     def pred_to_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """
@@ -221,8 +256,9 @@ class CorticalFlow(V2MModel):
     @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
-        vertices, faces = CorticalFlow.pred_to_verts_and_faces(pred)
-        pred_meshes = verts_faces_to_Meshes(vertices, faces, 2) # pytorch3d
+        vertices, faces, features = CorticalFlow.pred_to_vff(pred)
+        # To pytorch3d Meshes
+        pred_meshes = vff_to_Meshes(vertices, faces, features, 2)
 
         return pred_meshes
 

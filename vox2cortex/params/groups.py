@@ -121,7 +121,7 @@ hyper_ps_groups = {
         },
         # !!!!!!!!!!!!!!!!!!!!!!!
 
-        'N_REF_POINTS_PER_STRUCTURE': 150000, # 150K
+        'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'ARCHITECTURE': 'corticalflow',
         'FREEZE_PRE_TRAINED': True,
         'N_M_CLASSES': 4,
