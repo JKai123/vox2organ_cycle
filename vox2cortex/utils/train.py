@@ -16,7 +16,7 @@ from torch.nn import Dropout
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
-from torch.optim.lr_scheduler import CyclicLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
@@ -79,6 +79,7 @@ class Solver():
     :param penalize_displacement: Weight for penalizing large displacements,
     can be seen as an additional regularization loss
     :param clip_gradient: Clip gradient at this norm if specified (not False)
+    :param lr_scheduler_params: Parameters for the lr scheduler
 
     """
 
@@ -100,8 +101,10 @@ class Solver():
                  reduce_reg_loss_mode,
                  penalize_displacement,
                  clip_gradient,
+                 lr_scheduler_params,
                  **kwargs):
 
+        self.lr_scheduler_params = lr_scheduler_params
         self.optim_class = optimizer_class
         self.optim_params = optim_params
         self.optim = None # defined for each training separately
@@ -282,14 +285,10 @@ class Solver():
             )
         self.optim.zero_grad()
 
-        # Lr scheduling
-        # Parameters of CycliclLR as recommended by Leslie Smith
-        lr_scheduler = CyclicLR(
-            self.optim,
-            base_lr=[p['lr'] for p in self.optim.param_groups],
-            max_lr=[4 * p['lr'] for p in self.optim.param_groups],
-            step_size_up=int(np.ceil(len(training_set)/batch_size))*10,
-            cycle_momentum=False
+        # LR scheduler as in Vox2Cortex for MICCAI
+        _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
+        lr_scheduler = ReduceLROnPlateau(
+            self.optim, lr_decay_mode, **self.lr_scheduler_params
         )
 
         training_loader = DataLoader(training_set, batch_size=batch_size,
@@ -316,12 +315,12 @@ class Solver():
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)
                     log_epoch(epoch, iteration)
-                    log_lr(np.mean(lr_scheduler.get_last_lr()), iteration)
+                    log_lr(
+                        np.mean([p['lr'] for p in self.optim.param_groups]),
+                        iteration
+                    )
                 # Step
                 loss = self.training_step(model, data, iteration)
-
-                # For cyclic lr
-                lr_scheduler.step()
 
                 iteration += 1
 
@@ -351,6 +350,7 @@ class Solver():
                     if save_models:
                         model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
                         models_to_epochs[BEST_MODEL_NAME] = best_epoch
+            lr_scheduler.step(best_val_score)
 
             # Save intermediate model after each epoch
             if save_models:
