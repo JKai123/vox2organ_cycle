@@ -29,7 +29,7 @@ hyper_ps_groups = {
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
         # weights should respect this order!
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [4.0] * 4, # Chamfer
+            [1.0] * 4, # Chamfer
             [0.01] * 2 + [0.0125] * 2, # Cosine,
             [0.1] * 2 + [0.25] * 2, # Laplace,
             [0.001] * 2 + [0.00225] * 2, # NormalConsistency
@@ -69,7 +69,7 @@ hyper_ps_groups = {
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
         # weights should respect this order!
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [4.0] * 2, # Chamfer
+            [1.0] * 2, # Chamfer
             [0.01] + [0.0125], # Cosine,
             [0.1] + [0.25], # Laplace,
             [0.001] + [0.00225], # NormalConsistency
