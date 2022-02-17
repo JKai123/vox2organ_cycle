@@ -34,7 +34,8 @@ from utils.losses import (
 # Overwrite params for overfitting (often useful for debugging and development)
 hyper_ps_overfit = {
     # Learning
-    'SANITY_CHECK_DATA': True
+    # Sanity checks not possible on lrz
+    # 'SANITY_CHECK_DATA': True
 }
 
 
@@ -46,6 +47,9 @@ hyper_ps = {
 
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
+
+    # LRZ template
+    'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
 
     # Learning
     'N_EPOCHS': 100,
