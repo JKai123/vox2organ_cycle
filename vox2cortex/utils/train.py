@@ -309,6 +309,8 @@ class Solver():
         iteration = (start_epoch - 1) * len(training_loader) + 1
 
         for epoch in range(start_epoch, n_epochs+1):
+            # Resample training targets
+            training_set.create_training_targets(remove_meshes=False)
             model.train()
             for iter_in_epoch, data in enumerate(training_loader):
                 if iteration % self.log_every == 0:
@@ -500,7 +502,7 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
         **hps_lower
     )
     # Only store relevant targets
-    training_set.create_training_targets(remove_meshes=True)
+    training_set.create_training_targets(remove_meshes=False)
     trainLogger.info("%d training files.", len(training_set))
     trainLogger.info("%d validation files.", len(validation_set))
     trainLogger.info("Minimum number of vertices in training set: %d.",
