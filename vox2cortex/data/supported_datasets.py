@@ -89,7 +89,7 @@ dataset_paths = {
                         "OASIS_test.txt"] # Read from files
     },
     SupportedDatasets.OASIS_FS72.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/FS72",
+        'RAW_DATA_DIR': "/mnt/data/OASIS_FS72",
         'FIXED_SPLIT': ["OASIS_train.txt",
                         "OASIS_val.txt",
                         "OASIS_test.txt"] # Read from files

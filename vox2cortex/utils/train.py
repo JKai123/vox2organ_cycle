@@ -403,7 +403,7 @@ def create_exp_directory(experiment_base_dir, experiment_name):
         else:
             new_id = 1
 
-        experiment_name = "exp_" + str(new_id)
+        experiment_name = "lrz-exp_" + str(new_id)
 
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
 
