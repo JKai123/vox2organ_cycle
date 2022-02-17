@@ -118,7 +118,7 @@ def load_mesh_template(
 
     vertices = torch.stack(vertices).float()
     faces = torch.stack(faces).long()
-    features = torch.stack(features).float().unsqueeze(-1)
+    features = torch.stack(features).long().unsqueeze(-1)
 
     # Transform meshes
     vertices, faces = transform_mesh_affine(vertices, faces, trans_affine)

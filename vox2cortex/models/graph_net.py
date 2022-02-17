@@ -172,12 +172,8 @@ class GraphDecoder(nn.Module):
         self.mesh_template = mesh_template
         self.sphere_vertices = mesh_template.vertices.cuda()[None]
         self.sphere_faces = mesh_template.faces.cuda()[None]
-        # Features one-hot encoded
         self.sphere_features = mesh_template.features.cuda()[None]
         assert self.sphere_features.max().cpu().item() == n_verts_classes - 1
-        self.sphere_features = F.one_hot(
-            self.sphere_features, n_verts_classes
-        ).float().cuda()
 
         # Assert correctness of the structure grouping
         if group_structs:
@@ -233,7 +229,13 @@ class GraphDecoder(nn.Module):
             verts_packed = temp_meshes.verts_packed()
             features_packed = temp_meshes.features_packed()
             latent_features = self.graph_conv_first(
-                torch.cat([verts_packed, features_packed], dim=-1),
+                torch.cat(
+                    # Classes one-hot encoded
+                    [verts_packed, F.one_hot(
+                        features_packed.squeeze()
+                    ).float().cuda()],
+                    dim=-1
+                ),
                 edges_packed
             )
             temp_meshes.update_features(
