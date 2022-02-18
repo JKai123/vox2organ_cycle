@@ -56,7 +56,7 @@ class EvalMetrics(IntEnum):
     AverageDistance = 7
 
 def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
-                         padded_coordinates=(-1.0, -1.0, -1.0)):
+                         padded_coordinates=(0.0, 0.0, 0.0)):
     """ Compute point-to-mesh distance between prediction and ground truth. """
 
     padded_coordinates = torch.Tensor(padded_coordinates).cuda()
@@ -153,7 +153,7 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
 
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class,
-                           padded_coordinates=(-1.0, -1.0, -1.0)):
+                           padded_coordinates=(0.0, 0.0, 0.0)):
     """ Symmetric Hausdorff distance between predicted point clouds.
     """
     # Ground truth
@@ -293,7 +293,7 @@ def Jaccard(pred, target, n_classes):
     return np.sum(ious)/(n_classes - 1)
 
 def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
-                 padded_coordinates=(-1.0, -1.0, -1.0), **kwargs):
+                 padded_coordinates=(0.0, 0.0, 0.0), **kwargs):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance may be computed
