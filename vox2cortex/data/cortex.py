@@ -962,7 +962,7 @@ class CortexParcellationDataset(CortexDataset):
                 m_new,
                 self.n_ref_points_per_structure,
                 return_normals=True,
-                interpolate_features='majority',
+                interpolate_features='nearest',
             )
             # The same points should have been sampled again
             assert torch.allclose(p, points[i])
