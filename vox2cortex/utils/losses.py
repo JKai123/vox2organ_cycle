@@ -227,12 +227,12 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
         target_points, target_normals, target_curvs, target_classes = target
         batch_size, n_points, _ = target_points.shape
         # Sample points on meshes. Predicted classes are assigned to sampled
-        # points by majority voting
+        # points accoring to neares vertex
         pred_points, pred_normals, pred_classes = sample_points_from_meshes(
             pred_meshes,
             n_points,
             return_normals=True,
-            interpolate_features='majority'
+            interpolate_features='nearest'
         )
         # Curvature weights
         point_weights = point_weigths_from_curvature(

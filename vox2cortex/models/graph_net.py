@@ -9,6 +9,7 @@ from typing import Union, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
@@ -50,6 +51,7 @@ class GraphDecoder(nn.Module):
                  k_struct_neighbors=5,
                  ndims: int=3,
                  aggregate: str='trilinear',
+                 n_verts_classes: int=37,
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2):
         super().__init__()
@@ -83,9 +85,10 @@ class GraphDecoder(nn.Module):
         # Aggregation of voxel features
         self.aggregate = aggregate
 
-        # Initial creation of latent features from coordinates
+        # Initial creation of latent features from coordinates and vertex
+        # classes
         self.graph_conv_first = Features2FeaturesResidual(
-            ndims,
+            ndims + n_verts_classes,
             graph_channels[0],
             n_f2f_hidden_layer,
             norm=norm,
@@ -169,6 +172,8 @@ class GraphDecoder(nn.Module):
         self.mesh_template = mesh_template
         self.sphere_vertices = mesh_template.vertices.cuda()[None]
         self.sphere_faces = mesh_template.faces.cuda()[None]
+        self.sphere_features = mesh_template.features.cuda()[None]
+        assert self.sphere_features.max().cpu().item() == n_verts_classes - 1
 
         # Assert correctness of the structure grouping
         if group_structs:
@@ -207,7 +212,10 @@ class GraphDecoder(nn.Module):
         batch_size = skips[0].shape[0]
         temp_vertices = torch.cat(batch_size * [self.sphere_vertices], dim=0)
         temp_faces = torch.cat(batch_size * [self.sphere_faces], dim=0)
-        temp_meshes = MeshesOfMeshes(verts=temp_vertices, faces=temp_faces)
+        temp_features = torch.cat(batch_size * [self.sphere_features], dim=0)
+        temp_meshes = MeshesOfMeshes(
+            verts=temp_vertices, faces=temp_faces, features=temp_features
+        )
 
         _, M, V, _ = temp_vertices.shape
 
@@ -216,10 +224,20 @@ class GraphDecoder(nn.Module):
         # No autocast for pytorch3d convs possible
         cast = not issubclass(self.GC, GraphConv)
         with autocast(enabled=cast):
-            # First graph conv: Vertex coords --> latent features
+            # First graph conv: Vertex coords & classes --> latent features
             edges_packed = temp_meshes.edges_packed()
             verts_packed = temp_meshes.verts_packed()
-            latent_features = self.graph_conv_first(verts_packed, edges_packed)
+            features_packed = temp_meshes.features_packed()
+            latent_features = self.graph_conv_first(
+                torch.cat(
+                    # Classes one-hot encoded
+                    [verts_packed, F.one_hot(
+                        features_packed.squeeze()
+                    ).float().cuda()],
+                    dim=-1
+                ),
+                edges_packed
+            )
             temp_meshes.update_features(
                 latent_features.view(batch_size, M, V, -1)
             )
