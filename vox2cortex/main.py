@@ -6,7 +6,7 @@ import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 import torch
-from torch.optim import AdamW
+from torch.optim import AdamW, Adam
 
 from data.supported_datasets import (
     dataset_paths,
@@ -56,9 +56,13 @@ hyper_ps = {
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
-    'OPTIMIZER_CLASS': torch.optim.AdamW,
+    'OPTIMIZER_CLASS': torch.optim.Adam,
     'OPTIM_PARAMS': {
-        'weight_decay': 1e-4
+        'weight_decay': 0.0
+    },
+    'LR_SCHEDULER_PARAMS': {
+        'factor': 0.5,
+        'patience': 30,
     },
 
     # Evaluation

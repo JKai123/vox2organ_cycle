@@ -104,19 +104,19 @@ hyper_ps_groups = {
         # !!!!!!!!!!!!!!!!!!!!!!!!
         # Values to update at each training iteration of cortical flow models
 
-        # 'PRE_TRAINED_MODEL_PATH': "../experiments/exp_22/intermediate.model",
-        'REDUCED_TEMPLATE': True,
+        'PRE_TRAINED_MODEL_PATH': "../experiments/lrz-exp_15/intermediate.model",
+        'REDUCED_TEMPLATE': False,
         'MODEL_CONFIG': {
             # 'UNPOOL_INDICES': [1,1,1],
             'ENCODER_CHANNELS': [
                 [16, 32, 64, 128, 256],
-                # [16, 32, 64],
-                # [16, 32, 64]
+                [16, 32, 64],
+                [16, 32, 64]
             ],
             'DECODER_CHANNELS': [
                 [128, 64, 32, 16],
-                # [32, 16]
-                # [32, 16]
+                [32, 16],
+                [32, 16]
             ],
         },
         # !!!!!!!!!!!!!!!!!!!!!!!

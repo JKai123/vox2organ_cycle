@@ -296,6 +296,9 @@ hyper_ps_default={
         'weight_decay': 0.0
     },
 
+    # Parameters for lr scheduler
+    'LR_SCHEDULER_PARAMS': {},
+
     # Whether or not to use Pytorch's automatic mixed precision
     'MIXED_PRECISION': True,
 
