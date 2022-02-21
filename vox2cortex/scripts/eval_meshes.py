@@ -9,12 +9,15 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 import trimesh
+import nibabel as nib
 import matplotlib.pyplot as plt
 from trimesh.proximity import longest_ray
 from pytorch3d.structures import Meshes, Pointclouds
+from sklearn.metrics import jaccard_score, f1_score
 from pytorch3d.ops import (
     sample_points_from_meshes,
-    knn_points
+    knn_points,
+    knn_gather
 )
 
 from utils.file_handle import read_dataset_ids
@@ -23,16 +26,151 @@ from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
 from data.supported_datasets import valid_ids
 
-RAW_DATA_DIR = "/mnt/nas/Data_Neuro/"
+RAW_DATA_DIR = "/mnt/data/"
 EXPERIMENT_DIR = "../experiments/"
-# SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
-SURF_NAMES = ("rh_white", "rh_pial")
+SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+# SURF_NAMES = ("rh_white", "rh_pial")
 PARTNER = {"rh_white": "rh_pial",
            "rh_pial": "rh_white",
            "lh_white": "lh_pial",
            "lh_pial": "lh_white"}
 
-MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error')
+MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error', 'parc')
+
+def eval_parc(
+    mri_id,
+    surf_name,
+    eval_params,
+    epoch,
+    device="cuda:1",
+    template_path="/mnt/data/fsaverage70/v2c_template",
+    compute_on_mesh="gt",
+    subfolder="meshes"
+):
+    """ Evaluate parcellations in terms of Jaccard and Dice.
+    """
+    print("Evaluate  parcellation...")
+
+    pred_folder = os.path.join(eval_params['log_path'])
+    parc_folder = os.path.join(
+        eval_params['log_path'], 'parc'
+    )
+    if not os.path.isdir(parc_folder):
+        os.mkdir(parc_folder)
+
+    # Load ground-truth mesh
+    try:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+    except ValueError:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}_reduced_0.3.ply'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+
+    # Load gt parcellation
+    gt_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            eval_params['gt_mesh_path'],
+            mri_id,
+            '{}_reduced.aparc.DKTatlas40.annot'.format(surf_name)
+        )
+    )[0] + 1 # Shift
+    num_parcel_classes = len(np.unique(gt_parc))
+    gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
+
+    # Load predicted mesh
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
+
+    # Load predicted vertex classes from template
+    pred_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            template_path,
+            surf_name + ".aparc.annot"
+        )
+    )[0] + 1 # Shift
+    pred_parc = torch.from_numpy(pred_parc.astype(np.int32))[None].to(device)
+
+    pred_pntcloud = torch.from_numpy(
+        pred_mesh.vertices
+    )[None].float().to(device)
+    gt_pntcloud = torch.from_numpy(
+        gt_mesh.vertices
+    )[None].float().to(device)
+
+    # Jaccard can either be computed on predicted or on gt mesh
+    if compute_on_mesh == 'pred':
+        x_nn = knn_points(pred_pntcloud, gt_pntcloud, K=1)
+        surf_parc = pred_parc
+        neighbor_parc= knn_gather(
+            gt_parc.unsqueeze(-1), x_nn.idx
+        ).long().squeeze()
+    else:
+        x_nn = knn_points(gt_pntcloud, pred_pntcloud, K=1)
+        surf_parc = gt_parc
+        neighbor_parc= knn_gather(
+            pred_parc.unsqueeze(-1), x_nn.idx
+        ).long().squeeze()
+
+    jaccard = jaccard_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+    dice = f1_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+
+    print("Average distance: {}".format(x_nn.dists.mean().cpu().item()))
+
+    target_neighbours = knn_gather(
+        gt_parc.unsqueeze(-1), x_nn.idx
+    ).long().squeeze()
+    pred_parc = pred_parc.squeeze()
+    include_labels = gt_parc.unique().cpu().numpy()
+
+    print(f"Mean Jaccard: {jaccard.mean()}")
+    print(f"Mean Dice: {dice.mean()}")
+
+    jacc_file = os.path.join(
+        parc_folder, f"{mri_id}_struc{s_index}_jacc_on{compute_on_mesh}.npy"
+    )
+    np.save(jacc_file, jaccard)
+    dice_file = os.path.join(
+        parc_folder, f"{mri_id}_struc{s_index}_dice_on{compute_on_mesh}.npy"
+    )
+    np.save(dice_file, dice)
+
+    return jaccard, dice
+
+
+def parc_output(results, summary_file):
+    jacc_all = results[:, 0]
+    dice_all = results[:, 1]
+
+    cols_str = ';'.join(
+        ['MEAN OF MEANS JACCARD', 'MEAN OF MEANS DICE']
+    )
+    mets_str = ';'.join(
+        [str(jacc_all.mean()), str(dice_all.mean())]
+    )
+
+    with open(summary_file, 'w') as output_csv_file:
+        output_csv_file.write(cols_str+'\n')
+        output_csv_file.write(mets_str+'\n')
+
 
 def eval_trt(mri_id, surf_name, eval_params, epoch, device="cuda:1",
              subfolder="meshes"):
@@ -539,14 +677,20 @@ def ad_hd_output(results, summary_file):
         output_csv_file.write(cols_str+'\n')
         output_csv_file.write(mets_str+'\n')
 
-mode_to_function = {"ad_hd": eval_ad_hd_pytorch3d,
-                    "thickness": eval_thickness,
-                    "trt": eval_trt,
-                    "per-vertex-error": eval_per_vertex_err}
-mode_to_output_file = {"ad_hd": ad_hd_output,
-                       "thickness": thickness_output,
-                       "trt": trt_output,
-                       "per-vertex-error": per_vertex_err_output}
+mode_to_function = {
+    "ad_hd": eval_ad_hd_pytorch3d,
+    "thickness": eval_thickness,
+    "trt": eval_trt,
+    "per-vertex-error": eval_per_vertex_err,
+    "parc": eval_parc,
+}
+mode_to_output_file = {
+    "ad_hd": ad_hd_output,
+    "thickness": thickness_output,
+    "trt": trt_output,
+    "per-vertex-error": per_vertex_err_output,
+    "parc": parc_output,
+}
 
 
 if __name__ == '__main__':
@@ -557,10 +701,9 @@ if __name__ == '__main__':
     argparser.add_argument('epoch',
                            type=int,
                            help="The epoch to evaluate.")
-    argparser.add_argument('n_test_vertices',
-                           type=int,
-                           help="The number of template vertices for each"
-                           " structure that was used during testing.")
+    argparser.add_argument('template_size',
+                           type=str,
+                           help="'full' or 'reduced'.")
     argparser.add_argument('dataset',
                            type=str,
                            help="The dataset.")
@@ -575,6 +718,10 @@ if __name__ == '__main__':
     argparser.add_argument('--meshfixed',
                            action='store_true',
                            help="Use MeshFix'ed meshes for evaluation.")
+    argparser.add_argument('--device',
+                           type=str,
+                           default='cuda:1',
+                           help="Evaluation device.")
 
     args = argparser.parse_args()
     exp_name = args.exp_name
@@ -585,10 +732,12 @@ if __name__ == '__main__':
 
     # Provide params
     eval_params = {}
-    if "OASIS" in dataset:
-        subdir = "CSR_data"
-    else:
-        subdir = ""
+    # No subdir on lrz
+    subdir = ""
+    # if "OASIS" in dataset:
+        # subdir = "CSR_data"
+    # else:
+        # subdir = ""
     eval_params['gt_mesh_path'] = os.path.join(
         RAW_DATA_DIR,
         dataset.replace("_small", "").replace("_large", "").replace("_orig", ""),
@@ -599,7 +748,7 @@ if __name__ == '__main__':
         EXPERIMENT_DIR, exp_name,
         args.split
         + "_template_"
-        + str(args.n_test_vertices)
+        + str(args.template_size)
         + f"_{dataset}"
     )
     eval_params['metrics_csv_prefix'] = "eval_" + mode
@@ -627,7 +776,12 @@ if __name__ == '__main__':
     for mri_id in ids:
         for surf_name in SURF_NAMES:
             result = mode_to_function[mode](
-                mri_id, surf_name, eval_params, epoch, subfolder=subfolder
+                mri_id,
+                surf_name,
+                eval_params,
+                epoch,
+                subfolder=subfolder,
+                device=args.device
             )
             if result is not None:
                 res_all.append(result)
