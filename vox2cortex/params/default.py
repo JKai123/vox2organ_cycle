@@ -66,6 +66,9 @@ hyper_ps_default={
     # Attention: 'debug' overwrites previous debug experiment
     'EXPERIMENT_NAME': None,
 
+    # A prefix for automatically enumerated experiments
+    'EXP_PREFIX': 'exp_',
+
     # Project name used for wandb
     'PROJ_NAME': 'vox2cortex',
 

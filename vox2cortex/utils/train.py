@@ -395,7 +395,7 @@ class Solver():
         # Return last main validation score
         return main_val_score
 
-def create_exp_directory(experiment_base_dir, experiment_name):
+def create_exp_directory(experiment_base_dir, experiment_name, prefix):
     """ Create experiment directory and potentially subdirectories for logging
     etc.
     """
@@ -416,7 +416,7 @@ def create_exp_directory(experiment_base_dir, experiment_name):
         else:
             new_id = 1
 
-        experiment_name = "lrz-exp_" + str(new_id)
+        experiment_name = prefix + str(new_id)
 
         experiment_dir = os.path.join(experiment_base_dir, experiment_name)
 
@@ -431,8 +431,14 @@ def create_exp_directory(experiment_base_dir, experiment_name):
 
     return experiment_name, experiment_dir, log_dir
 
-def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
-                     resume=False):
+
+def training_routine(
+    hps: dict,
+    experiment_name=None,
+    loglevel='INFO',
+    resume=False,
+    exp_prefix="exp_"
+):
     """
     A full training routine including setup of experiments etc.
 
@@ -450,7 +456,9 @@ def training_routine(hps: dict, experiment_name=None, loglevel='INFO',
     if not resume:
         # Create directories
         experiment_name, experiment_dir, log_dir =\
-                create_exp_directory(experiment_base_dir, experiment_name)
+                create_exp_directory(
+                    experiment_base_dir, experiment_name, hps['EXP_PREFIX']
+                )
         hps['EXPERIMENT_NAME'] = experiment_name
 
         # Store hyperparameters

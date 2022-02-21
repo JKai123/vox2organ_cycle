@@ -164,6 +164,11 @@ def main(hyper_ps):
                            nargs=1,
                            help="Perform an ablation study."
                            f"Available options are: {AVAILABLE_ABLATIONS}")
+    argparser.add_argument(--'exp_prefix',
+                           type=str,
+                           default=hyper_ps_default['EXP_PREFIX'],
+                           help="A folder prefix for automatically enumerated"
+                           " experiments.")
     argparser.add_argument('-n', '--exp_name',
                            dest='exp_name',
                            type=str,
@@ -218,6 +223,7 @@ def main(hyper_ps):
         'REDUCED_TEMPLATE', args.reduced_template
     )
     hps['USE_WANDB'] = args.use_wandb
+    hps['EXP_PREFIX'] = args.exp_prefix
 
     if args.ablation_study:
         hps['ABLATION_STUDY'] = args.ablation_study[0]
