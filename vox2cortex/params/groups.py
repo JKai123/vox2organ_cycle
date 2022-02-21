@@ -18,7 +18,7 @@ from utils.utils_voxel2meshplusplus.graph_conv import (
 # to conduct certain experiments
 hyper_ps_groups = {
     # No patch mode, vox2cortex
-    'default': {
+    'Vox2Cortex no-patch': {
         'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
         'MESH_LOSS_FUNC': [
            ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
