@@ -17,7 +17,8 @@ from torch.nn import Dropout
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.cuda.amp import GradScaler, autocast
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CyclicLR
+from pytorch3d.structures import Pointclouds, Meshes
 
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
@@ -298,10 +299,14 @@ class Solver():
             )
         self.optim.zero_grad()
 
-        # LR scheduler as in Vox2Cortex for MICCAI
-        _, lr_decay_mode = score_is_better(0, 0, self.main_eval_metric)
-        lr_scheduler = ReduceLROnPlateau(
-            self.optim, lr_decay_mode, **self.lr_scheduler_params
+        # Lr scheduling
+        # Parameters of CycliclLR as recommended by Leslie Smith
+        lr_scheduler = CyclicLR(
+            self.optim,
+            base_lr=[p['lr'] for p in self.optim.param_groups],
+            max_lr=[4 * p['lr'] for p in self.optim.param_groups],
+            step_size_up=int(len(training_set)/batch_size)*10,
+            **lr_scheduler_params
         )
 
         training_loader = DataLoader(training_set, batch_size=batch_size,
@@ -328,12 +333,12 @@ class Solver():
                 if iteration % self.log_every == 0:
                     self.trainLogger.info("Iteration: %d", iteration)
                     log_epoch(epoch, iteration)
-                    log_lr(
-                        np.mean([p['lr'] for p in self.optim.param_groups]),
-                        iteration
-                    )
+                    log_lr(np.mean(lr_scheduler.get_last_lr()), iteration)
                 # Step
                 loss = self.training_step(model, data, iteration)
+
+                # For cyclic lr
+                lr_scheduler.step()
 
                 iteration += 1
 
@@ -363,7 +368,6 @@ class Solver():
                     if save_models:
                         model.save(os.path.join(self.save_path, BEST_MODEL_NAME))
                         models_to_epochs[BEST_MODEL_NAME] = best_epoch
-            lr_scheduler.step(best_val_score)
 
             # Save intermediate model after each epoch
             if save_models:

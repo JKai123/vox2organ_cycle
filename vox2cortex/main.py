@@ -6,7 +6,7 @@ import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 import torch
-from torch.optim import AdamW, Adam
+from torch.optim import AdamW
 
 from data.supported_datasets import (
     dataset_paths,
@@ -56,17 +56,17 @@ hyper_ps = {
     'BATCH_SIZE': 2,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
-    'OPTIMIZER_CLASS': torch.optim.Adam,
+    'OPTIMIZER_CLASS': torch.optim.AdamW,
     'OPTIM_PARAMS': {
         'weight_decay': 0.0
     },
     'LR_SCHEDULER_PARAMS': {
-        'factor': 0.5,
-        'patience': 30,
+        'cycle_momentum': False,
     },
 
     # Evaluation
     'TEST_SPLIT': 'test',
+    'EVAL_METRICS': [],
 }
 
 mode_handler = {
@@ -165,7 +165,7 @@ def main(hyper_ps):
                            nargs=1,
                            help="Perform an ablation study."
                            f"Available options are: {AVAILABLE_ABLATIONS}")
-    argparser.add_argument(--'exp_prefix',
+    argparser.add_argument('--exp_prefix',
                            type=str,
                            default=hyper_ps_default['EXP_PREFIX'],
                            help="A folder prefix for automatically enumerated"
