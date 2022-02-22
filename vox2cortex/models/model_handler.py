@@ -13,4 +13,4 @@ from models.v2cflow import V2CFlow
 class ModelHandler(ExtendedEnum):
     vox2cortex = Vox2Cortex
     corticalflow = CorticalFlow
-    v2cflow
+    v2cflow = V2CFlow

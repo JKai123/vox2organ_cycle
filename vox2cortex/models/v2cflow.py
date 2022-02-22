@@ -34,7 +34,7 @@ def assemble_features(
     k_struct_neighbors: int,
     verts_classes: torch.tensor
 ):
-    """ Assemble vertex features.
+    """ Assemble vertex features from input.
     """
     struct_features = aggregate_structural_features(
         verts_padded,
@@ -42,7 +42,7 @@ def assemble_features(
         True,
         k_struct_neighbors
     )
-    class_features = F.one_hot(verts_classes)
+    class_features = F.one_hot(verts_classes.squeeze(-1))
 
     # Final features:
     # vertex coords | structural features | vertex classes
@@ -228,6 +228,7 @@ class V2CFlow(V2MModel):
         self.mesh_template = mesh_template
         self.sphere_vertices = mesh_template.vertices.cuda()[None]
         self.sphere_faces = mesh_template.faces.cuda()[None]
+        self.sphere_features = mesh_template.features.cuda()[None]
 
 
     def forward(self, x):
@@ -236,7 +237,10 @@ class V2CFlow(V2MModel):
         B = x.shape[0]
         temp_vertices = torch.cat(B * [self.sphere_vertices], dim=0)
         temp_faces = torch.cat(B * [self.sphere_faces], dim=0)
-        temp_meshes = MeshesOfMeshes(verts=temp_vertices, faces=temp_faces)
+        temp_features = torch.cat(B * [self.sphere_features], dim=0)
+        temp_meshes = MeshesOfMeshes(
+            verts=temp_vertices, faces=temp_faces, features=temp_features
+        )
 
         _, M, V, _ = temp_vertices.shape
 
@@ -372,7 +376,7 @@ class V2CFlow(V2MModel):
     @staticmethod
     def pred_to_pred_meshes(pred):
         """ Create valid prediction meshes of shape (S,C) """
-        vertices, faces, features = CorticalFlow.pred_to_vff(pred)
+        vertices, faces, features = V2CFlow.pred_to_vff(pred)
         # To pytorch3d Meshes
         pred_meshes = vff_to_Meshes(vertices, faces, features, 2)
 

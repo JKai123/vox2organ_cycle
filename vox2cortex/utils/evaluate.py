@@ -82,10 +82,15 @@ class ModelEvaluator():
         # Iterate over data split
         for i in tqdm(range(len(self._dataset)), desc="Evaluate..."):
             data = self._dataset.get_item_and_mesh_from_index(i)
-            write_img_if_debug(data['img'].squeeze().cpu().numpy(),
-                               "../misc/raw_voxel_input_img_eval.nii.gz")
-            write_img_if_debug(data['voxel_label'].squeeze().cpu().numpy(),
-                               "../misc/raw_voxel_target_img_eval.nii.gz")
+            try:
+                write_img_if_debug(data['img'].squeeze().cpu().numpy(),
+                                   "../misc/raw_voxel_input_img_eval.nii.gz")
+                write_img_if_debug(data['voxel_label'].squeeze().cpu().numpy(),
+                                   "../misc/raw_voxel_target_img_eval.nii.gz")
+            except AttributeError:
+                # Writing not possible
+                pass
+
             with torch.no_grad():
                 pred = model(data['img'][None].cuda())
 

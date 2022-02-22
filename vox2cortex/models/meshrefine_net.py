@@ -54,7 +54,7 @@ class MeshRefineNet(nn.Module):
         )
 
         # Init f2v layers to zero
-        self.f2v_layers.apply(zero_weight_init)
+        self.f2v.apply(zero_weight_init)
 
     @measure_time
     def forward(self, mesh: MeshesOfMeshes):

@@ -305,12 +305,13 @@ class Solver():
             self.optim,
             base_lr=[p['lr'] for p in self.optim.param_groups],
             max_lr=[4 * p['lr'] for p in self.optim.param_groups],
-            step_size_up=int(len(training_set)/batch_size)*10,
-            **lr_scheduler_params
+            step_size_up=int(np.ceil(len(training_set)/float(batch_size)))*10,
+            **self.lr_scheduler_params
         )
 
-        training_loader = DataLoader(training_set, batch_size=batch_size,
-                                     shuffle=True)
+        training_loader = DataLoader(
+            training_set, batch_size=batch_size, shuffle=True
+        )
         self.trainLogger.info("Created training loader of length %d",
                     len(training_loader))
 
