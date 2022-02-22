@@ -35,7 +35,7 @@ from utils.losses import (
 hyper_ps_overfit = {
     # Learning
     # Sanity checks not possible on lrz
-    # 'SANITY_CHECK_DATA': True
+    'SANITY_CHECK_DATA': True
 }
 
 
@@ -49,11 +49,11 @@ hyper_ps = {
     'SANITY_CHECK_DATA': False, # Save some memory
 
     # LRZ template
-    'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
+    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage70/v2c_template/',
 
     # Learning
-    'N_EPOCHS': 100,
-    'BATCH_SIZE': 2,
+    'N_EPOCHS': 50,
+    'BATCH_SIZE': 3,
     'EVAL_EVERY': 5,
     'CLIP_GRADIENT': 200000,
     'OPTIMIZER_CLASS': torch.optim.AdamW,
@@ -66,7 +66,6 @@ hyper_ps = {
 
     # Evaluation
     'TEST_SPLIT': 'test',
-    'EVAL_METRICS': [],
 }
 
 mode_handler = {
