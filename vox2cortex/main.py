@@ -45,27 +45,9 @@ hyper_ps = {
     # Parameter group
     'GROUP_NAME': 'V2C-Flow no-patch',
 
-    # Data
-    'SANITY_CHECK_DATA': False, # Save some memory
-
-    # LRZ template
-    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage70/v2c_template/',
-
     # Learning
     'N_EPOCHS': 50,
     'BATCH_SIZE': 3,
-    'EVAL_EVERY': 5,
-    'CLIP_GRADIENT': 200000,
-    'OPTIMIZER_CLASS': torch.optim.AdamW,
-    'OPTIM_PARAMS': {
-        'weight_decay': 0.0
-    },
-    'LR_SCHEDULER_PARAMS': {
-        'cycle_momentum': False,
-    },
-
-    # Evaluation
-    'TEST_SPLIT': 'test',
 }
 
 mode_handler = {

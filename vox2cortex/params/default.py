@@ -203,7 +203,7 @@ hyper_ps_default={
     # Check if data has been transformed correctly. This leads potentially to a
     # larger memory consumption since meshes are voxelized and voxel labels are
     # loaded (even though only one of them is typically used)
-    'SANITY_CHECK_DATA': True,
+    'SANITY_CHECK_DATA': False,
 
     # Activate/deactivate patch mode for the cortex dataset. Possible values
     # are "no", "single-patch", "multi-patch"
@@ -280,19 +280,19 @@ hyper_ps_default={
     'REDUCE_REG_LOSS_MODE': 'none',
 
     # The batch size used during training
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 2,
 
     # Optionally provide a norm for gradient clipping
-    'CLIP_GRADIENT': False,
+    'CLIP_GRADIENT': 200000,
 
     # Accumulate n gradients before doing a backward pass
     'ACCUMULATE_N_GRADIENTS': 1,
 
     # The number of training epochs
-    'N_EPOCHS': 5,
+    'N_EPOCHS': 100,
 
     # The optimizer used for training
-    'OPTIMIZER_CLASS': torch.optim.Adam,
+    'OPTIMIZER_CLASS': torch.optim.AdamW,
 
     # Parameters for the optimizer. A separate learning rate for the graph
     # network can be specified
@@ -305,7 +305,9 @@ hyper_ps_default={
     },
 
     # Parameters for lr scheduler
-    'LR_SCHEDULER_PARAMS': {},
+    'LR_SCHEDULER_PARAMS': {
+        'cycle_momentum': False,
+    },
 
     # Whether or not to use Pytorch's automatic mixed precision
     'MIXED_PRECISION': True,
@@ -346,5 +348,5 @@ hyper_ps_default={
     'LOG_EVERY': 'epoch',
 
     # Evaluate model every n epochs
-    'EVAL_EVERY': 1,
+    'EVAL_EVERY': 5,
 }
