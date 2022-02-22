@@ -24,9 +24,8 @@ from utils.file_handle import read_dataset_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
 from utils.utils import choose_n_random_points
-from data.supported_datasets import valid_ids
+from data.supported_datasets import dataset_paths
 
-RAW_DATA_DIR = "/mnt/data/"
 EXPERIMENT_DIR = "../experiments/"
 SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 # SURF_NAMES = ("rh_white", "rh_pial")
@@ -37,14 +36,13 @@ PARTNER = {"rh_white": "rh_pial",
 
 MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error', 'parc')
 
-def eval_parc(
+def eval_template_parc(
     mri_id,
     surf_name,
     eval_params,
     epoch,
     device="cuda:1",
-    template_path="/mnt/data/fsaverage70/v2c_template",
-    compute_on_mesh="gt",
+    template_path="/home/fabianb/work/fsaverage70/v2c_template/",
     subfolder="meshes"
 ):
     """ Evaluate parcellations in terms of Jaccard and Dice.
@@ -66,19 +64,21 @@ def eval_parc(
         gt_mesh = trimesh.load(gt_mesh_path, process=False)
     except ValueError:
         gt_mesh_path = os.path.join(
-            eval_params['gt_mesh_path'], mri_id, '{}_reduced_0.3.ply'.format(surf_name)
+            eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
         )
         gt_mesh = trimesh.load(gt_mesh_path, process=False)
 
-    # Load gt parcellation
+    # Load gt parcellation from original FS output folder
     gt_parc = nib.freesurfer.io.read_annot(
         os.path.join(
-            eval_params['gt_mesh_path'],
+            eval_params['fs_path'],
             mri_id,
-            '{}_reduced.aparc.DKTatlas40.annot'.format(surf_name)
+            'label',
+            '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
         )
     )[0] + 1 # Shift
-    num_parcel_classes = len(np.unique(gt_parc))
+    include_labels = np.unique(gt_parc)
+    num_parcel_classes = len(include_labels)
     gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
 
     # Load predicted mesh
@@ -106,50 +106,57 @@ def eval_parc(
         gt_mesh.vertices
     )[None].float().to(device)
 
-    # Jaccard can either be computed on predicted or on gt mesh
-    if compute_on_mesh == 'pred':
-        x_nn = knn_points(pred_pntcloud, gt_pntcloud, K=1)
-        surf_parc = pred_parc
-        neighbor_parc= knn_gather(
-            gt_parc.unsqueeze(-1), x_nn.idx
-        ).long().squeeze()
-    else:
-        x_nn = knn_points(gt_pntcloud, pred_pntcloud, K=1)
-        surf_parc = gt_parc
-        neighbor_parc= knn_gather(
-            pred_parc.unsqueeze(-1), x_nn.idx
-        ).long().squeeze()
-
-    jaccard = jaccard_score(
-        neighbor_parc.cpu(),
-        surf_parc.cpu(),
-        labels=include_labels,
-        average=None
-    )
-    dice = f1_score(
-        neighbor_parc.cpu(),
-        surf_parc.cpu(),
-        labels=include_labels,
-        average=None
-    )
-
-    print("Average distance: {}".format(x_nn.dists.mean().cpu().item()))
-
-    target_neighbours = knn_gather(
+    # Jaccard on predicted mesh
+    x_nn = knn_points(pred_pntcloud, gt_pntcloud, K=1)
+    surf_parc = pred_parc.squeeze()
+    neighbor_parc= knn_gather(
         gt_parc.unsqueeze(-1), x_nn.idx
     ).long().squeeze()
-    pred_parc = pred_parc.squeeze()
-    include_labels = gt_parc.unique().cpu().numpy()
+    jaccard_p = jaccard_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+    dice_p = f1_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+
+    # Jaccard on gt mesh
+    x_nn = knn_points(gt_pntcloud, pred_pntcloud, K=1)
+    surf_parc = gt_parc.squeeze()
+    neighbor_parc= knn_gather(
+        pred_parc.unsqueeze(-1), x_nn.idx
+    ).long().squeeze()
+    jaccard_g = jaccard_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+    dice_g = f1_score(
+        neighbor_parc.cpu(),
+        surf_parc.cpu(),
+        labels=include_labels,
+        average=None
+    )
+
+    # Average of both directions
+    jaccard = (jaccard_p + jaccard_g) / 2
+    dice = (dice_p + dice_g) / 2
 
     print(f"Mean Jaccard: {jaccard.mean()}")
     print(f"Mean Dice: {dice.mean()}")
 
     jacc_file = os.path.join(
-        parc_folder, f"{mri_id}_struc{s_index}_jacc_on{compute_on_mesh}.npy"
+        parc_folder, f"{mri_id}_struc{s_index}_jacc.npy"
     )
     np.save(jacc_file, jaccard)
     dice_file = os.path.join(
-        parc_folder, f"{mri_id}_struc{s_index}_dice_on{compute_on_mesh}.npy"
+        parc_folder, f"{mri_id}_struc{s_index}_dice.npy"
     )
     np.save(dice_file, dice)
 
@@ -682,7 +689,7 @@ mode_to_function = {
     "thickness": eval_thickness,
     "trt": eval_trt,
     "per-vertex-error": eval_per_vertex_err,
-    "parc": eval_parc,
+    "parc": eval_template_parc,
 }
 mode_to_output_file = {
     "ad_hd": ad_hd_output,
@@ -695,9 +702,12 @@ mode_to_output_file = {
 
 if __name__ == '__main__':
     argparser = ArgumentParser(description="Mesh evaluation procedure")
-    argparser.add_argument('exp_name',
+    argparser.add_argument('exp_dir',
                            type=str,
-                           help="Name of experiment under evaluation.")
+                           help="Path of experiment under evaluation.")
+    argparser.add_argument('test_dir',
+                           type=str,
+                           help="Name of test path under evaluation.")
     argparser.add_argument('epoch',
                            type=int,
                            help="The epoch to evaluate.")
@@ -724,7 +734,8 @@ if __name__ == '__main__':
                            help="Evaluation device.")
 
     args = argparser.parse_args()
-    exp_name = args.exp_name
+    exp_dir = args.exp_dir
+    test_dir = args.test_dir
     epoch = args.epoch
     mode = args.mode
     dataset = args.dataset
@@ -732,25 +743,10 @@ if __name__ == '__main__':
 
     # Provide params
     eval_params = {}
-    # No subdir on lrz
-    subdir = ""
-    # if "OASIS" in dataset:
-        # subdir = "CSR_data"
-    # else:
-        # subdir = ""
-    eval_params['gt_mesh_path'] = os.path.join(
-        RAW_DATA_DIR,
-        dataset.replace("_small", "").replace("_large", "").replace("_orig", ""),
-        subdir
-    )
-    eval_params['exp_path'] = os.path.join(EXPERIMENT_DIR, exp_name)
-    eval_params['log_path'] = os.path.join(
-        EXPERIMENT_DIR, exp_name,
-        args.split
-        + "_template_"
-        + str(args.template_size)
-        + f"_{dataset}"
-    )
+    eval_params['gt_mesh_path'] = dataset_paths[dataset]['RAW_DATA_DIR']
+    eval_params['fs_path'] = dataset_paths[dataset]['FS_DIR']
+    eval_params['exp_path'] = exp_dir
+    eval_params['log_path'] = test_dir
     eval_params['metrics_csv_prefix'] = "eval_" + mode
 
     if meshfixed:
