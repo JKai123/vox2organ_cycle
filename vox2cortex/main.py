@@ -67,6 +67,7 @@ hyper_ps = {
 
     # Evaluation
     'TEST_SPLIT': 'test',
+    'EVAL_METRICS': [],
 }
 
 mode_handler = {
@@ -164,7 +165,7 @@ def main(hyper_ps):
                            nargs=1,
                            help="Perform an ablation study."
                            f"Available options are: {AVAILABLE_ABLATIONS}")
-    argparser.add_argument(--'exp_prefix',
+    argparser.add_argument('--exp_prefix',
                            type=str,
                            default=hyper_ps_default['EXP_PREFIX'],
                            help="A folder prefix for automatically enumerated"
