@@ -505,7 +505,7 @@ def training_routine(
         time_logging=hps['TIME_LOGGING']
     )
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    if hps['USE_WANDB'] and experiment_name != 'debug' and loglevel != 'DEBUG':
+    if hps['USE_WANDB'] and experiment_name != 'debug':
         init_wandb_logging(
             exp_name=experiment_name,
             log_dir=log_dir,
