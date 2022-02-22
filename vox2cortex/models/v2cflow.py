@@ -5,6 +5,7 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import logging
 from typing import Sequence
 from copy import  deepcopy
 
@@ -17,8 +18,8 @@ from torch.cuda.amp import autocast
 from models.base_model import V2MModel
 from models.u_net import ResidualUNet
 from models.meshrefine_net import MeshRefineNet
-from utils.mesh import MeshesOfMeshes, Mesh
-from utils.mesh import vff_to_Meshes
+from utils.mesh import MeshesOfMeshes, Mesh, vff_to_Meshes
+from utils.modes import ExecModes
 from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices
@@ -108,16 +109,27 @@ class DMDBlockRefined(nn.Module):
                     out_mesh.verts_padded(),
                     self.group_structs,
                     self.k_struct_neighbors,
-                    out_mesh.features_padded()
+                    # Features (vertex classes) from input
+                    mesh.features_padded()
                 )
             )
             residual_flow = refine_net(out_mesh)
+
+            # Debug output
+            trainLogger = logging.getLogger(ExecModes.TRAIN.name)
+            trainLogger.debug("Voxel flow: %.10f", flow.mean().cpu().item())
+            trainLogger.debug(
+                "Residual flow: %.10f", residual_flow.mean().cpu().item()
+            )
 
             # Refine flow with residual
             refined_flow = flow + residual_flow
 
             # V <- V + h * Flow
             out_mesh.move_verts(h * refined_flow)
+
+        # Replace features with input features (e.g. vertex classes)
+        out_mesh.update_features(mesh.features_padded())
 
         return out_mesh
 
@@ -167,6 +179,7 @@ class V2CFlow(V2MModel):
 
         super().__init__()
 
+        self.n_integration_max = 1
         self.eps = 1e-2
         self.uncertainty = None # Not implemented
 
@@ -261,9 +274,18 @@ class V2CFlow(V2MModel):
 
             # Heuristic: number of integration steps = 2 * maximum amplitude of
             # flow field + 1; this ensures hL < 1 for sure but could lead to
-            # unnecessary many steps
+            # unnecessary many steps. Since our meshes lie in a
+            # normalized space, we need to unnormalize the flow with the max.
+            # image dimension
             flow_magnitude = discrete_flow.norm(dim=-1)
+            flow_magnitude *= torch.max(
+                torch.tensor(self.patch_size, device=flow_magnitude.device)
+            )
             n_integration = int(torch.ceil(2 * flow_magnitude.max() + self.eps).item())
+            # Bound number of integration steps
+            n_integration = int(
+                np.minimum(n_integration, self.n_integration_max)
+            )
 
             # Mesh deformation; autocast not possible due to F.grid_sample
             with autocast(enabled=False):
@@ -279,14 +301,6 @@ class V2CFlow(V2MModel):
                         graph_net
                     )
                 )
-
-        # Replace features with template features (e.g. vertex classes)
-        for m in pred_meshes:
-            m.update_features(
-                self.mesh_template.features.expand(
-                    B, M, V, -1
-                ).cuda()
-            )
 
         return [pred_meshes]
 
