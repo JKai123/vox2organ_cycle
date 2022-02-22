@@ -155,7 +155,7 @@ class V2CFlow(V2MModel):
         mesh_template: Mesh,
         p_dropout_unet: float,
         ndims: int,
-        graph_channels: int,
+        graph_channels: Sequence[int],
         norm: str,
         gc,
         p_dropout_graph: float,
@@ -209,7 +209,7 @@ class V2CFlow(V2MModel):
                 MeshRefineNet(
                     n_input_features=n_gc_input,
                     norm=norm,
-                    latent_channels=graph_channels,
+                    latent_channels=graph_channels[s],
                     GC=gc,
                     p_dropout=p_dropout_graph,
                     ndims=ndims

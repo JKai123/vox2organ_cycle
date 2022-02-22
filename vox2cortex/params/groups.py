@@ -151,4 +151,66 @@ hyper_ps_groups = {
             'graph_lr': None,
         },
     },
+
+    #### Vox2Cortex-Flow ####
+    'V2C-Flow no-patch': {
+        # !!!!!!!!!!!!!!!!!!!!!!!!
+        # Values to update at each training iteration of cortical flow models
+
+        # 'PRE_TRAINED_MODEL_PATH': "../experiments/lrz-exp_15/intermediate.model",
+        'REDUCED_TEMPLATE': True,
+        'MODEL_CONFIG': {
+            # 'UNPOOL_INDICES': [1,1,1],
+            'ENCODER_CHANNELS': [
+                [16, 32, 64, 128, 256],
+                # [16, 32, 64],
+                # [16, 32, 64]
+            ],
+            'DECODER_CHANNELS': [
+                [128, 64, 32, 16],
+                # [32, 16],
+                # [32, 16]
+            ],
+            'GRAPH_CHANNELS': [
+                64,
+                # 64,
+                # 64
+            ],
+        # !!!!!!!!!!!!!!!!!!!!!!!
+
+            'NORM': 'batch', # Only for graph convs
+            'GC': GraphConvNorm,
+            'GROUP_STRUCTS': [[0, 1], [2, 3]],
+        },
+
+        'N_REF_POINTS_PER_STRUCTURE': 50000, # 50K
+        'ARCHITECTURE': 'v2cflow',
+        'FREEZE_PRE_TRAINED': True,
+        'N_M_CLASSES': 4,
+        'PATCH_SIZE': [192, 208, 192],
+        'SELECT_PATCH_SIZE': [192, 208, 192],
+        'MESH_LOSS_FUNC': [
+           ClassAgnosticChamferAndNormalsLoss(),
+           EdgeLoss(0.0)
+        ],
+        'PATCH_MODE': 'no',
+        # Order of structures: rh_white, rh_pial
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [1.0] * 4, # Chamfer
+            [0.0] * 4, # Normals
+            [1.0] * 4 # Edge
+        ],
+        # No voxel decoder --> set voxel loss weights to 0
+        'VOXEL_LOSS_FUNC_WEIGHTS': [],
+        'VOXEL_LOSS_FUNC': [],
+        'EVAL_METRICS': [
+            'SymmetricHausdorff',
+            'JaccardMesh',
+            'Chamfer',
+            'AverageDistance'
+        ],
+        'OPTIM_PARAMS': {
+            'graph_lr': None,
+        },
+    },
 }

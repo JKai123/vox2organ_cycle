@@ -43,7 +43,7 @@ hyper_ps_overfit = {
 # fixed together, see params.experiments
 hyper_ps = {
     # Parameter group
-    'GROUP_NAME': 'Cortical Flow no-patch',
+    'GROUP_NAME': 'V2C-Flow no-patch',
 
     # Data
     'SANITY_CHECK_DATA': False, # Save some memory
@@ -87,7 +87,8 @@ def main(hyper_ps):
                            default=hyper_ps_default['ARCHITECTURE'],
                            help="The name of the algorithm. Supported:\n"
                            "- vox2cortex\n"
-                           "- corticalflow")
+                           "- corticalflow\n"
+                           "- v2cflow")
     argparser.add_argument('--dataset',
                            type=str,
                            default=hyper_ps_default['DATASET'],
