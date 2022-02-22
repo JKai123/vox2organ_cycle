@@ -51,8 +51,11 @@ hyper_ps_default={
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",
 
-    # Directory of raw data
+    # Directory of raw data, usually preprocessed from 'FS_DIR'
     'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
+
+    # Directory of raw freesurfer output
+    'FS_DIR': None,
 
     # Directory of preprocessed data, e.g., containing thickness values from
     # FreeSurfer
@@ -166,6 +169,8 @@ hyper_ps_default={
         # Define the measure of uncertainty, possible values: None, 'mc_x' (x is the
         # number of forward passes in Monte Carlo uncertainty quantification)
         'UNCERTAINTY': None,
+        # The number of vertex classes
+        'N_VERTEX_CLASSES': 37,
     },
 
 
