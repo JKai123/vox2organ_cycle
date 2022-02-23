@@ -275,13 +275,18 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
                 point_w = None
 
             losses = chamfer_distance(
-                pred_p,
-                target_p,
+                pred_p, # Contains also normals
+                target_p, # Contains also normals
                 point_weights=point_w,
                 oriented_cosine_similarity=True,
                 batch_reduction='mean',
                 point_reduction='mean',
             )
+
+            # Skip if losses are invalid; this happens if the current class is
+            # not present in all target pointclouds of the batch
+            if torch.isnan(losses[0]) or torch.isnan(losses[1]):
+                continue
 
             if self.class_weights is not None:
                 d_chamfer += losses[0] * self.class_weights[c]
