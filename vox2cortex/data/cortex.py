@@ -145,6 +145,7 @@ class CortexDataset(DatasetHandler):
 
     img_filename = "mri.nii.gz"
     label_filename = "aseg.nii.gz" # For FS segmentations
+    label_filename_Mb = "aparc+aseg_manual.nii.gz" # Manual Mindboggle segmentations
 
     def __init__(self,
                  ids: Sequence,
@@ -169,6 +170,9 @@ class CortexDataset(DatasetHandler):
                 "Unknown patch mode."
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
+
+        if 'Mindboggle' in raw_data_dir:
+            self.label_filename = self.label_filename_Mb
 
         (self.seg_label_names,
          self.mesh_label_names,
@@ -1004,7 +1008,12 @@ class CortexParcellationDataset(CortexDataset):
             for mn in self.mesh_label_names:
                 # Filenames have the form
                 # 'lh_white_reduced.aparc.DKTatlas40.annot'
-                label_fn = re.sub(r"_0\..", "", mn) + ".aparc.DKTatlas40.annot"
+                # except for Mindboggle which has manual annotations
+                label_fn = re.sub(r"_0\..", "", mn)
+                if 'Mindboggle' in self._raw_data_dir:
+                    label_fn += ".labels.DKT31.manual.annot"
+                else:
+                    label_fn += ".aparc.DKTatlas40.annot"
                 label_fn = os.path.join(file_dir, label_fn)
                 (label,
                  label_colors,

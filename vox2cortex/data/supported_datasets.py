@@ -22,6 +22,7 @@ class SupportedDatasets(IntEnum):
     ADNI_CSR_fail = 7
     ADNI_CSR_orig = 8
     OASIS_FS72 = 9
+    Mindboggle = 10
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -33,6 +34,7 @@ class CortexDatasets(IntEnum):
     ADNI_CSR_fail = SupportedDatasets.ADNI_CSR_fail.value
     ADNI_CSR_orig = SupportedDatasets.ADNI_CSR_orig.value
     OASIS_FS72 = SupportedDatasets.OASIS_FS72.value
+    Mindboggle = SupportedDatasets.Mindboggle.value
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
@@ -94,6 +96,13 @@ dataset_paths = {
         'FIXED_SPLIT': ["OASIS_train.txt",
                         "OASIS_val.txt",
                         "OASIS_test.txt"] # Read from files
+    },
+    SupportedDatasets.Mindboggle.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Mindboggle/CSR_data/",
+        'FS_DIR': "to-decide",
+        'FIXED_SPLIT': ["fold1_train.txt",
+                        "fold1_val.txt",
+                        "fold1_test.txt"] # Read from files
     },
     SupportedDatasets.TRT_CSR_Data.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/TRT_CSR_Data/",

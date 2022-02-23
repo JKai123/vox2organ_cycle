@@ -15,6 +15,7 @@ dataset_split_handler = {
     SupportedDatasets.TRT_CSR_Data.name: CortexParcellationDataset.split,
     SupportedDatasets.OASIS.name: CortexParcellationDataset.split,
     SupportedDatasets.OASIS_FS72.name: CortexParcellationDataset.split,
+    SupportedDatasets.Mindboggle.name: CortexParcellationDataset.split,
     SupportedDatasets.ADNI_CSR_fail.name: CortexParcellationDataset.split,
     SupportedDatasets.ADNI_CSR_orig.name: CortexParcellationDataset.split,
     SupportedDatasets.ADNI_CSR_small.name: CortexParcellationDataset.split,
