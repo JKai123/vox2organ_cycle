@@ -78,7 +78,8 @@ def eval_template_parc(
         )
     )[0] + 1 # Shift
     include_labels = np.unique(gt_parc)
-    num_parcel_classes = len(include_labels)
+    # Ignore undefined labels
+    include_labels = include_labels[~np.isin(include_labels, (0, 1))]
     gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
 
     # Load predicted mesh
