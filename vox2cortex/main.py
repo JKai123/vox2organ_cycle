@@ -25,6 +25,7 @@ from utils.ablation_study import (
 )
 from utils.losses import (
     ClassAgnosticChamferAndNormalsLoss,
+    ChamferAndNormalsLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss
@@ -35,7 +36,7 @@ from utils.losses import (
 hyper_ps_overfit = {
     # Learning
     # Sanity checks not possible on lrz
-    'SANITY_CHECK_DATA': True
+    # 'SANITY_CHECK_DATA': True
 }
 
 
@@ -43,11 +44,23 @@ hyper_ps_overfit = {
 # fixed together, see params.experiments
 hyper_ps = {
     # Parameter group
-    'GROUP_NAME': 'V2C-Flow no-patch',
+    # 'GROUP_NAME': 'V2C-Flow no-patch',
+    # 'GROUP_NAME': 'Cortical Flow no-patch',
+    'GROUP_NAME': 'Vox2Cortex no-patch',
+    'P_DROPOUT_UNET': 0.2,
+    'P_DROPOUT_GRAPH': 0.2,
+    # 'MESH_LOSS_FUNC': [
+       # ChamferAndNormalsLoss(),
+       # EdgeLoss(0.0)
+    # ],
 
     # Learning
-    'N_EPOCHS': 50,
-    'BATCH_SIZE': 3,
+    'N_EPOCHS': 100,
+    'BATCH_SIZE': 1,
+
+    # LRZ
+    'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
+    'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
 }
 
 mode_handler = {
