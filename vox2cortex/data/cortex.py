@@ -1019,6 +1019,10 @@ class CortexParcellationDataset(CortexDataset):
                  label_colors,
                  label_info) = nib.freesurfer.io.read_annot(label_fn)
 
+                # !!!! Set all 0 labels to -1 since 0 does not exist in
+                # template
+                label[label == 0] = -1
+
                 # !!!! Remap labels from [-1, 35] to [0, 36]
                 label = label + 1
 
