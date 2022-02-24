@@ -67,11 +67,14 @@ def single_experiment(hyper_ps, mode, resume):
     # Assemble params from default and group-specific params
     hps = assemble_group_params(hyper_ps['GROUP_NAME'])
 
+    # Set dataset paths
+    hps = update_dict(
+        hps,
+        dataset_paths[hyper_ps.get('DATASET', hps['DATASET'])]
+    )
+
     # Overwrite with master params
     hps = update_dict(hps, hyper_ps)
-
-    # Set dataset paths
-    hps = update_dict(hps, dataset_paths[hps['DATASET']])
 
     # Training device
     torch.cuda.set_device(hps['DEVICE'])
