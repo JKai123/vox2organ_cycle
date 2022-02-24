@@ -84,8 +84,11 @@ hyper_ps_default={
     # Whether to use wandb for logging
     'USE_WANDB': True,
 
-    # Wandb logging group
+    # Wandb logging group and/or parameter group
     'GROUP_NAME': 'uncategorized',
+
+    # A base group for rarely-to-change parameters
+    'BASE_GROUP': None,
 
     # The device to train on
     'DEVICE': 'cuda:0',
@@ -301,7 +304,7 @@ hyper_ps_default={
         'graph_lr': 5e-5,
         'betas': [0.9, 0.999],
         'eps': 1e-8,
-        'weight_decay': 0.0
+        'weight_decay': 0.0001
     },
 
     # Parameters for lr scheduler
