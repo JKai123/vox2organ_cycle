@@ -12,7 +12,7 @@ from data.supported_datasets import (
     dataset_paths,
 )
 from params.default import hyper_ps_default
-from params.groups import hyper_ps_groups
+from params.groups import assemble_group_params
 from utils.modes import ExecModes
 from utils.utils import update_dict
 from utils.train import training_routine
@@ -36,31 +36,24 @@ from utils.losses import (
 hyper_ps_overfit = {
     # Learning
     # Sanity checks not possible on lrz
-    # 'SANITY_CHECK_DATA': True
+    'SANITY_CHECK_DATA': True
 }
 
 
 # Parameters that are overwritten frequently. For groups of parameters that are
-# fixed together, see params.experiments
-hyper_ps = {
-    # Parameter group
-    # 'GROUP_NAME': 'V2C-Flow no-patch',
-    # 'GROUP_NAME': 'Cortical Flow no-patch',
-    'GROUP_NAME': 'Vox2Cortex no-patch',
-    'P_DROPOUT_UNET': 0.2,
-    'P_DROPOUT_GRAPH': 0.2,
-    # 'MESH_LOSS_FUNC': [
-       # ChamferAndNormalsLoss(),
-       # EdgeLoss(0.0)
-    # ],
-
+# fixed together, see params.groups
+hyper_ps_master = {
     # Learning
-    'N_EPOCHS': 100,
-    'BATCH_SIZE': 1,
+    'BATCH_SIZE': 2,
+    # 'FIXED_SPLIT': [
+        # "fold2_train.txt",
+        # "fold2_val.txt",
+        # "fold2_test.txt"
+    # ]
 
     # LRZ
-    'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
-    'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
+    # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
+    # 'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
 }
 
 mode_handler = {
@@ -180,17 +173,14 @@ def main(hyper_ps):
                            " ../experiments.")
     args = argparser.parse_args()
 
-    # Default params
-    hps = hyper_ps_default.copy()
-
-    # Set dataset paths
-    hps = update_dict(hps, dataset_paths[args.dataset])
-
-    # Overwrite with group-specific params
+    # Assemble params from default and group-specific params
     group_name = args.group_name if (
         args.group_name != hyper_ps_default['GROUP_NAME']
     ) else hyper_ps.get('GROUP_NAME', args.group_name)
-    hps = update_dict(hps, hyper_ps_groups[group_name])
+    hps = assemble_group_params(group_name)
+
+    # Set dataset paths
+    hps = update_dict(hps, dataset_paths[args.dataset])
 
     # Overwrite with 'often-to-change' or 'under-investigation' params
     hps = update_dict(hps, hyper_ps)
@@ -271,4 +261,4 @@ def main(hyper_ps):
 
 
 if __name__ == '__main__':
-    main(hyper_ps)
+    main(hyper_ps_master)
