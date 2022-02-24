@@ -91,7 +91,7 @@ def load_mesh_template(
     path: str,
     mesh_label_names: Sequence,
     mesh_suffix: str="smoothed_reduced.ply",
-    feature_suffix: str="_reduced.aparc.annot",
+    feature_suffix: str="_reduced.aparc.DKTatlas40.annot",
     trans_affine=torch.eye(4)
 ):
     vertices = []

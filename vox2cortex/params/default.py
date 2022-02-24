@@ -119,7 +119,7 @@ hyper_ps_default={
 
     # Template folder containing lh_white.ply, ... and
     # lh_white.aparc.annot, ...
-    'MESH_TEMPLATE_PATH': '/home/fabianb/work/fsaverage70/v2c_template/',
+    'MESH_TEMPLATE_PATH': '/mnt/nas/Data_Neuro/Parcellation_atlas/fsaverage/v2c_template/',
 
     # Whether to use a reduced (smaller) template
     'REDUCED_TEMPLATE': True,
