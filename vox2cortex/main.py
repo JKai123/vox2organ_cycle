@@ -35,7 +35,6 @@ hyper_ps_overfit = {
 # fixed together, see params.groups
 hyper_ps_master = {
     # Learning
-    'N_EPOCHS': 1,
     'BATCH_SIZE': 2,
     # 'FIXED_SPLIT': [
         # "fold2_train.txt",
