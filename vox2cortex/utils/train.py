@@ -586,7 +586,17 @@ def training_routine(
         trainLogger.info("Resuming training from epoch %d", start_epoch)
     elif hps['PRE_TRAINED_MODEL_PATH'] is not None:
         # Load a pre-trained (sub-) model
-        model.load_part(hps['PRE_TRAINED_MODEL_PATH'])
+        try:
+            model.load_part(hps['PRE_TRAINED_MODEL_PATH'])
+        except:
+            # Try to infer name of pretrained model from previous experiment
+            hps['PRE_TRAINED_MODEL_PATH'] = os.path.join(
+                experiment_base_dir,
+                hps['PREVIOUS_EXPERIMENT_NAME'],
+                "intermediate.model"
+            )
+            model.load_part(hps['PRE_TRAINED_MODEL_PATH'])
+
         start_epoch = 1 # Start epoch counting nonetheless from 1
     else:
         # New training

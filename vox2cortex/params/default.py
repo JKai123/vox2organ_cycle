@@ -69,6 +69,9 @@ hyper_ps_default={
     # Attention: 'debug' overwrites previous debug experiment
     'EXPERIMENT_NAME': None,
 
+    # Name of a previous experiment reference, e.g. to load a pre-trained model
+    'PREVIOUS_EXPERIMENT_NAME': None,
+
     # A prefix for automatically enumerated experiments
     'EXP_PREFIX': 'exp_',
 

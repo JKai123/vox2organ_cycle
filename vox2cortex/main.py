@@ -6,13 +6,12 @@ import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 import torch
-from torch.optim import AdamW
 
 from data.supported_datasets import (
     dataset_paths,
 )
 from params.default import hyper_ps_default
-from params.groups import assemble_group_params
+from params.groups import assemble_group_params, hyper_ps_groups
 from utils.modes import ExecModes
 from utils.utils import update_dict
 from utils.train import training_routine
@@ -23,13 +22,6 @@ from utils.ablation_study import (
     AVAILABLE_ABLATIONS,
     set_ablation_params_
 )
-from utils.losses import (
-    ClassAgnosticChamferAndNormalsLoss,
-    ChamferAndNormalsLoss,
-    LaplacianLoss,
-    NormalConsistencyLoss,
-    EdgeLoss
-)
 
 
 # Overwrite params for overfitting (often useful for debugging and development)
@@ -39,11 +31,11 @@ hyper_ps_overfit = {
     'SANITY_CHECK_DATA': True
 }
 
-
 # Parameters that are overwritten frequently. For groups of parameters that are
 # fixed together, see params.groups
 hyper_ps_master = {
     # Learning
+    'N_EPOCHS': 1,
     'BATCH_SIZE': 2,
     # 'FIXED_SPLIT': [
         # "fold2_train.txt",
@@ -56,12 +48,61 @@ hyper_ps_master = {
     # 'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
 }
 
+# Overwrite master params if the value is different from the
+# default value
+def ovwr(hyper_ps, key, value):
+    if value != hyper_ps_default[key]:
+        hyper_ps[key] = value
+
 mode_handler = {
     ExecModes.TRAIN.value: training_routine,
     ExecModes.TEST.value: test_routine,
     ExecModes.TRAIN_TEST.value: train_test_routine,
     ExecModes.TUNE.value: tuning_routine
 }
+
+
+def single_experiment(hyper_ps, mode, resume):
+    """ Run a single experiment.
+    """
+    # Assemble params from default and group-specific params
+    hps = assemble_group_params(hyper_ps['GROUP_NAME'])
+
+    # Overwrite with master params
+    hps = update_dict(hps, hyper_ps)
+
+    # Set dataset paths
+    hps = update_dict(hps, dataset_paths[hps['DATASET']])
+
+    # Training device
+    torch.cuda.set_device(hps['DEVICE'])
+
+    # Potentially set params for ablation study
+    if hps['ABLATION_STUDY']:
+        set_ablation_params_(hps, hps['ABLATION_STUDY'])
+
+    # Add patch size to model config
+    hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
+
+    # Potentially overfit
+    if hps['OVERFIT']:
+        hps = update_dict(hps, hyper_ps_overfit)
+
+    # Create output dirs
+    if not os.path.isdir(hps['MISC_DIR']):
+        os.mkdir(hps['MISC_DIR'])
+    if not os.path.isdir(hps['CHECK_DIR']):
+        os.mkdir(hps['CHECK_DIR'])
+
+    # Run
+    # Attention: the routine can change the experiment name
+    routine = mode_handler[mode]
+    return routine(
+        hps,
+        experiment_name=hps['EXPERIMENT_NAME'],
+        loglevel=hps['LOGLEVEL'],
+        resume=resume
+    )
 
 def main(hyper_ps):
     """
@@ -124,8 +165,9 @@ def main(hyper_ps):
     argparser.add_argument('--group',
                            type=str,
                            dest='group_name',
-                           default=hyper_ps_default['GROUP_NAME'],
-                           help="Specify the name of the experiment group."
+                           nargs='+',
+                           help="Specify the name(s) of the experiment"
+                           " group(s)."
                            " Corresponding parameters are chosen from"
                            " params/groups.py")
     argparser.add_argument('--device',
@@ -173,59 +215,31 @@ def main(hyper_ps):
                            " ../experiments.")
     args = argparser.parse_args()
 
-    # Assemble params from default and group-specific params
-    group_name = args.group_name if (
-        args.group_name != hyper_ps_default['GROUP_NAME']
-    ) else hyper_ps.get('GROUP_NAME', args.group_name)
-    hps = assemble_group_params(group_name)
-
-    # Set dataset paths
-    hps = update_dict(hps, dataset_paths[args.dataset])
-
-    # Overwrite with 'often-to-change' or 'under-investigation' params
-    hps = update_dict(hps, hyper_ps)
-
-    # Set command line params if they are different from the defaults; if this
-    # is true, they overwrite previously set parameters
-    ovwr= lambda key, value: (
-        value if hyper_ps_default[key] != value else hps[key]
-    )
-    hps['EXPERIMENT_NAME'] = ovwr('EXPERIMENT_NAME', args.exp_name)
-    hps['ARCHITECTURE'] = ovwr('ARCHITECTURE', args.architecture)
-    hps['DATASET'] = ovwr('DATASET', args.dataset)
-    hps['LOGLEVEL'] = ovwr('LOGLEVEL', args.loglevel)
-    hps['PROJ_NAME'] = ovwr('PROJ_NAME', args.proj_name)
-    hps['GROUP_NAME'] = ovwr('GROUP_NAME', args.group_name)
-    hps['DEVICE'] = ovwr('DEVICE', args.device)
-    hps['OVERFIT'] = ovwr('OVERFIT', args.overfit)
-    hps['TIME_LOGGING'] = ovwr('TIME_LOGGING', args.time)
-    hps['PARAMS_TO_TUNE'] = ovwr('PARAMS_TO_TUNE', args.params_to_tune)
-    hps['TEST_MODEL_EPOCH'] = ovwr('TEST_MODEL_EPOCH', args.test)
-    hps['PARAMS_TO_FINE_TUNE'] = ovwr(
-        'PARAMS_TO_FINE_TUNE', args.params_to_fine_tune
-    )
-    hps['REDUCED_TEMPLATE'] = ovwr(
-        'REDUCED_TEMPLATE', args.reduced_template
-    )
-    hps['USE_WANDB'] = args.use_wandb
-    hps['EXP_PREFIX'] = args.exp_prefix
+    ovwr(hyper_ps, 'EXPERIMENT_NAME', args.exp_name)
+    ovwr(hyper_ps, 'ARCHITECTURE', args.architecture)
+    ovwr(hyper_ps, 'DATASET', args.dataset)
+    ovwr(hyper_ps, 'LOGLEVEL', args.loglevel)
+    ovwr(hyper_ps, 'PROJ_NAME', args.proj_name)
+    ovwr(hyper_ps, 'GROUP_NAME', args.group_name)
+    ovwr(hyper_ps, 'DEVICE', args.device)
+    ovwr(hyper_ps, 'OVERFIT', args.overfit)
+    ovwr(hyper_ps, 'TIME_LOGGING', args.time)
+    ovwr(hyper_ps, 'PARAMS_TO_TUNE', args.params_to_tune)
+    ovwr(hyper_ps, 'TEST_MODEL_EPOCH', args.test)
+    ovwr(hyper_ps, 'PARAMS_TO_FINE_TUNE', args.params_to_fine_tune)
+    ovwr(hyper_ps, 'REDUCED_TEMPLATE', args.reduced_template)
+    ovwr(hyper_ps, 'EXP_PREFIX', args.exp_prefix)
+    ovwr(hyper_ps, 'USE_WANDB', args.use_wandb)
 
     if args.ablation_study:
-        hps['ABLATION_STUDY'] = args.ablation_study[0]
+        hyper_ps['ABLATION_STUDY'] = args.ablation_study[0]
     else:
-        hps['ABLATION_STUDY'] = hyper_ps_default['ABLATION_STUDY']
+        hyper_ps['ABLATION_STUDY'] = hyper_ps_default['ABLATION_STUDY']
 
     if args.params_to_tune and args.params_to_fine_tune:
         raise RuntimeError(
             "Cannot tune and fine-tune parameters at the same time."
         )
-
-    # Training device
-    torch.cuda.set_device(args.device)
-
-    # Potentially set params for ablation study
-    if args.ablation_study:
-        set_ablation_params_(hps, args.ablation_study[0])
 
     # Set execution mode
     if args.params_to_tune or args.params_to_fine_tune:
@@ -241,23 +255,24 @@ def main(hyper_ps):
             print("Please use either --train or --test or both.")
             return
 
-    # Add patch size to model config
-    hps['MODEL_CONFIG']['PATCH_SIZE'] = hps['PATCH_SIZE']
+    # Define parameter group name(s)
+    param_group_names = args.group_name if (
+        args.group_name != hyper_ps_default['GROUP_NAME']
+    ) else hyper_ps.get('GROUP_NAME', args.group_name)
+    if isinstance(param_group_names, str):
+        param_group_names = [param_group_names]
+    if not all(n in hyper_ps_groups for n in param_group_names):
+        raise RuntimeError("Not all parameter groups exist.")
 
-    # Potentially overfit
-    if hps['OVERFIT']:
-        hps = update_dict(hps, hyper_ps_overfit)
+    previous_exp_name = None
 
-    # Create output dirs
-    if not os.path.isdir(hps['MISC_DIR']):
-        os.mkdir(hps['MISC_DIR'])
-    if not os.path.isdir(hps['CHECK_DIR']):
-        os.mkdir(hps['CHECK_DIR'])
+    # Iterate over parameter groups
+    for param_group_name in param_group_names:
+        # Potentially reference previous experiment
+        hyper_ps['PREVIOUS_EXPERIMENT_NAME'] = previous_exp_name
+        hyper_ps['GROUP_NAME'] = param_group_name
 
-    # Run
-    routine = mode_handler[mode]
-    routine(hps, experiment_name=hps['EXPERIMENT_NAME'],
-            loglevel=hps['LOGLEVEL'], resume=args.resume)
+        previous_exp_name = single_experiment(hyper_ps, mode, args.resume)
 
 
 if __name__ == '__main__':

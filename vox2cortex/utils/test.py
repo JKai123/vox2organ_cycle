@@ -233,3 +233,5 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             write_test_results(results, mn, test_dir)
 
             epochs_tested.append(epoch)
+
+    return experiment_name
