@@ -111,7 +111,7 @@ def load_mesh_template(
         ft = torch.from_numpy(
             nib.freesurfer.io.read_annot(
                os.path.join(path, mn + feature_suffix)
-            )[0].astype(np.float32)
+            )[0].astype(np.int32)
         )
         # Combine -1 & 0 into one class
         ft[ft < 0] = 0

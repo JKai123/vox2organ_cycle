@@ -1023,7 +1023,7 @@ class CortexParcellationDataset(CortexDataset):
                 label[label < 0] = 0
 
                 file_labels.append(
-                    torch.from_numpy(label).unsqueeze(-1)
+                    torch.from_numpy(label.astype(np.int32)).unsqueeze(-1)
                 )
                 if label.shape[0] > V_max:
                     V_max = label.shape[0]
