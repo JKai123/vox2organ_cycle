@@ -95,7 +95,7 @@ def eval_template_parc(
     pred_parc = nib.freesurfer.io.read_annot(
         os.path.join(
             template_path,
-            surf_name + ".aparc.annot"
+            surf_name + ".aparc.DKTatlas40.annot"
         )
     )[0] + 1 # Shift
     pred_parc = torch.from_numpy(pred_parc.astype(np.int32))[None].to(device)

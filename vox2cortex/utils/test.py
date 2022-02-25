@@ -156,10 +156,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
     if hps['REDUCED_TEMPLATE']:
         mesh_suffix: str="_smoothed_reduced.ply"
-        feature_suffix: str="_reduced.aparc.annot"
+        feature_suffix: str="_reduced.aparc.DKTatlas40.annot"
     else:
         mesh_suffix: str="_smoothed.ply"
-        feature_suffix: str=".aparc.annot"
+        feature_suffix: str=".aparc.DKTatlas40.annot"
     template = load_mesh_template(
         hps['MESH_TEMPLATE_PATH'],
         list(map(rm_suffix, test_set.mesh_label_names)),
