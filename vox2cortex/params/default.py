@@ -176,7 +176,7 @@ hyper_ps_default={
         # number of forward passes in Monte Carlo uncertainty quantification)
         'UNCERTAINTY': None,
         # The number of vertex classes
-        'N_VERTEX_CLASSES': 37,
+        'N_VERTEX_CLASSES': 36,
     },
 
 
