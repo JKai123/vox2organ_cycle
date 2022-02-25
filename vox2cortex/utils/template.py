@@ -108,13 +108,14 @@ def load_mesh_template(
         vertices.append(torch.from_numpy(m.vertices))
         faces.append(torch.from_numpy(m.faces))
 
-        features.append(
-            torch.from_numpy(
-                nib.freesurfer.io.read_annot(
-                   os.path.join(path, mn + feature_suffix)
-                )[0].astype(np.float32) + 1.0 # Remap -1 --> 0
-            )
+        ft = torch.from_numpy(
+            nib.freesurfer.io.read_annot(
+               os.path.join(path, mn + feature_suffix)
+            )[0].astype(np.float32)
         )
+        # Combine -1 & 0 into one class
+        ft[ft < 0] = 0
+        features.append(ft)
 
     vertices = torch.stack(vertices).float()
     faces = torch.stack(faces).long()

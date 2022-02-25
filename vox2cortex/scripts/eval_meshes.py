@@ -76,7 +76,9 @@ def eval_template_parc(
             'label',
             '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
         )
-    )[0] + 1 # Shift
+    )[0]
+    # Combine -1 & 0 into one class
+    gt_parc[gt_parc < 0] = 0
     include_labels = np.unique(gt_parc)
     # Ignore undefined labels
     include_labels = include_labels[~np.isin(include_labels, (0, 1))]
@@ -97,7 +99,9 @@ def eval_template_parc(
             template_path,
             surf_name + ".aparc.DKTatlas40.annot"
         )
-    )[0] + 1 # Shift
+    )[0]
+    # Combine -1 & 0 into one class
+    pred_parc[pred_parc < 0] = 0
     pred_parc = torch.from_numpy(pred_parc.astype(np.int32))[None].to(device)
 
     pred_pntcloud = torch.from_numpy(

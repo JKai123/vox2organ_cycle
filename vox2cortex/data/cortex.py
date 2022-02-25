@@ -1019,12 +1019,8 @@ class CortexParcellationDataset(CortexDataset):
                  label_colors,
                  label_info) = nib.freesurfer.io.read_annot(label_fn)
 
-                # !!!! Set all 0 labels to -1 since 0 does not exist in
-                # template
-                label[label == 0] = -1
-
-                # !!!! Remap labels from [-1, 35] to [0, 36]
-                label = label + 1
+                # Combine -1 & 0 into one class
+                label[label < 0] = 0
 
                 file_labels.append(
                     torch.from_numpy(label).unsqueeze(-1)
