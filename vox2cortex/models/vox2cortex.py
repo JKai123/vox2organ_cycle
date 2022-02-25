@@ -55,6 +55,7 @@ class Vox2Cortex(V2MModel):
     relevant if group_structs is specified and exchange_coords is True.
     :param exchange_coords: Whether to exchange coordinates between structure
     groups.
+    :param n_vertex_classes: The number of vertex classes.
     """
 
     def __init__(self,
@@ -82,6 +83,7 @@ class Vox2Cortex(V2MModel):
                  group_structs: Tuple[Tuple[int]],
                  k_struct_neighbors: int,
                  exchange_coords: bool,
+                 n_vertex_classes: int,
                  **kwargs
                  ):
         super().__init__()
@@ -116,6 +118,7 @@ class Vox2Cortex(V2MModel):
             GC=gc,
             p_dropout=p_dropout_graph,
             group_structs=group_structs,
+            n_vertex_classes=n_vertex_classes,
             ndims=ndims
         )
 

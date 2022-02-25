@@ -51,7 +51,7 @@ class GraphDecoder(nn.Module):
                  k_struct_neighbors=5,
                  ndims: int=3,
                  aggregate: str='trilinear',
-                 n_verts_classes: int=37,
+                 n_vertex_classes: int=36,
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2):
         super().__init__()
@@ -88,7 +88,7 @@ class GraphDecoder(nn.Module):
         # Initial creation of latent features from coordinates and vertex
         # classes
         self.graph_conv_first = Features2FeaturesResidual(
-            ndims + n_verts_classes,
+            ndims + n_vertex_classes,
             graph_channels[0],
             n_f2f_hidden_layer,
             norm=norm,
@@ -173,7 +173,7 @@ class GraphDecoder(nn.Module):
         self.sphere_vertices = mesh_template.vertices.cuda()[None]
         self.sphere_faces = mesh_template.faces.cuda()[None]
         self.sphere_features = mesh_template.features.cuda()[None]
-        assert self.sphere_features.max().cpu().item() == n_verts_classes - 1
+        assert self.sphere_features.max().cpu().item() == n_vertex_classes - 1
 
         # Assert correctness of the structure grouping
         if group_structs:
