@@ -9,6 +9,7 @@ import json
 import inspect
 import warnings
 import collections.abc
+from copy import deepcopy
 from enum import Enum
 from typing import Union, Tuple
 
@@ -132,21 +133,22 @@ def update_dict(d, u):
     :param d: The old dict.
     :param u: The dict that should be used for the update.
 
-    :returns: The updated dict.
+    :returns: A new pdated dict.
     """
+    d_new = deepcopy(d)
 
     for k, v_u in u.items():
-        if k not in d.keys():
+        if k not in d_new.keys():
             warnings.warn(f"Key {k} not in dict that is updated.")
 
         if isinstance(v_u, collections.abc.Mapping):
-            v_d = d.get(k, {})
+            v_d = d_new.get(k, {})
             v_d = v_d if isinstance(v_d, collections.abc.Mapping) else {}
-            d[k] = update_dict(v_d, v_u)
+            d_new[k] = update_dict(v_d, v_u)
         else:
-            d[k] = v_u
+            d_new[k] = v_u
 
-    return d
+    return d_new
 
 def string_list(l: list):
     """
