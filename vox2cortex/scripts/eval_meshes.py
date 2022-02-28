@@ -33,6 +33,8 @@ PARTNER = {"rh_white": "rh_pial",
            "rh_pial": "rh_white",
            "lh_white": "lh_pial",
            "lh_pial": "lh_white"}
+PARC_LABELS = [2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+ 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 35] #32 total
 
 MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error', 'parc')
 
@@ -42,7 +44,7 @@ def eval_template_parc(
     eval_params,
     epoch,
     device="cuda:1",
-    template_path="/home/fabianb/work/fsaverage70/v2c_template/",
+    template_path="/mnt/nas/Data_Neuro/Parcellation_atlas/fsaverage/v2c_template/",
     subfolder="meshes"
 ):
     """ Evaluate parcellations in terms of Jaccard and Dice.
@@ -68,20 +70,21 @@ def eval_template_parc(
         )
         gt_mesh = trimesh.load(gt_mesh_path, process=False)
 
-    # Load gt parcellation from original FS output folder
+    # Load gt parcellation from FS/manual folder
+    if "Mindboggle" in eval_params['fs_path']:
+        label_fn = '{}.labels.DKT31.manual.annot'.format(surf_name.split("_")[0])
+    else:
+        label_fn = '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
     gt_parc = nib.freesurfer.io.read_annot(
         os.path.join(
             eval_params['fs_path'],
             mri_id,
             'label',
-            '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
+            label_fn
         )
     )[0]
     # Combine -1 & 0 into one class
     gt_parc[gt_parc < 0] = 0
-    include_labels = np.unique(gt_parc)
-    # Ignore undefined labels
-    include_labels = include_labels[~np.isin(include_labels, (0, 1))]
     gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
 
     # Load predicted mesh
@@ -120,13 +123,13 @@ def eval_template_parc(
     jaccard_p = jaccard_score(
         neighbor_parc.cpu(),
         surf_parc.cpu(),
-        labels=include_labels,
+        labels=PARC_LABELS,
         average=None
     )
     dice_p = f1_score(
         neighbor_parc.cpu(),
         surf_parc.cpu(),
-        labels=include_labels,
+        labels=PARC_LABELS,
         average=None
     )
 
@@ -139,13 +142,13 @@ def eval_template_parc(
     jaccard_g = jaccard_score(
         neighbor_parc.cpu(),
         surf_parc.cpu(),
-        labels=include_labels,
+        labels=PARC_LABELS,
         average=None
     )
     dice_g = f1_score(
         neighbor_parc.cpu(),
         surf_parc.cpu(),
-        labels=include_labels,
+        labels=PARC_LABELS,
         average=None
     )
 
