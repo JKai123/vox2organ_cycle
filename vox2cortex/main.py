@@ -40,7 +40,13 @@ hyper_ps_master = {
         # "fold2_train.txt",
         # "fold2_val.txt",
         # "fold2_test.txt"
-    # ]
+    # ],
+
+    # !!!! RUN EXPERIMENTS step-by-step !!!!
+    # CF
+    # 'PRE_TRAINED_MODEL_PATH': '../experiments/quadro-exp_50/intermediate.model',
+
+    'EVAL_METRICS': [],
 
     # LRZ
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',

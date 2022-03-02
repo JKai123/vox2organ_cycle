@@ -35,8 +35,267 @@ PARTNER = {"rh_white": "rh_pial",
            "lh_pial": "lh_white"}
 PARC_LABELS = [2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
  20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 35] #32 total
+PARCEL_NAMES = ['caudalanteriorcingulate', 'caudalmiddlefrontal', 'cuneus',
+                'entorhinal', 'fusiform', 'inferiorparietal', 'inferiortemporal', 'isthmuscingulate',
+                'lateraloccipital', 'lateralorbitofrontal', 'lingual', 'medialorbitofrontal', 'middletemporal',
+                'parahippocampal', 'paracentral', 'parsopercularis', 'parsorbitalis', 'parstriangularis',
+                'pericalcarine', 'postcentral', 'posteriorcingulate', 'precentral', 'precuneus',
+                'rostralanteriorcingulate', 'rostralmiddlefrontal', 'superiorfrontal', 'superiorparietal',
+                'superiortemporal', 'supramarginal', 'transversetemporal', 'insula']
 
-MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error', 'parc')
+MODES = ('ad_hd', 'thickness', 'trt', 'per-vertex-error', 'parc', 'parc_count',
+         'parc_count_reg', 'template-per-vereex-error')
+
+def eval_gnn_class_count(
+    mri_id, surf_name,
+    eval_params,
+    epoch,
+    device="cuda:1",
+    template_path="/mnt/nas/Data_Neuro/Parcellation_atlas/fsaverage/",
+    subfolder="meshes"
+):
+    """ Evaluate parcellations in terms of accuracy.
+    """
+    pred_folder = os.path.join(eval_params['log_path'])
+
+    # Load ground-truth mesh
+    try:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+    except ValueError:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+
+    # Load gt parcellation from FS/manual folder
+    if "Mindboggle" in eval_params['fs_path']:
+        label_fn = '{}.labels.DKT31.manual.annot'.format(surf_name.split("_")[0])
+    else:
+        label_fn = '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
+    gt_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            eval_params['fs_path'],
+            mri_id,
+            'label',
+            label_fn
+        )
+    )[0]
+    # Combine -1 & 0 into one class
+    gt_parc[gt_parc < 0] = 0
+    gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
+
+    # Load predicted mesh
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
+
+    # Load predicted parcellation
+    pred_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            pred_folder,
+            subfolder,
+            f"{mri_id}_epoch{epoch}_struc{s_index}_parcellation.annot"
+    )
+    )[0]
+    # Combine -1 & 0 into one class
+    pred_parc[pred_parc < 0] = 0
+    pred_parc = torch.from_numpy(pred_parc.astype(np.int32))[None].to(device)
+
+    pred_pntcloud = torch.from_numpy(
+        pred_mesh.vertices
+    )[None].float().to(device)
+    gt_pntcloud = torch.from_numpy(
+        gt_mesh.vertices
+    )[None].float().to(device)
+
+    # Check correctness of classified gt vertices (from closest prediction)
+    x_nn = knn_points(gt_pntcloud, pred_pntcloud, K=1)
+    surf_parc = gt_parc.squeeze()
+    neighbor_parc= knn_gather(
+        pred_parc.unsqueeze(-1), x_nn.idx
+    ).long().squeeze()
+
+    correct = surf_parc == neighbor_parc
+
+    # Register to fsaverage using the FS file *h.sphere.reg
+    reg_sphere_v, reg_sphere_f = nib.freesurfer.io.read_geometry(
+        os.path.join(
+            eval_params['fs_path'],
+            mri_id,
+            'surf',
+            surf_name.split("_")[0] # hemi
+            + ".sphere.reg"
+        )
+    )
+    fs_reg_pntcloud = torch.from_numpy(
+        reg_sphere_v
+    )[None].float().to(device)
+    fsaverage_sphere_v, fsaverage_sphere_f = nib.freesurfer.io.read_geometry(
+        os.path.join(
+            template_path,
+            'surf',
+            surf_name.split("_")[0] # hemi 
+            + ".sphere.reg.avg"
+        )
+    )
+    fs_avg_pntcloud = torch.from_numpy(
+        fsaverage_sphere_v
+    )[None].float().to(device)
+    x_nn = knn_points(fs_avg_pntcloud, fs_reg_pntcloud, K=1)
+    correct_reg = knn_gather(
+        correct[None].unsqueeze(-1), x_nn.idx
+    ).long().squeeze()
+
+    print(f"Correctly classified: {correct_reg.sum().float()/len(correct_reg)}")
+
+    return correct_reg.cpu().numpy()
+
+def eval_template_per_vertex_error(
+    mri_id, surf_name,
+    eval_params,
+    epoch,
+    device="cuda:1",
+    subfolder="meshes"
+):
+    """ Evaluate per-vertex-errors.
+    """
+    print("Evaluate  parcellation...")
+
+    pred_folder = os.path.join(eval_params['log_path'])
+
+    # Load ground-truth mesh
+    try:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+    except ValueError:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+
+    gt_mesh = Meshes(
+        torch.from_numpy(gt_mesh.vertices).float()[None],
+        torch.from_numpy(gt_mesh.faces).long()[None]
+    ).to(device)
+
+    # Load predicted mesh
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
+
+    pred_pntcloud = torch.from_numpy(
+        pred_mesh.vertices
+    )[None].float().to(device)
+
+    # Distances
+    P2G_dist = _point_mesh_face_distance_unidirectional(
+        Pointclouds(pred_pntcloud), gt_mesh
+    ).cpu().numpy().squeeze()
+
+    print(f"Average distance: {P2G_dist.mean()}")
+
+    return P2G_dist
+
+def eval_template_count(
+    mri_id, surf_name,
+    eval_params,
+    epoch,
+    device="cuda:1",
+    template_path="/mnt/nas/Data_Neuro/Parcellation_atlas/fsaverage/v2c_template/",
+    subfolder="meshes"
+):
+    """ Evaluate parcellations in terms of accuracy.
+    """
+    print("Evaluate  parcellation...")
+
+    pred_folder = os.path.join(eval_params['log_path'])
+
+    # Load ground-truth mesh
+    try:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+    except ValueError:
+        gt_mesh_path = os.path.join(
+            eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
+        )
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
+
+    # Load gt parcellation from FS/manual folder
+    if "Mindboggle" in eval_params['fs_path']:
+        label_fn = '{}.labels.DKT31.manual.annot'.format(surf_name.split("_")[0])
+    else:
+        label_fn = '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
+    gt_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            eval_params['fs_path'],
+            mri_id,
+            'label',
+            label_fn
+        )
+    )[0]
+    # Combine -1 & 0 into one class
+    gt_parc[gt_parc < 0] = 0
+    gt_parc = torch.from_numpy(gt_parc.astype(np.int32))[None].to(device)
+
+    # Load predicted mesh
+    s_index = SURF_NAMES.index(surf_name)
+    pred_mesh_path = os.path.join(
+        pred_folder,
+        subfolder,
+        f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
+    )
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
+
+    # Load predicted vertex classes from template
+    pred_parc = nib.freesurfer.io.read_annot(
+        os.path.join(
+            template_path,
+            surf_name + ".aparc.DKTatlas40.annot"
+        )
+    )[0]
+    # Combine -1 & 0 into one class
+    pred_parc[pred_parc < 0] = 0
+    pred_parc = torch.from_numpy(pred_parc.astype(np.int32))[None].to(device)
+
+    pred_pntcloud = torch.from_numpy(
+        pred_mesh.vertices
+    )[None].float().to(device)
+    gt_pntcloud = torch.from_numpy(
+        gt_mesh.vertices
+    )[None].float().to(device)
+
+    # Check correctness of vertices
+    x_nn = knn_points(pred_pntcloud, gt_pntcloud, K=1)
+    surf_parc = pred_parc.squeeze()
+    neighbor_parc= knn_gather(
+        gt_parc.unsqueeze(-1), x_nn.idx
+    ).long().squeeze()
+
+    correct = surf_parc == neighbor_parc
+
+    print(f"Correctly classified: {correct.sum().float()/len(neighbor_parc)}")
+
+    return correct.cpu().numpy().squeeze()
+
+def count_output(results, summary_file):
+    count = results.sum(axis=0) / results.shape[0]
+    np.save(summary_file, count)
+
 
 def eval_template_parc(
     mri_id,
@@ -74,7 +333,8 @@ def eval_template_parc(
     if "Mindboggle" in eval_params['fs_path']:
         label_fn = '{}.labels.DKT31.manual.annot'.format(surf_name.split("_")[0])
     else:
-        label_fn = '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
+        # label_fn = '{}.aparc.DKTatlas40.annot'.format(surf_name.split("_")[0])
+        label_fn = '{}.aparc.DKTatlas.annot'.format(surf_name.split("_")[0])
     gt_parc = nib.freesurfer.io.read_annot(
         os.path.join(
             eval_params['fs_path'],
@@ -170,6 +430,52 @@ def eval_template_parc(
 
     return jaccard, dice
 
+def dice_output(results, summary_file):
+    jacc_all = results[:, 0,:]
+    dice_all = results[:, 1,:]
+    #dice_all = results
+
+    dice_mean = np.mean(dice_all)
+    dice_std = np.std(dice_all)
+    jacc_mean = np.mean(jacc_all)
+    jacc_std = np.std(jacc_all)
+
+    dice_cols = ['DICE_ALL_MEAN', 'DICE_ALL_STD']
+    for parc_str in PARCEL_NAMES:
+        dice_cols.append(parc_str + '_MEAN')
+        dice_cols.append(parc_str + '_STD')
+    dice_cols_str = ';'.join(dice_cols)
+
+    dice_mets = [str(dice_mean), str(dice_std)]
+    dice_parc_mean = np.mean(dice_all, axis=0)
+    dice_parc_std = np.std(dice_all, axis=0)
+    for m, s in zip(dice_parc_mean, dice_parc_std):
+        dice_mets.append(str(m))
+        dice_mets.append(str(s))
+
+    dice_mets_str = ';'.join(dice_mets)
+
+    jacc_cols = ['JACCARD_ALL_MEAN', 'JACCARD_ALL_STD']
+    for parc_str in PARCEL_NAMES[1:]:
+        jacc_cols.append(parc_str + '_MEAN')
+        jacc_cols.append(parc_str + '_STD')
+    jacc_cols_str = ';'.join(jacc_cols)
+
+    jacc_mets = [str(jacc_mean), str(jacc_std)]
+    jacc_parc_mean = np.mean(jacc_all, axis=0)
+    jacc_parc_std = np.std(jacc_all, axis=0)
+    for m, s in zip(jacc_parc_mean, jacc_parc_std):
+        jacc_mets.append(str(m))
+        jacc_mets.append(str(s))
+
+    jacc_mets_str = ';'.join(jacc_mets)
+
+    with open(summary_file, 'w') as output_csv_file:
+        output_csv_file.write(dice_cols_str + '\n')
+        output_csv_file.write(dice_mets_str + '\n')
+        output_csv_file.write('\n')
+        output_csv_file.write(jacc_cols_str + '\n')
+        output_csv_file.write(jacc_mets_str + '\n')
 
 def parc_output(results, summary_file):
     jacc_all = results[:, 0]
@@ -299,7 +605,7 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
 
     pred_folder = os.path.join(eval_params['log_path'])
     thickness_folder = os.path.join(
-        eval_params['log_path'], 'thickness'
+        eval_params['log_path'].replace("Anne", "Fabi"), 'thickness'
     )
     if not os.path.isdir(thickness_folder):
         os.mkdir(thickness_folder)
@@ -309,12 +615,12 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
         gt_mesh_path = os.path.join(
             eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name)
         )
-        gt_mesh = trimesh.load(gt_mesh_path)
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
     except ValueError:
         gt_mesh_path = os.path.join(
             eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name)
         )
-        gt_mesh = trimesh.load(gt_mesh_path)
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
     gt_mesh.remove_duplicate_faces()
     gt_mesh.remove_unreferenced_vertices()
     gt_pntcloud = gt_mesh.vertices
@@ -327,14 +633,14 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
             mri_id,
             '{}.stl'.format(PARTNER[surf_name])
         )
-        gt_mesh_partner = trimesh.load(gt_mesh_path_partner)
+        gt_mesh_partner = trimesh.load(gt_mesh_path_partner, process=False)
     except ValueError:
         gt_mesh_path_partner = os.path.join(
             eval_params['gt_mesh_path'],
             mri_id,
             '{}.ply'.format(PARTNER[surf_name])
         )
-        gt_mesh_partner = trimesh.load(gt_mesh_path_partner)
+        gt_mesh_partner = trimesh.load(gt_mesh_path_partner, process=False)
     gt_mesh_partner.remove_duplicate_faces()
     gt_mesh_partner.remove_unreferenced_vertices()
 
@@ -345,7 +651,7 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
         subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index}_meshpred.ply"
     )
-    pred_mesh = trimesh.load(pred_mesh_path)
+    pred_mesh = trimesh.load(pred_mesh_path, process=False)
     pred_mesh.remove_duplicate_faces()
     pred_mesh.remove_unreferenced_vertices()
     pred_pntcloud = pred_mesh.vertices
@@ -358,7 +664,7 @@ def eval_thickness(mri_id, surf_name, eval_params, epoch, device="cuda:1",
         subfolder,
         f"{mri_id}_epoch{epoch}_struc{s_index_partner}_meshpred.ply"
     )
-    pred_mesh_partner = trimesh.load(pred_mesh_path_partner)
+    pred_mesh_partner = trimesh.load(pred_mesh_path_partner, process=False)
     pred_mesh_partner.remove_duplicate_faces()
     pred_mesh_partner.remove_unreferenced_vertices()
 
@@ -495,10 +801,10 @@ def eval_per_vertex_err(mri_id, surf_name, eval_params, epoch,
     # load ground-truth mesh
     try:
         gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.stl'.format(surf_name))
-        gt_mesh = trimesh.load(gt_mesh_path)
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
     except ValueError:
         gt_mesh_path = os.path.join(eval_params['gt_mesh_path'], mri_id, '{}.ply'.format(surf_name))
-        gt_mesh = trimesh.load(gt_mesh_path)
+        gt_mesh = trimesh.load(gt_mesh_path, process=False)
     gt_mesh.remove_duplicate_faces(); gt_mesh.remove_unreferenced_vertices();
     gt_mesh = Meshes(
         [torch.from_numpy(gt_mesh.vertices).float().to(device)],
@@ -698,13 +1004,20 @@ mode_to_function = {
     "trt": eval_trt,
     "per-vertex-error": eval_per_vertex_err,
     "parc": eval_template_parc,
+    "parc_count": eval_template_count,
+    "parc_count_reg": eval_gnn_class_count,
+    "template-per-vertex-error": eval_template_per_vertex_error,
 }
 mode_to_output_file = {
     "ad_hd": ad_hd_output,
     "thickness": thickness_output,
     "trt": trt_output,
     "per-vertex-error": per_vertex_err_output,
-    "parc": parc_output,
+    # "parc": parc_output,
+    "parc": dice_output, # more extensice output
+    "parc_count": count_output,
+    "parc_count_reg": count_output,
+    "template-per-vertex-error": count_output,
 }
 
 
@@ -771,9 +1084,16 @@ if __name__ == '__main__':
     if mode == 'trt':
         ids = valid_ids(eval_params['gt_mesh_path'])
     else:
-        ids = read_dataset_ids(
-            dataset_file, args.split[0].upper() + args.split[1:]
+        # ids = read_dataset_ids(
+            # dataset_file, args.split[0].upper() + args.split[1:]
+        # )
+        # Different test set !!!!!!!!!!!! ADNI
+        dataset_file = os.path.join(
+            dataset_paths[dataset]['RAW_DATA_DIR'],
+            dataset_paths[dataset]['FIXED_SPLIT'][2] # Test split
         )
+        convert = lambda x: x[:-1] # 'x\n' --> 'x'
+        ids = list(map(convert, open(dataset_file, 'r').readlines()))
 
     res_all = []
     res_surfaces = {s: [] for s in SURF_NAMES}
@@ -793,7 +1113,7 @@ if __name__ == '__main__':
 
     # Averaged over surfaces
     summary_file = os.path.join(
-        eval_params['log_path'],
+        eval_params['log_path'].replace("Anne", "Fabi"),
         f"{eval_params['metrics_csv_prefix']}_summary.csv"
     )
     mode_to_output_file[mode](np.array(res_all), summary_file)
@@ -801,7 +1121,7 @@ if __name__ == '__main__':
     # Per-surface results
     for surf_name in SURF_NAMES:
         summary_file = os.path.join(
-            eval_params['log_path'],
+            eval_params['log_path'].replace("Anne", "Fabi"),
             f"{surf_name}_{eval_params['metrics_csv_prefix']}_summary.csv"
         )
         mode_to_output_file[mode](np.array(res_surfaces[surf_name]), summary_file)

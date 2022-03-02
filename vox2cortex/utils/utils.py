@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from trimesh import Trimesh
 from skimage import measure
 from skimage.draw import polygon
+from pytorch3d.ops import (knn_gather, knn_points)
 
 from utils.mesh import Mesh
 from utils.coordinate_transform import (

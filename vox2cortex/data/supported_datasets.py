@@ -60,26 +60,30 @@ dataset_paths = {
         }
     },
     SupportedDatasets.ADNI_CSR_small.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
         'FIXED_SPLIT': ["train_small.txt", "val_small.txt", "test_small.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_large.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_orig.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
         'FIXED_SPLIT': ["orig_split_train.txt",
                         "orig_split_val.txt",
                         "orig_split_test.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_fail.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
         'FIXED_SPLIT': ["", "", "fail_scans.txt"] # Read from files
     },
@@ -99,7 +103,7 @@ dataset_paths = {
     },
     SupportedDatasets.Mindboggle.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Mindboggle/CSR_data/",
-        'FS_DIR': "to-decide",
+        'FS_DIR': "/mnt/nas/Data_Neuro/Mindboggle/FreeSurfer/Users/arno.klein/Data/Mindboggle101/subjects/",
         'FIXED_SPLIT': ["fold1_train.txt",
                         "fold1_val.txt",
                         "fold1_test.txt"] # Read from files
