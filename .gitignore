@@ -1,6 +1,7 @@
 *.swp
 __pycache__/
 experiments/
+miccai_experiments/
 meshes/
 misc/
 to_check/
