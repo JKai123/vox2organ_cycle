@@ -123,6 +123,7 @@ def tuning_routine(hps, experiment_name=None, loglevel='INFO', **kwargs):
             wandb_job_type=ExecModes.TUNE.name.lower(),
             notes=run_name,
             id=hps["ID"],
+            entity=hps['ENTITY'],
             params=string_dict(hps)
         )
 

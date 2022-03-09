@@ -4,19 +4,23 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import re
 import os
 import logging
 import json
 
 import torch
+from torch.nn import Dropout
+import numpy as np
 
 from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
+from utils.template import load_mesh_template
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
-from utils.params import DATASET_PARAMS, DATASET_SPLIT_PARAMS
+from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
     BEST_MODEL_NAME,
@@ -63,6 +67,8 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     cannot be resumed.
     """
     experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
+    test_split = hps.get('TEST_SPLIT', 'test')
+
     if experiment_name is None:
         print("Please specify experiment name for testing with --exp_name.")
         return
@@ -89,8 +95,9 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Directoy where test results are written to
     test_dir = os.path.join(
         experiment_dir,
-        "test_template_"
-        + str(hps['N_TEMPLATE_VERTICES_TEST'])
+        test_split
+        + "_template_"
+        + ("reduced" if hps['REDUCED_TEMPLATE'] else "full")
         + f"_{hps['DATASET']}"
     )
     if not os.path.isdir(test_dir):
@@ -102,14 +109,11 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
-    # Choose template according to the number of template vertices specified
-    # (which may be different than during training)
-    if hps['N_TEMPLATE_VERTICES'] != hps['N_TEMPLATE_VERTICES_TEST']:
-        hps['MODEL_CONFIG']['MESH_TEMPLATE'] =\
-            hps['MODEL_CONFIG']['MESH_TEMPLATE'].replace(
-                str(hps['N_TEMPLATE_VERTICES']), str(hps['N_TEMPLATE_VERTICES_TEST'])
-            )
-    testLogger.info("Using template %s", hps['MODEL_CONFIG']['MESH_TEMPLATE'])
+    testLogger.info(
+        "Using template %s reduced=%r",
+        hps['MESH_TEMPLATE_PATH'],
+        hps['REDUCED_TEMPLATE']
+    )
 
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict_to_lower_dict(training_hps)
@@ -118,7 +122,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Check if model configs are equal (besides template)
     for k, v in string_dict(model_config).items():
         v_train = training_hps_lower['model_config'][k]
-        if v_train != v and k != 'mesh_template':
+        if v_train != v:
             raise RuntimeError(f"Hyperparameter {k.upper()} is not equal to the"\
                                " model that should be tested. Values are "\
                                f" {v_train} and {v}.")
@@ -126,17 +130,49 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     # Load test dataset
     test_dataset_params = _get_test_dataset_params(hps, training_hps)
     testLogger.info("Loading dataset %s...", test_dataset_params['DATASET'])
-    _, _, test_set = dataset_split_handler[test_dataset_params['DATASET']](
+    _, val_set, test_set = dataset_split_handler[test_dataset_params['DATASET']](
         save_dir=test_dir,
-        load_only='test',
+        load_only=test_split,
         **dict_to_lower_dict(test_dataset_params)
     )
+    if test_split == 'validation':
+        test_set = val_set
     testLogger.info("%d test files.", len(test_set))
+
+    # Load template
+    # All meshes should have the same transformation matrix
+    trans_affine = test_set.get_item_and_mesh_from_index(0)[
+        'trans_affine_label'
+    ]
+    assert all(
+        np.allclose(
+            trans_affine,
+            test_set.get_item_and_mesh_from_index(i)[
+                'trans_affine_label'
+            ]
+        )
+        for i in range(len(test_set))
+    )
+    rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
+    if hps['REDUCED_TEMPLATE']:
+        mesh_suffix: str="_smoothed_reduced.ply"
+        feature_suffix: str="_reduced.aparc.DKTatlas40.annot"
+    else:
+        mesh_suffix: str="_smoothed.ply"
+        feature_suffix: str=".aparc.DKTatlas40.annot"
+    template = load_mesh_template(
+        hps['MESH_TEMPLATE_PATH'],
+        list(map(rm_suffix, test_set.mesh_label_names)),
+        mesh_suffix=mesh_suffix,
+        feature_suffix=feature_suffix,
+        trans_affine=trans_affine
+    )
 
     # Use current hps for testing. In particular, the evaluation metrics may be
     # different than during training.
-    evaluator = ModelEvaluator(eval_dataset=test_set, save_dir=test_dir,
-                               **hps_lower)
+    evaluator = ModelEvaluator(
+        eval_dataset=test_set, save_dir=test_dir, **hps_lower
+    )
 
     # Test models
     model = ModelHandler[training_hps['ARCHITECTURE']].value(
@@ -144,6 +180,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         n_v_classes=training_hps['N_V_CLASSES'],
         n_m_classes=training_hps['N_M_CLASSES'],
         patch_shape=training_hps['PATCH_SIZE'],
+        mesh_template=template,
         **model_config
     ).float()
 
@@ -177,8 +214,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
 
         # Test each epoch that has been stored
         if epoch not in epochs_tested or epoch == -1:
-            testLogger.info("Test model %s stored in training epoch %d",
-                            model_path, epoch)
+            testLogger.info(
+                "Test model %s stored in training epoch %d on dataset split '%s'",
+                model_path, epoch, test_split
+            )
 
             # Avoid problem of cuda out of memory by first loading to cpu, see
             # https://discuss.pytorch.org/t/cuda-error-out-of-memory-when-load-models/38011/3
@@ -189,9 +228,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             results = evaluator.evaluate(
                 model, epoch, save_meshes=len(test_set),
                 remove_previous_meshes=False,
-                store_in_orig_coords=True
             )
 
             write_test_results(results, mn, test_dir)
 
             epochs_tested.append(epoch)
+
+    return experiment_name

@@ -21,6 +21,8 @@ class SupportedDatasets(IntEnum):
     OASIS = 6
     ADNI_CSR_fail = 7
     ADNI_CSR_orig = 8
+    OASIS_FS72 = 9
+    Mindboggle = 10
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -31,12 +33,13 @@ class CortexDatasets(IntEnum):
     OASIS = SupportedDatasets.OASIS.value
     ADNI_CSR_fail = SupportedDatasets.ADNI_CSR_fail.value
     ADNI_CSR_orig = SupportedDatasets.ADNI_CSR_orig.value
+    OASIS_FS72 = SupportedDatasets.OASIS_FS72.value
+    Mindboggle = SupportedDatasets.Mindboggle.value
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/MALC_CSR/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/MALC_CSR/",
-        'N_REF_POINTS_PER_STRUCTURE': 28000,
         # 'FIXED_SPLIT': {
             # 'train': ['1010_3', '1007_3', '1003_3', '1104_3', '1015_3', '1001_3',
                       # '1018_3', '1014_3', '1122_3', '1000_3', '1008_3', '1128_3',
@@ -57,39 +60,53 @@ dataset_paths = {
         }
     },
     SupportedDatasets.ADNI_CSR_small.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
-        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["train_small.txt", "val_small.txt", "test_small.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_large.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
-        'N_REF_POINTS_PER_STRUCTURE': 26800,
         'FIXED_SPLIT': ["ADNI_large_train_qc_pass.txt",
                         "ADNI_large_val_qc_pass.txt",
                         "ADNI_large_test_qc_pass.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_orig.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
-        'N_REF_POINTS_PER_STRUCTURE': 27000,
         'FIXED_SPLIT': ["orig_split_train.txt",
                         "orig_split_val.txt",
                         "orig_split_test.txt"] # Read from files
     },
     SupportedDatasets.ADNI_CSR_fail.name: {
-        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/",
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/ADNI_CSR/FS72/FS72/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/ADNI_CSR/",
         'FIXED_SPLIT': ["", "", "fail_scans.txt"] # Read from files
     },
     SupportedDatasets.OASIS.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/",
         'PREPROCESSED_DATA_DIR': "/home/fabianb/data/preprocessed/OASIS/CSR_data/",
-        'N_REF_POINTS_PER_STRUCTURE': 26100,
         'FIXED_SPLIT': ["OASIS_train.txt",
                         "OASIS_val.txt",
                         "OASIS_test.txt"] # Read from files
+    },
+    SupportedDatasets.OASIS_FS72.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/OASIS/CSR_data/FS72/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/OASIS/FS_full_72/",
+        'FIXED_SPLIT': ["OASIS_train.txt",
+                        "OASIS_val.txt",
+                        "OASIS_test.txt"] # Read from files
+    },
+    SupportedDatasets.Mindboggle.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Mindboggle/CSR_data/",
+        'FS_DIR': "/mnt/nas/Data_Neuro/Mindboggle/FreeSurfer/Users/arno.klein/Data/Mindboggle101/subjects/",
+        'FIXED_SPLIT': ["fold1_train.txt",
+                        "fold1_val.txt",
+                        "fold1_test.txt"] # Read from files
     },
     SupportedDatasets.TRT_CSR_Data.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/TRT_CSR_Data/",
@@ -143,6 +160,9 @@ def valid_ids(raw_data_dir: str):
         x for y in SupportedDatasets.__members__.keys()
         for x in raw_data_dir.split("/")
         if (x in y and x != "")
-    ).pop()
+    )
+    # Remove FS72 overlap
+    if "FS72" in dataset: dataset.remove("FS72")
+    dataset = dataset.pop()
     this_module = sys.modules[__name__]
     return getattr(this_module, "valid_ids_" + dataset)(all_files)

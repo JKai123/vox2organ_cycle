@@ -4,10 +4,10 @@
 __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
+import re
 import os
 import random
 import logging
-from copy import deepcopy
 from collections.abc import Sequence
 from typing import Union
 
@@ -16,29 +16,18 @@ import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import trimesh
-from trimesh import Trimesh
-from trimesh.scene.scene import Scene
 from pytorch3d.structures import Meshes
 from pytorch3d.ops import sample_points_from_meshes
 from tqdm import tqdm
 
-from utils.params import CHECK_DIR
 from utils.visualization import show_difference
 from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
-from utils.logging import measure_time
+from utils.logging import measure_time, raise_warning
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
-from utils.ico_template import (
-    generate_sphere_template,
-    generate_ellipsoid_template
-)
 from utils.utils import (
-    choose_n_random_points,
     voxelize_mesh,
-    voxelize_contour,
     create_mesh_from_voxels,
-    create_mesh_from_pixels,
-    mirror_mesh_at_plane,
     normalize_min_max,
 )
 from utils.coordinate_transform import (
@@ -53,7 +42,6 @@ from data.dataset import (
 )
 from data.supported_datasets import (
     valid_ids,
-    valid_ids_ADNI_CSR,
 )
 from data.cortex_labels import (
     combine_labels,
@@ -101,6 +89,7 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
             seg_label_names = (("right_white_matter",
                                 "right_cerebral_cortex"),)
             mesh_label_names = ("rh_white", "rh_pial")
+            voxelized_mesh_label_names = (("rh_white", "rh_pial"),)
         else:
             # Not patch mode
             seg_label_names = (("left_white_matter",
@@ -120,7 +109,7 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
 
     return seg_label_names, mesh_label_names, voxelized_mesh_label_names
 
-class Cortex(DatasetHandler):
+class CortexDataset(DatasetHandler):
     """ Cortex dataset
 
     It loads all data specified by 'ids' directly into memory.
@@ -132,7 +121,6 @@ class Cortex(DatasetHandler):
     corresponding to sample ids
     :param augment: Use image augmentation during training if 'True'
     :param patch_size: The patch size of the images, e.g. (256, 256, 256)
-    :param mesh_target_type: 'mesh' or 'pointcloud'
     :param n_ref_points_per_structure: The number of ground truth points
     per 3D structure.
     :param structure_type: Either 'white_matter' or 'cerebral_cortex'
@@ -146,34 +134,35 @@ class Cortex(DatasetHandler):
     :param reduced_freesurfer: Use a freesurfer mesh with reduced number of
     vertices as mesh ground truth, e.g., 0.3. This has only an effect if patch_mode='no'.
     :param mesh_type: 'freesurfer' or 'marching cubes'
-    :param provide_curvatures: Whether curvatures should be part of the items.
     :param preprocessed_data_dir: A directory that contains additional
     preprocessed data, e.g., thickness values.
     As a consequence, the ground truth can only consist of vertices and not of
     sampled surface points.
     :param seg_ground_truth: Either 'voxelized_meshes' or 'aseg'
+    :param check_dir: An output dir where data is stored that should be
+    checked.
     """
 
     img_filename = "mri.nii.gz"
     label_filename = "aseg.nii.gz" # For FS segmentations
+    label_filename_Mb = "aparc+aseg_manual.nii.gz" # Manual Mindboggle segmentations
 
     def __init__(self,
                  ids: Sequence,
                  mode: DataModes,
                  raw_data_dir: str,
-                 augment: bool,
                  patch_size,
-                 mesh_target_type: str,
                  n_ref_points_per_structure: int,
-                 structure_type: Union[str, Sequence],
+                 structure_type: Union[str, Sequence]=('white_matter', 'cerebral_cortex'),
+                 augment: bool=False,
                  patch_mode: str="no",
                  patch_origin=(0,0,0),
                  select_patch_size=None,
                  reduced_freesurfer: int=None,
-                 mesh_type='marching cubes',
-                 provide_curvatures=False,
+                 mesh_type='freesurfer',
                  preprocessed_data_dir=None,
                  seg_ground_truth='voxelized_meshes',
+                 check_dir='../to_check',
                  **kwargs):
         super().__init__(ids, mode)
 
@@ -182,16 +171,19 @@ class Cortex(DatasetHandler):
         assert mesh_type in ("marching cubes", "freesurfer"),\
                 "Unknown mesh type"
 
+        if 'Mindboggle' in raw_data_dir:
+            self.label_filename = self.label_filename_Mb
+
         (self.seg_label_names,
          self.mesh_label_names,
          self.voxelized_mesh_label_names) = _get_seg_and_mesh_label_names(
             structure_type, patch_mode, len(patch_size)
         )
+        self.check_dir = check_dir
         self.structure_type = structure_type
         self._raw_data_dir = raw_data_dir
         self._preprocessed_data_dir = preprocessed_data_dir
         self._augment = augment
-        self._mesh_target_type = mesh_target_type
         self._patch_origin = patch_origin
         self._mc_step_size = kwargs.get('mc_step_size', 1)
         self.trans_affine = []
@@ -204,7 +196,6 @@ class Cortex(DatasetHandler):
         assert self.n_m_classes == kwargs.get(
             "n_m_classes", len(self.mesh_label_names)
         ), "Number of mesh classes incorrect."
-        self.provide_curvatures = provide_curvatures
         assert seg_ground_truth in ('voxelized_meshes', 'aseg')
         self.seg_ground_truth = seg_ground_truth
         self.n_ref_points_per_structure = n_ref_points_per_structure
@@ -243,20 +234,13 @@ class Cortex(DatasetHandler):
 
         # Do not store meshes in train split
         remove_meshes = self._mode == DataModes.TRAIN
-        # Point, normal, and potentially curvature labels
-        self.point_labels,\
-                self.normal_labels,\
-                self.curvatures = self._load_ref_points_all(remove_meshes)
 
         assert self.__len__() == len(self.images)
         assert self.__len__() == len(self.voxel_labels)
         assert self.__len__() == len(self.mesh_labels)
-        assert self.__len__() == len(self.point_labels)
-        assert self.__len__() == len(self.normal_labels)
+
         if self.ndims == 3:
             assert self.__len__() == len(self.trans_affine)
-        if self.provide_curvatures:
-            assert self.__len__() == len(self.curvatures)
 
         if self._augment:
             self.check_augmentation_normals()
@@ -314,25 +298,22 @@ class Cortex(DatasetHandler):
                     out_fn = self._files[i].replace("/", "_")
                     show_difference(
                         vl,  vm,
-                        f"../to_check/diff_mesh_voxel_label_{out_fn}.png"
+                        os.path.join(
+                            self.check_dir, f"diff_mesh_voxel_label_{out_fn}.png"
+                        )
                     )
-                    print(f"[Warning] Small IoU ({iou}) of voxel label and"
-                          " voxelized mesh label, check files at ../to_check/")
+                    raise_warning(
+                        f"Small IoU ({iou}) of voxel label and voxelized mesh"
+                        f" label, check files at {self.check_dir}"
+                    )
 
         # Use voxelized meshes as voxel ground truth
         if self.seg_ground_truth == 'voxelized_meshes':
             self.voxel_labels = self.voxelized_meshes
 
-        (self.centers,
-         self.radii,
-         self.radii_x,
-         self.radii_y,
-         self.radii_z) = self._get_centers_and_radii(
-            self.mesh_labels
-         )
-
-        self.thickness_per_vertex = self._get_per_vertex_label("thickness",
-                                                               subfolder="")
+        self.thickness_per_vertex = self._get_morph_label(
+            "thickness", subfolder=""
+        )
 
 
     def _transform_meshes_as_images(self, img_transforms):
@@ -343,23 +324,21 @@ class Cortex(DatasetHandler):
             enumerate(zip(self.mesh_labels, img_transforms)),
             position=0, leave=True, desc="Transform meshes accordingly..."
         ):
-            new_vertices, new_faces = transform_mesh_affine(
-                m.vertices, m.faces, t
-            )
-            new_vertices, norm_affine = normalize_vertices_per_max_dim(
-                new_vertices.view(-1, self.ndims),
-                self.patch_size,
-                return_affine=True
-            )
-            new_vertices = new_vertices.view(self.n_m_classes, -1, self.ndims)
-            new_normals = Meshes(
-                new_vertices, new_faces
-            ).verts_normals_padded()
+            # Transform vertices and potentially faces (to preserve normal
+            # convention)
+            new_vertices, new_faces = [], []
+            for v, f in zip(m.verts_list(), m.faces_list()):
+                new_v, new_f= transform_mesh_affine(v, f, t)
+                new_v, norm_affine = normalize_vertices_per_max_dim(
+                    new_v,
+                    self.patch_size,
+                    return_affine=True
+                )
+                new_vertices.append(new_v)
+                new_faces.append(new_f)
 
             # Replace mesh with transformed one
-            self.mesh_labels[i] = Mesh(
-                new_vertices, new_faces, new_normals, m.features
-            )
+            self.mesh_labels[i] = Meshes(new_vertices, new_faces)
 
             # Store affine transformations
             self.trans_affine[i] = norm_affine @ t @ self.trans_affine[i]
@@ -369,9 +348,11 @@ class Cortex(DatasetHandler):
         areas = []
         ndims = len(self.patch_size)
         for m in self.mesh_labels:
-            m_unnorm = Mesh(unnormalize_vertices_per_max_dim(
-                m.vertices.view(-1, ndims), self.patch_size),
-                m.faces.view(-1, ndims)
+            m_unnorm = Mesh(
+                unnormalize_vertices_per_max_dim(
+                    m.verts_packed(), self.patch_size
+                ),
+                m.faces_packed()
             )
             areas.append(m_unnorm.to_trimesh().area)
 
@@ -384,12 +365,11 @@ class Cortex(DatasetHandler):
         """
         edge_lengths = []
         for m in self.mesh_labels:
-            m_ = m.to_pytorch3d_Meshes()
             if self.ndims == 3:
-                edges_packed = m_.edges_packed()
+                edges_packed = m.edges_packed()
             else:
                 raise ValueError("Only 3D possible.")
-            verts_packed = m_.verts_packed()
+            verts_packed = m.verts_packed()
 
             verts_edges = verts_packed[edges_packed]
             v0, v1 = verts_edges.unbind(1)
@@ -399,87 +379,14 @@ class Cortex(DatasetHandler):
 
         return torch.tensor(edge_lengths).mean()
 
-    def store_sphere_template(self, path, level):
-        """ Template for dataset. This can be stored and later used during
-        training.
-        """
-        if self.centers is not None and self.radii is not None:
-            template = generate_sphere_template(self.centers,
-                                                self.radii,
-                                                level=level)
-            template.export(path)
-        else:
-            raise RuntimeError("Centers and/or radii are unknown, template"
-                               " cannnot be created. ")
-        return path
-
-    def store_ellipsoid_template(self, path, level):
-        """ Template for dataset. This can be stored and later used during
-        training.
-        """
-        if (self.centers is not None and
-            self.radii_x is not None and
-            self.radii_y is not None and
-            self.radii_z is not None):
-            template = generate_ellipsoid_template(
-                self.centers,
-                self.radii_x, self.radii_y, self.radii_z,
-                level=level
-            )
-            template.export(path)
-        else:
-            raise RuntimeError("Centers and/or radii are unknown, template"
-                               " cannnot be created. ")
-        return path
-
-    def store_index0_template(self, path, n_max_points=41000):
-        """ This template is the structure of dataset element at index 0,
-        potentially mirrored at the hemisphere plane. """
-        template = Scene()
-        if len(self.mesh_label_names) == 2:
-            label_1, label_2 = self.mesh_label_names
-        else:
-            label_1 = self.mesh_labels[0]
-            label_2 = None
-        # Select mesh to generate the template from
-        vertices = self.mesh_labels[0].vertices[0]
-        faces = self.mesh_labels[0].faces[0]
-
-        # Remove padded vertices and faces
-        vertices_ = vertices[~torch.isclose(vertices, torch.Tensor([-1.0])).all(dim=1)]
-        faces_ = faces[~(faces == -1).any(dim=1)]
-
-        structure_1 = Trimesh(vertices_, faces_, process=False)
-
-        # Increase granularity until desired number of points is reached
-        while structure_1.subdivide().vertices.shape[0] < n_max_points:
-            structure_1 = structure_1.subdivide()
-
-        assert structure_1.is_watertight, "Mesh template should be watertight."
-        print(f"Template structure has {structure_1.vertices.shape[0]}"
-              " vertices.")
-        template.add_geometry(structure_1, geom_name=label_1)
-
-        # Second structure = mirror of first structure
-        if label_2 is not None:
-            plane_normal = np.array(self.centers[label_2] - self.centers[label_1])
-            plane_point = 0.5 * np.array((self.centers[label_1] +
-                                          self.centers[label_2]))
-            structure_2 = mirror_mesh_at_plane(structure_1, plane_normal,
-                                              plane_point)
-            template.add_geometry(structure_2, geom_name=label_2)
-
-        template.export(path)
-
-        return path
-
-    @staticmethod
-    def split(raw_data_dir,
-              augment_train,
+    @classmethod
+    def split(cls,
+              raw_data_dir,
               save_dir,
+              augment_train=False,
               dataset_seed=0,
               dataset_split_proportions=None,
-              fixed_split: Union[dict, bool, Sequence]=False,
+              fixed_split: Union[dict, Sequence]=None,
               overfit=False,
               load_only=('train', 'validation', 'test'),
               **kwargs):
@@ -494,8 +401,8 @@ class Cortex(DatasetHandler):
         :param save_dir: A directory where the split ids can be saved.
         :param fixed_split: A dict containing file ids for 'train',
         'validation', and 'test'. If specified, values of dataset_seed,
-        overfit, and dataset_split_proportions will be ignored. If only 'True',
-        the fixed split IDs are read from a file.
+        overfit, and dataset_split_proportions will be ignored. Alternatively,
+        a sequence of files containing ids can be given.
         :param overfit: Create small datasets for overfitting if this parameter
         is > 0.
         :param load_only: Only return the splits specified (in the order train,
@@ -505,7 +412,7 @@ class Cortex(DatasetHandler):
         """
 
         # Decide between fixed and random split
-        if fixed_split:
+        if fixed_split is not None:
             if isinstance(fixed_split, dict):
                 files_train = fixed_split['train']
                 files_val = fixed_split['validation']
@@ -519,31 +426,31 @@ class Cortex(DatasetHandler):
                     files_train = list(map(convert, open(train_split, 'r').readlines()))
                 except:
                     files_train = []
-                    print("[Warning] No training files.")
+                    raise_warning("No training files.")
                 val_split = os.path.join(raw_data_dir, fixed_split[1])
                 try:
                     files_val = list(map(convert, open(val_split, 'r').readlines()))
                 except:
                     files_val = []
-                    print("[Warning] No validation files.")
+                    raise_warning("No validation files.")
                 test_split = os.path.join(raw_data_dir, fixed_split[2])
                 try:
                     files_test = list(map(convert, open(test_split, 'r').readlines()))
                 except:
                     files_test = []
-                    print("[Warning] No test files.")
+                    raise_warning("No test files.")
 
                 # Choose valid
-                if "ADNI" in raw_data_dir:
-                    files_train = valid_ids_ADNI_CSR(files_train)
-                    files_val = valid_ids_ADNI_CSR(files_val)
-                    files_test = valid_ids_ADNI_CSR(files_test)
-                elif "OASIS" in raw_data_dir:
-                    files_train = valid_ids_OASIS(files_train)
-                    files_val = valid_ids_OASIS(files_val)
-                    files_test = valid_ids_OASIS(files_test)
-                else:
-                    raise NotImplementedError()
+                # if "ADNI" in raw_data_dir:
+                    # files_train = valid_ids_ADNI_CSR(files_train)
+                    # files_val = valid_ids_ADNI_CSR(files_val)
+                    # files_test = valid_ids_ADNI_CSR(files_test)
+                # elif "OASIS" in raw_data_dir:
+                    # files_train = valid_ids_OASIS(files_train)
+                    # files_val = valid_ids_OASIS(files_val)
+                    # files_test = valid_ids_OASIS(files_test)
+                # else:
+                    # raise NotImplementedError()
             else:
                 raise TypeError("Wrong type of parameter 'fixed_split'."
                                 f" Got {type(fixed_split)} but should be"
@@ -582,27 +489,33 @@ class Cortex(DatasetHandler):
 
         # Create train, validation, and test datasets
         if 'train' in load_only:
-            train_dataset = Cortex(files_train,
-                                   DataModes.TRAIN,
-                                   raw_data_dir,
-                                   augment=augment_train,
-                                   **kwargs)
+            train_dataset = cls(
+                ids=files_train,
+                mode=DataModes.TRAIN,
+                raw_data_dir=raw_data_dir,
+                augment=augment_train,
+                **kwargs
+            )
         else:
             train_dataset = None
         if 'validation' in load_only:
-            val_dataset = Cortex(files_val,
-                                 DataModes.VALIDATION,
-                                 raw_data_dir,
-                                 augment=False,
-                                 **kwargs)
+            val_dataset = cls(
+                ids=files_val,
+                mode=DataModes.VALIDATION,
+                raw_data_dir=raw_data_dir,
+                augment=False,
+                **kwargs
+            )
         else:
             val_dataset = None
         if 'test' in load_only:
-            test_dataset = Cortex(files_test,
-                                  DataModes.TEST,
-                                  raw_data_dir,
-                                  augment=False,
-                                  **kwargs)
+            test_dataset = cls(
+                ids=files_test,
+                mode=DataModes.TEST,
+                raw_data_dir=raw_data_dir,
+                augment=False,
+                **kwargs
+            )
         else:
             test_dataset = None
 
@@ -611,34 +524,22 @@ class Cortex(DatasetHandler):
     def __len__(self):
         return len(self._files)
 
-    def resample_surface_points(self):
-        """ Resample the surface points of the meshes. """
-        self.point_labels,\
-                self.normal_labels,\
-                self.curvatures = self._load_ref_points()
-
     @measure_time
-    def get_item_from_index(self, index: int, mesh_target_type: str=None,
-                            *args, **kwargs):
+    def get_item_from_index(
+        self,
+        index: int
+    ):
         """
-        One data item has the form
-        (image, voxel label, points, faces, normals)
-        with types all of type torch.Tensor
+        One data item for training.
         """
-        # Use mesh target type of object if not specified
-        if mesh_target_type is None:
-            mesh_target_type = self._mesh_target_type
-
         # Raw data
         img = self.images[index]
         voxel_label = self.voxel_labels[index]
-        (target_points,
-         target_faces,
-         target_normals,
-         target_curvs) = self._get_mesh_target(index, mesh_target_type)
+        mesh_label = list(self._get_mesh_target_no_faces(index))
 
         # Potentially augment
         if self._augment:
+            target_points, target_normals = mesh_label[0], mesh_label[1]
             assert all(
                 (np.array(img.shape) - np.array(self.patch_size)) % 2 == 0
             ), "Padding must be symmetric for augmentation."
@@ -665,58 +566,52 @@ class Cortex(DatasetHandler):
             img = torch.from_numpy(img)
             voxel_label = torch.from_numpy(voxel_label)
 
+            # Insert back to mesh label
+            mesh_label[0], mesh_label[1] = target_points, target_normals
 
         # Channel dimension
         img = img[None]
 
-        logging.getLogger(ExecModes.TRAIN.name).debug("Dataset file %s",
-                                                      self._files[index])
+        logging.getLogger(ExecModes.TRAIN.name).debug(
+            "Dataset file %s", self._files[index]
+        )
 
         return (img,
                 voxel_label,
-                target_points,
-                target_faces,
-                target_normals,
-                target_curvs)
+                *mesh_label)
 
-    def _get_mesh_target(self, index, target_type):
-        """ Ground truth points and optionally normals """
-        if target_type == 'pointcloud':
-            points = self.point_labels[index]
-            normals = np.array([]) # Empty, not used
-            faces = np.array([]) # Empty, not used
-            curvs = np.array([]) # Empty, not used
-        elif target_type == 'mesh':
-            points, normals, curvs = self._get_ref_points_from_index(index)
-            faces = np.array([]) # Empty, not used
-        elif target_type == 'full_mesh':
-            points = self.mesh_labels[index].vertices
-            normals = self.mesh_labels[index].normals
-            faces = self.mesh_labels[index].faces
-            mesh = self.mesh_labels[index].to_pytorch3d_Meshes()
-            curvs = curv_from_cotcurv_laplacian(
-                mesh.verts_packed(),
-                mesh.faces_packed()
-            ).view(self.n_m_classes, -1, 1)
-        else:
-            raise ValueError("Invalid mesh target type.")
+    def _get_full_mesh_target(self, index):
+        verts = self.mesh_labels[index].verts_padded()
+        normals = self.mesh_labels[index].verts_normals_padded()
+        faces = self.mesh_labels[index].faces_padded()
+        features = self.mesh_labels[index].verts_features_padded()
+        mesh = Mesh(verts, faces, normals, features)
 
-        return points, faces, normals, curvs
+        return mesh
+
+    def _get_mesh_target_no_faces(self, index):
+        return [target[index] for target in self.mesh_targets]
 
     def get_item_and_mesh_from_index(self, index):
-        """ Get image, segmentation ground truth and reference mesh"""
-        (img,
-         voxel_label,
-         vertices,
-         faces,
-         normals, _) = self.get_item_from_index(
-            index, mesh_target_type='full_mesh'
-        )
+        """ Get image, segmentation ground truth and full reference mesh. In
+        contrast to 'get_item_from_index', this function is usually used for
+        evaluation where the full mesh is needed in contrast to training where
+        different information might be required, e.g., no faces.
+        """
+        img = self.images[index][None]
+        voxel_label = self.voxel_labels[index]
         thickness = self.get_thickness_from_index(index)
-        mesh_label = Mesh(vertices, faces, normals, thickness)
+        mesh_label = self._get_full_mesh_target(index)
+        # Mesh features given by thickness
+        mesh_label.features = thickness
         trans_affine_label = self.trans_affine[index]
 
-        return img, voxel_label, mesh_label, trans_affine_label
+        return {
+            "img": img,
+            "voxel_label": voxel_label,
+            "mesh_label": mesh_label,
+            "trans_affine_label": trans_affine_label
+        }
 
     def get_thickness_from_index(self, index: int):
         """ Return per-vertex thickness of the ith dataset element if possible."""
@@ -793,7 +688,7 @@ class Cortex(DatasetHandler):
                 np.array(self.select_patch_size, dtype=int)
 
         assert img.shape == (182, 218, 182),\
-                "Our mesh templates were created based on this shape."
+                "All images should have this shape."
         # Select patch from whole image
         img_patch, trans_affine_1 = img_with_patch_size(
             img, self.select_patch_size, is_label=is_label, mode='crop',
@@ -817,8 +712,8 @@ class Cortex(DatasetHandler):
         data = []
         for m in tqdm(mesh_labels, position=0, leave=True,
                       desc="Voxelize meshes..."):
-            vertices = m.vertices.view(self.n_m_classes, -1, 3)
-            faces = m.faces.view(self.n_m_classes, -1, 3)
+            vertices = m.verts_padded()
+            faces = m.faces_padded()
             voxel_label = voxelize_mesh(
                 vertices, faces, self.patch_size, self.n_m_classes
             ).sum(0).bool().long() # Treat as one class
@@ -826,54 +721,6 @@ class Cortex(DatasetHandler):
             data.append(voxel_label)
 
         return data
-
-    def _get_centers_and_radii(self, meshes: list):
-        """ Return average centers and radii of all meshes provided. """
-
-        centers_per_structure = {mn: [] for mn in self.mesh_label_names}
-        radii_per_structure = {mn: [] for mn in self.mesh_label_names}
-        radii_x_per_structure = {mn: [] for mn in self.mesh_label_names}
-        radii_y_per_structure = {mn: [] for mn in self.mesh_label_names}
-        radii_z_per_structure = {mn: [] for mn in self.mesh_label_names}
-
-        for m in meshes:
-            for verts_, mn in zip(m.vertices, self.mesh_label_names):
-                # Remove padded vertices
-                verts = verts_[~torch.isclose(verts_, torch.Tensor([-1.0])).all(dim=1)]
-                # Centroid of vertex coordinates
-                center = verts.mean(dim=0)
-                centers_per_structure[mn].append(center)
-                # Average radius --> "sphere"
-                radius = torch.sqrt(torch.sum((verts - center)**2, dim=1)).mean(dim=0)
-                radii_per_structure[mn].append(radius)
-                # Max. radius across dimensions --> "ellipsoid"
-                (radius_x,
-                 radius_y,
-                 radius_z) = torch.max(torch.abs(verts - center), dim=0)[0].unbind()
-                radii_x_per_structure[mn].append(radius_x)
-                radii_y_per_structure[mn].append(radius_y)
-                radii_z_per_structure[mn].append(radius_z)
-
-        # Average radius per structure
-        if self.__len__() > 0:
-            centroids = {k: torch.mean(torch.stack(v), dim=0)
-                         for k, v in centers_per_structure.items()}
-            radii = {k: torch.mean(torch.stack(v), dim=0)
-                     for k, v in radii_per_structure.items()}
-            radii_x = {k: torch.mean(torch.stack(v), dim=0)
-                     for k, v in radii_x_per_structure.items()}
-            radii_y = {k: torch.mean(torch.stack(v), dim=0)
-                     for k, v in radii_y_per_structure.items()}
-            radii_z = {k: torch.mean(torch.stack(v), dim=0)
-                     for k, v in radii_z_per_structure.items()}
-        else:
-            centroids = None
-            radii = None
-            radii_x = None
-            radii_y = None
-            radii_z = None
-
-        return centroids, radii, radii_x, radii_y, radii_z
 
     def _load_dataMesh_raw(self, meshnames):
         """ Load mesh such that it's registered to the respective 3D image. If
@@ -893,21 +740,24 @@ class Cortex(DatasetHandler):
             file_faces = []
             for mn in meshnames:
                 try:
-                    mesh = trimesh.load_mesh(os.path.join(
-                        self._raw_data_dir, fn, mn + ".stl"
-                    ))
+                    mesh = trimesh.load_mesh(
+                        os.path.join(self._raw_data_dir, fn, mn + ".stl")
+                    )
                 except ValueError:
                     try:
-                        mesh = trimesh.load_mesh(os.path.join(
-                            self._raw_data_dir, fn, mn + ".ply"
-                        ))
+                        mesh = trimesh.load_mesh(
+                            os.path.join(self._raw_data_dir, fn, mn + ".ply"),
+                            process=False
+                        )
                     except Exception as e:
                         # Insert a dummy if dataset is test split
                         if self._mode != DataModes.TEST:
                             raise e
-                        print(f"[Warning] No mesh for file {fn}/{mn},"
-                              " inserting dummy.")
                         mesh = trimesh.creation.icosahedron()
+                        raise_warning(
+                            f"No mesh for file {fn}/{mn},"
+                            " inserting dummy."
+                        )
                 # World --> voxel coordinates
                 voxel_verts, voxel_faces = transform_mesh_affine(
                     mesh.vertices, mesh.faces, world2vox_affine
@@ -923,14 +773,9 @@ class Cortex(DatasetHandler):
                 file_vertices.append(torch.from_numpy(voxel_verts))
                 file_faces.append(torch.from_numpy(voxel_faces))
 
-            # First treat as a batch of multiple meshes and then combine
-            # into one mesh
-            mesh_batch = Meshes(file_vertices, file_faces)
-            mesh_single = Mesh(
-                mesh_batch.verts_padded().float(),
-                mesh_batch.faces_padded().long(),
-            )
-            data.append(mesh_single)
+            # Treat as a batch of meshes
+            mesh = Meshes(file_vertices, file_faces)
+            data.append(mesh)
 
         return data
 
@@ -943,84 +788,50 @@ class Cortex(DatasetHandler):
             mc_mesh = create_mesh_from_voxels(
                 vl, mc_step_size=self._mc_step_size,
             ).to_pytorch3d_Meshes()
-            data.append(Mesh(
-                mc_mesh.verts_padded(),
-                mc_mesh.faces_padded(),
-                mc_mesh.verts_normals_padded()
-            ))
+            data.append(mc_mesh)
 
         return data
 
-    def _get_ref_points_from_index(self, index):
-        """ Choose n reference points together with their normals and
-        curvature. """
-        # Points/vertices
-        p, idx = choose_n_random_points(
-            self.point_labels[index],
-            self.n_ref_points_per_structure,
-            return_idx=True,
-            # Ignoring padded vertices is only possible if the
-            # number of required vertices is smaller than the
-            # minimum number of vertices in the dataset
-            ignore_padded=(self.n_ref_points_per_structure <
-                           self.n_min_vertices)
-        )
-        # Normals
-        n = self.normal_labels[index][idx.unbind(1)].view(
-            self.n_m_classes, -1, 3
-        )
-        # Curvature
-        if self.provide_curvatures:
-            c = self.curvatures[index][idx.unbind(1)].view(
-                self.n_m_classes, -1, 1
+    def create_training_targets(self, remove_meshes=False):
+        """ Sample surface points, normals and curvaturs from meshes.
+        """
+        points, normals, curvs = [], [], []
+
+        # Iterate over mesh labels
+        for i, m in tqdm(
+            enumerate(self.mesh_labels),
+            leave=True,
+            position=0,
+            desc="Get point labels from meshes..."
+        ):
+            # Create meshes with curvature
+            curv_list = [curv_from_cotcurv_laplacian(v, f).unsqueeze(-1)
+                         for v, f in zip(m.verts_list(), m.faces_list())]
+            m_new = Meshes(
+                m.verts_list(),
+                m.faces_list(),
+                verts_features=curv_list
             )
-        else:
-            c = np.array([])
-
-        return p, n, c
-
-
-    def _load_ref_points_all(self, remove_meshes=False):
-        """ Sample surface points from meshes and optionally remove them (to
-        save memory)"""
-        points, normals = [], []
-        curvs = [] if self.provide_curvatures else None
-        for i, m in tqdm(enumerate(self.mesh_labels), leave=True, position=0,
-                      desc="Get point labels from meshes..."):
-            if self.provide_curvatures:
-                # Choose a certain number of vertices
-                m_ = m.to_pytorch3d_Meshes()
-                p = m_.verts_padded()
-                # Choose normals with the same indices as vertices
-                n = m_.verts_normals_padded()
-                # Choose curvatures with the same indices as vertices
-                c = curv_from_cotcurv_laplacian(
-                    m_.verts_packed(), m_.faces_packed()
-                ).view(self.n_m_classes, -1, 1)
-                # Sanity check
-                assert torch.allclose(
-                    m_.verts_normals_padded(), m.normals, atol=1e-05
-                ), "Inconsistent normals!"
-
-                # Remove to save memory
-                if remove_meshes:
-                    self.mesh_labels[i] = None
-
-            else: # No curvatures
-                # Sample from mesh surface, probably less memory efficient
-                # than with curvatures
-                p, n = sample_points_from_meshes(
-                    m.to_pytorch3d_Meshes(),
-                    self.n_ref_points_per_structure,
-                    return_normals=True
-                )
+            p, n, c = sample_points_from_meshes(
+                m_new,
+                self.n_ref_points_per_structure,
+                return_normals=True,
+                interpolate_features='barycentric',
+            )
 
             points.append(p)
             normals.append(n)
-            if self.provide_curvatures:
-                curvs.append(c)
+            curvs.append(c)
 
-        return points, normals, curvs
+            # Remove meshes to save memory
+            if remove_meshes:
+                self.mesh_labels[i] = None
+            else:
+                self.mesh_labels[i] = m_new
+
+        self.mesh_targets = (points, normals, curvs)
+
+        return self.mesh_targets
 
     def augment_data(self, img, label, coordinates, normals):
         assert self._augment, "No augmentation in this dataset."
@@ -1030,7 +841,7 @@ class Cortex(DatasetHandler):
         """ Assert correctness of the transformation of normals during
         augmentation.
         """
-        py3d_mesh = self.mesh_labels[0].to_pytorch3d_Meshes()
+        py3d_mesh = self.mesh_labels[0]
         img_f, label_f, coo_f, normals_f = self.augment_data(
             self.images[0].numpy(), self.voxel_labels[0].numpy(),
             py3d_mesh.verts_padded(), py3d_mesh.verts_normals_padded()
@@ -1044,7 +855,7 @@ class Cortex(DatasetHandler):
                              atol=7e-03)
         )
 
-    def _get_per_vertex_label(self, morphology, subfolder="surf"):
+    def _get_morph_label(self, morphology, subfolder="surf"):
         """ Load per-vertex labels, e.g., thickness values, from a freesurfer
         morphology (curv) file in the preprocessed data (FS) directory for each
         dataset sample.
@@ -1073,11 +884,12 @@ class Cortex(DatasetHandler):
                 except Exception as e:
                     # Insert dummy if file could not
                     # be found
-                    print(f"[Warning] File {morph_fn} could not be found,"
-                          " inserting dummy.")
+                    raise_warning(
+                        f"File {morph_fn} could not be found, inserting dummy."
+                    )
                     morph_label = np.zeros(self.mesh_labels[
                         self._files.index(fn)
-                    ].vertices[self.mesh_label_names.index(mn)].shape[0])
+                    ].verts_padded()[self.mesh_label_names.index(mn)].shape[0])
 
                 file_labels.append(
                     torch.from_numpy(morph_label.astype(np.float32))
@@ -1095,3 +907,127 @@ class Cortex(DatasetHandler):
             morph_labels.append(torch.stack(file_labels_padded))
 
         return morph_labels
+
+
+class CortexParcellationDataset(CortexDataset):
+    """ CortexParcellationDataset extends CortexDataset to parcellation labels.
+    """
+    def __init__(
+        self,
+        ids: Sequence,
+        mode: DataModes,
+        raw_data_dir: str,
+        patch_size,
+        n_ref_points_per_structure: int,
+        **kwargs
+    ):
+
+        super().__init__(
+            ids,
+            mode,
+            raw_data_dir,
+            patch_size,
+            n_ref_points_per_structure,
+            **kwargs
+        )
+
+        # Load parcellation labels
+        (self.mesh_parc_labels,
+         self.parc_colors,
+         self.parc_info) = self.load_vertex_parc_labels()
+
+    def create_training_targets(self, remove_meshes=False):
+        """ Sample surface points, normals, curvatures and point classes
+        from meshes.
+        """
+        point_classes = []
+        # We need to sample twice from the meshes with the same seed, once for
+        # curvature and once for point classes
+        seed = torch.rand(1).item()
+        torch.random.manual_seed(seed)
+        points, normals, curvs = super().create_training_targets()
+
+        # !Reset seed
+        torch.random.manual_seed(seed)
+        # Iterate over mesh labels
+        for i, m in tqdm(
+            enumerate(self.mesh_labels),
+            leave=True,
+            position=0,
+            desc="Get point labels from meshes..."
+        ):
+            # Create meshes with parcellation
+            m_new = Meshes(
+                m.verts_list(),
+                m.faces_list(),
+                verts_features=self.mesh_parc_labels[i]
+            )
+            p, n, p_class = sample_points_from_meshes(
+                m_new,
+                self.n_ref_points_per_structure,
+                return_normals=True,
+                interpolate_features='nearest',
+            )
+            # The same points should have been sampled again
+            assert torch.allclose(p, points[i])
+            assert torch.allclose(n, normals[i])
+
+            # Remove meshes to save memory
+            if remove_meshes:
+                self.mesh_labels[i] = None
+            else:
+                self.mesh_labels[i] = m_new
+
+            point_classes.append(p_class)
+
+        # Mesh targets for training
+        self.mesh_targets = (points, normals, curvs, point_classes)
+
+        return self.mesh_targets
+
+    def load_vertex_parc_labels(self):
+        """ Load labels (classes) for each vertex.
+        """
+        vertex_labels = []
+        label_info = None
+        label_colors = None
+        V_max = 0
+
+        # Iterate over subjects
+        for fn in tqdm(
+            self._files,
+            leave=True,
+            position=0,
+            desc="Loading parcellation labels..."
+        ):
+            file_dir = os.path.join(
+                self._raw_data_dir, fn
+            )
+            file_labels = []
+            V_max = 0
+            for mn in self.mesh_label_names:
+                # Filenames have the form
+                # 'lh_white_reduced.aparc.DKTatlas40.annot'
+                # except for Mindboggle which has manual annotations
+                label_fn = re.sub(r"_0\..", "", mn)
+                if 'Mindboggle' in self._raw_data_dir:
+                    label_fn += ".labels.DKT31.manual.annot"
+                else:
+                    label_fn += ".aparc.DKTatlas40.annot"
+                label_fn = os.path.join(file_dir, label_fn)
+                (label,
+                 label_colors,
+                 label_info) = nib.freesurfer.io.read_annot(label_fn)
+
+                # Combine -1 & 0 into one class
+                label[label < 0] = 0
+
+                file_labels.append(
+                    torch.from_numpy(label.astype(np.int32)).unsqueeze(-1)
+                )
+                if label.shape[0] > V_max:
+                    V_max = label.shape[0]
+
+            vertex_labels.append(file_labels)
+
+        return vertex_labels, label_colors, label_info

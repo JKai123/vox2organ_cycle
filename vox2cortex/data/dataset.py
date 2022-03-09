@@ -241,6 +241,7 @@ class DatasetHandler(torch.utils.data.Dataset):
     """
 
     def __init__(self, ids: list, mode: DataModes):
+        super().__init__()
         self._mode = mode
         self._files = ids
 

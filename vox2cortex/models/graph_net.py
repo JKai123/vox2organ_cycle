@@ -9,6 +9,7 @@ from typing import Union, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
@@ -20,9 +21,8 @@ from utils.utils_voxel2meshplusplus.feature_aggregation import (
     aggregate_structural_features,
     aggregate_from_indices
 )
-from utils.file_handle import read_obj
 from utils.logging import measure_time
-from utils.mesh import MeshesOfMeshes
+from utils.mesh import MeshesOfMeshes, Mesh
 from utils.coordinate_transform import (
     normalize_vertices,
     unnormalize_vertices,
@@ -35,7 +35,7 @@ class GraphDecoder(nn.Module):
     """
     def __init__(self,
                  norm: str,
-                 mesh_template: str,
+                 mesh_template: Mesh,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
                  graph_channels: Union[list, tuple],
@@ -47,9 +47,11 @@ class GraphDecoder(nn.Module):
                  aggregate_indices: Tuple[Tuple[int]],
                  exchange_coords: bool,
                  group_structs: Tuple[Tuple[int]]=None,
+                 p_dropout: float=None,
                  k_struct_neighbors=5,
                  ndims: int=3,
                  aggregate: str='trilinear',
+                 n_vertex_classes: int=36,
                  n_residual_blocks: int=3,
                  n_f2f_hidden_layer: int=2):
         super().__init__()
@@ -73,6 +75,7 @@ class GraphDecoder(nn.Module):
         self.unpool_indices = unpool_indices
         self.use_adoptive_unpool = use_adoptive_unpool
         self.GC = GC
+        self.p_dropout = p_dropout
         self.patch_size = patch_size
         self.ndims = ndims
         self.group_structs = group_structs
@@ -82,10 +85,16 @@ class GraphDecoder(nn.Module):
         # Aggregation of voxel features
         self.aggregate = aggregate
 
-        # Initial creation of latent features from coordinates
+        # Initial creation of latent features from coordinates and vertex
+        # classes
         self.graph_conv_first = Features2FeaturesResidual(
-            ndims, graph_channels[0], n_f2f_hidden_layer, norm=norm,
-            GC=GC, weighted_edges=weighted_edges
+            ndims + n_vertex_classes,
+            graph_channels[0],
+            n_f2f_hidden_layer,
+            norm=norm,
+            GC=GC,
+            p_dropout=None, # no dropout here
+            weighted_edges=weighted_edges
         )
 
         # Graph decoder
@@ -122,6 +131,7 @@ class GraphDecoder(nn.Module):
                 hidden_layer_count=n_f2f_hidden_layer,
                 norm=norm,
                 GC=GC,
+                p_dropout=p_dropout,
                 weighted_edges=weighted_edges
             )]
             for _ in range(n_residual_blocks - 1):
@@ -131,6 +141,7 @@ class GraphDecoder(nn.Module):
                     hidden_layer_count=n_f2f_hidden_layer,
                     norm=norm,
                     GC=GC,
+                    p_dropout=p_dropout,
                     weighted_edges=False # No weighted edges here
                 ))
 
@@ -158,37 +169,15 @@ class GraphDecoder(nn.Module):
         self.f2v_layers.apply(zero_weight_init)
 
         # Template (batch size 1)
-        sphere_path = mesh_template
-        raw_sphere_vertices, raw_sphere_faces, _ = read_obj(sphere_path)
-        raw_sphere_vertices = torch.from_numpy(raw_sphere_vertices).cuda().float()
-        raw_sphere_faces = torch.from_numpy(raw_sphere_faces).cuda().long()
-
-        # Re-normalize single-sphere template, keep others unmodified
-        if "/spheres/" in sphere_path or "icocircle" in sphere_path:
-            # Image coords
-            self.sphere_vertices, self.sphere_faces = unnormalize_vertices(
-                raw_sphere_vertices.view(-1, self.ndims),
-                patch_size,
-                raw_sphere_faces.view(-1, self.ndims)
-            )
-            # Mesh coords
-            self.sphere_vertices = normalize_vertices_per_max_dim(
-                self.sphere_vertices,
-                patch_size
-            ).view(raw_sphere_vertices.shape)[None]
-
-        else:
-            self.sphere_vertices = raw_sphere_vertices
-            self.sphere_faces = raw_sphere_faces
-
-        self.sphere_vertices = self.sphere_vertices.view_as(
-            raw_sphere_vertices
-        )[None]
-        self.sphere_faces = self.sphere_faces.view_as(raw_sphere_faces)[None]
+        self.mesh_template = mesh_template
+        self.sphere_vertices = mesh_template.vertices.cuda()[None]
+        self.sphere_faces = mesh_template.faces.cuda()[None]
+        self.sphere_features = mesh_template.features.cuda()[None]
+        assert self.sphere_features.max().cpu().item() == n_vertex_classes - 1
 
         # Assert correctness of the structure grouping
         if group_structs:
-            n_m_classes = raw_sphere_vertices.shape[0]
+            n_m_classes = self.sphere_vertices.shape[1]
             gs_tensor = torch.tensor(group_structs)
             gs_unique = set(torch.unique(gs_tensor).tolist())
             assert len(set(range(n_m_classes)) - gs_unique) == 0,\
@@ -223,7 +212,10 @@ class GraphDecoder(nn.Module):
         batch_size = skips[0].shape[0]
         temp_vertices = torch.cat(batch_size * [self.sphere_vertices], dim=0)
         temp_faces = torch.cat(batch_size * [self.sphere_faces], dim=0)
-        temp_meshes = MeshesOfMeshes(verts=temp_vertices, faces=temp_faces)
+        temp_features = torch.cat(batch_size * [self.sphere_features], dim=0)
+        temp_meshes = MeshesOfMeshes(
+            verts=temp_vertices, faces=temp_faces, features=temp_features
+        )
 
         _, M, V, _ = temp_vertices.shape
 
@@ -232,10 +224,20 @@ class GraphDecoder(nn.Module):
         # No autocast for pytorch3d convs possible
         cast = not issubclass(self.GC, GraphConv)
         with autocast(enabled=cast):
-            # First graph conv: Vertex coords --> latent features
+            # First graph conv: Vertex coords & classes --> latent features
             edges_packed = temp_meshes.edges_packed()
             verts_packed = temp_meshes.verts_packed()
-            latent_features = self.graph_conv_first(verts_packed, edges_packed)
+            features_packed = temp_meshes.features_packed()
+            latent_features = self.graph_conv_first(
+                torch.cat(
+                    # Classes one-hot encoded
+                    [verts_packed, F.one_hot(
+                        features_packed.squeeze()
+                    ).float().cuda()],
+                    dim=-1
+                ),
+                edges_packed
+            )
             temp_meshes.update_features(
                 latent_features.view(batch_size, M, V, -1)
             )
@@ -320,8 +322,9 @@ class GraphDecoder(nn.Module):
                     )
 
                 # New latent features
-                new_meshes = MeshesOfMeshes(vertices_padded, faces_padded,
-                                            latent_features_padded)
+                new_meshes = MeshesOfMeshes(
+                    vertices_padded, faces_padded, latent_features_padded
+                )
                 edges_packed = new_meshes.edges_packed()
                 if self.propagate_coords:
                     latent_features_packed = new_meshes.features_verts_packed()
@@ -355,5 +358,13 @@ class GraphDecoder(nn.Module):
 
                 pred_meshes.append(new_meshes)
                 pred_deltaV.append(new_deltaV_mesh)
+
+            # Replace features with template features (e.g. vertex classes)
+            for m in pred_meshes:
+                m.update_features(
+                    self.mesh_template.features.expand(
+                        batch_size, M, V, -1
+                    ).cuda()
+                )
 
         return pred_meshes, pred_deltaV

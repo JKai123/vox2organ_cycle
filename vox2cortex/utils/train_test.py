@@ -17,6 +17,7 @@ def train_test_routine(hps: dict, experiment_name=None, loglevel='INFO',
     # Test
     test_routine(hps, experiment_name, loglevel)
 
+    return experiment_name
 
 
 

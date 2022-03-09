@@ -56,13 +56,13 @@ class EvalMetrics(IntEnum):
     AverageDistance = 7
 
 def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
-                         padded_coordinates=(-1.0, -1.0, -1.0)):
+                         padded_coordinates=(0.0, 0.0, 0.0)):
     """ Compute point-to-mesh distance between prediction and ground truth. """
 
     padded_coordinates = torch.Tensor(padded_coordinates).cuda()
 
     # Ground truth
-    gt_mesh = data[2]
+    gt_mesh = data['mesh_label']
     # Back to original coordinate space
     gt_vertices, gt_faces= gt_mesh.vertices, gt_mesh.faces
     ndims = gt_vertices.shape[-1]
@@ -114,8 +114,8 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
     if n_m_classes not in (2, 4):
         raise ValueError("Cortical thickness score requires 2 or 4 surface meshes.")
 
-    gt_mesh = data[2]
-    trans_affine = data[3]
+    gt_mesh = data['mesh_label']
+    trans_affine = data['trans_affine_label']
     # Back to original coordinate space
     new_vertices, new_faces = transform_mesh_affine(
         gt_mesh.vertices, gt_mesh.faces, np.linalg.inv(trans_affine)
@@ -153,11 +153,11 @@ def CorticalThicknessScore(pred, data, n_v_classes, n_m_classes, model_class):
 
 @measure_time
 def SymmetricHausdorffScore(pred, data, n_v_classes, n_m_classes, model_class,
-                           padded_coordinates=(-1.0, -1.0, -1.0)):
+                           padded_coordinates=(0.0, 0.0, 0.0)):
     """ Symmetric Hausdorff distance between predicted point clouds.
     """
     # Ground truth
-    mesh_gt = data[2]
+    mesh_gt = data['mesh_label']
     ndims = mesh_gt.ndims
     gt_vertices = mesh_gt.vertices.view(n_m_classes, -1, ndims)
 
@@ -182,9 +182,9 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
     is compared against the voxel ground truth or against the mesh ground truth.
     """
     assert compare_with in ("voxel_gt", "mesh_gt")
-    input_img = data[0].cuda()
-    voxel_gt = data[1].cuda()
-    mesh_gt = data[2]
+    input_img = data['img'].cuda()
+    voxel_gt = data['voxel_label'].cuda()
+    mesh_gt = data['mesh_label']
     ndims = mesh_gt.ndims
     shape = voxel_gt.shape
     if compare_with == 'mesh_gt':
@@ -239,7 +239,7 @@ def JaccardMeshScore(pred, data, n_v_classes, n_m_classes, model_class,
 def JaccardVoxelScore(pred, data, n_v_classes, n_m_classes, model_class, *args):
     """ Jaccard averaged over classes ignoring background """
     voxel_pred = model_class.pred_to_voxel_pred(pred)
-    voxel_label = data[1].cuda()
+    voxel_label = data['voxel_label'].cuda()
 
     return Jaccard(voxel_pred, voxel_label, n_v_classes)
 
@@ -293,7 +293,7 @@ def Jaccard(pred, target, n_classes):
     return np.sum(ious)/(n_classes - 1)
 
 def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
-                 padded_coordinates=(-1.0, -1.0, -1.0), **kwargs):
+                 padded_coordinates=(0.0, 0.0, 0.0), **kwargs):
     """ Chamfer distance averaged over classes
 
     Note: In contrast to the ChamferLoss, where the Chamfer distance may be computed
@@ -301,7 +301,7 @@ def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
     Chamfer distance is computed between the predicted mesh and the ground
     truth mesh. """
     pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    gt_vertices = data[2].vertices.cuda()
+    gt_vertices = data['mesh_label'].vertices.cuda()
     padded_coordinates = torch.Tensor(padded_coordinates).cuda()
     if gt_vertices.ndim == 2:
         gt_vertices = gt_vertices.unsqueeze(0)
