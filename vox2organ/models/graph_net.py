@@ -13,11 +13,11 @@ import torch.nn.functional as F
 from torch.cuda.amp import autocast
 from pytorch3d.ops import GraphConv
 
-from utils.utils.graph_conv import (
+from utils.graph_conv import (
     Features2FeaturesResidual,
     zero_weight_init
 )
-from utils.utils.feature_aggregation import (
+from utils.feature_aggregation import (
     aggregate_structural_features,
     aggregate_from_indices
 )

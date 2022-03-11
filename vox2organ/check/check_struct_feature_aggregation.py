@@ -6,7 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import torch
 
-from utils.utils.feature_aggregation import (
+from utils.feature_aggregation import (
     aggregate_structural_features,
 )
 

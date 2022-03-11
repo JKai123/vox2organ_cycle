@@ -20,7 +20,7 @@ from utils.coordinate_transform import (
     unnormalize_vertices_per_max_dim,
     normalize_vertices
 )
-from utils.utils.feature_aggregation import (
+from utils.feature_aggregation import (
     aggregate_trilinear,
 )
 

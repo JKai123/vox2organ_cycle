@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.utils.custom_layers import IdLayer
+from utils.custom_layers import IdLayer
 
 class ResidualBlock(nn.Module):
     """ Residual Block of https://arxiv.org/abs/1908.02182,

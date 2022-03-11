@@ -16,7 +16,7 @@ from utils.losses import (
     NormalConsistencyLoss,
     EdgeLoss
 )
-from utils.utils.graph_conv import (
+from utils.graph_conv import (
     GraphConvNorm
 )
 
