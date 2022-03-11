@@ -88,8 +88,6 @@ def single_experiment(hyper_ps, mode, resume):
     # Create output dirs
     if not os.path.isdir(hps['MISC_DIR']):
         os.mkdir(hps['MISC_DIR'])
-    if not os.path.isdir(hps['CHECK_DIR']):
-        os.mkdir(hps['CHECK_DIR'])
 
     # Run
     # Attention: the routine can change the experiment name

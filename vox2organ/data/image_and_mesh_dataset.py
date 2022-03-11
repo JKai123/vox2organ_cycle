@@ -8,8 +8,8 @@ import os
 import random
 import logging
 import warnings
-from collections.abc import Sequence
-from typing import Union
+import collections.abc as abc
+from typing import Union, Sequence
 
 import torch
 import numpy as np
@@ -106,7 +106,8 @@ class ImageAndMeshDataset(DatasetHandler):
         seg_ground_truth='voxelized_meshes',
         check_dir='../to_check',
         sanity_check_data=True,
-        remove_meshes=False
+        remove_meshes=False,
+        **kwargs
     ):
         super().__init__(ids, mode)
 
@@ -135,6 +136,7 @@ class ImageAndMeshDataset(DatasetHandler):
         self.seg_ground_truth = seg_ground_truth
         self.n_ref_points_per_structure = n_ref_points_per_structure
         self.n_min_vertices, self.n_max_vertices = None, None
+        self.n_v_classes = len(self.voxel_label_names) + 1 # +1 for background
 
         # Sanity checks to make sure data is transformed correctly
         self.sanity_checks = sanity_check_data
@@ -146,10 +148,6 @@ class ImageAndMeshDataset(DatasetHandler):
             mesh_file_names,
             voxelized_mesh_file_names
         )
-
-        # Create training targets for training set
-        if mode == DataModes.TRAIN:
-            self.create_training_targets(remove_meshes)
 
         # NORMALIZE images
         for i, img in enumerate(self.images):
@@ -188,7 +186,7 @@ class ImageAndMeshDataset(DatasetHandler):
             # _get_seg_and_mesh_file_names)
             combine = lambda x: torch.sum(
                 torch.stack(
-                    [DatasetHandler.combine_labels(x, group, val)
+                    [DatasetHandler.combine_labels(x, self.seg_ids(group), val)
                     for val, group in enumerate(self.voxel_label_names, 1)]
                 ),
                 dim=0
@@ -237,6 +235,12 @@ class ImageAndMeshDataset(DatasetHandler):
         # Use voxelized meshes as voxel ground truth
         if self.seg_ground_truth == 'voxelized_meshes':
             self.voxel_labels = self.voxelized_meshes
+
+
+    def seg_ids(self, names):
+        """ Map voxel classes to IDs.
+        """
+        raise NotImplementedError()
 
 
     def _transform_meshes_as_images(self, img_transforms):
@@ -341,7 +345,7 @@ class ImageAndMeshDataset(DatasetHandler):
                 files_train = fixed_split['train']
                 files_val = fixed_split['validation']
                 files_test = fixed_split['test']
-            elif isinstance(fixed_split, Sequence):
+            elif isinstance(fixed_split, abc.Sequence):
                 assert len(fixed_split) == 3,\
                         "Should contain one file per split"
                 convert = lambda x: x[:-1] # 'x\n' --> 'x'

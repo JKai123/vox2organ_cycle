@@ -30,7 +30,7 @@ DATASET_SPLIT_PARAMS = (
 DATASET_PARAMS = (
     'DATASET',
     'RAW_DATA_DIR',
-    'PREPROCESSED_DATA_DIR'
+    'MORPH_DATA_DIR'
 )
 
 hyper_ps_default={
@@ -42,24 +42,11 @@ hyper_ps_default={
 
     ### Paths ###
 
-    # Directory for output to check
-    'CHECK_DIR': "../to_check",
-
     # Miscellanous output
     'MISC_DIR': "../misc",
 
     # The directory where experiments are stored
     'EXPERIMENT_BASE_DIR': "../experiments/",
-
-    # Directory of raw data, usually preprocessed from 'FS_DIR'
-    'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
-
-    # Directory of raw freesurfer output
-    'FS_DIR': None,
-
-    # Directory of preprocessed data, e.g., containing thickness values from
-    # FreeSurfer
-    'PREPROCESSED_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
 
 
     ### Experiment description ###
@@ -136,51 +123,77 @@ hyper_ps_default={
         'NUM_INPUT_CHANNELS': 1,
         'STEPS': 4,
         'DEEP_SUPERVISION': False, # For voxel net
-        'NORM': 'none', # Only for graph convs, batch norm always used in voxel layers
+
+        # Only for graph convs, batch norm always used in voxel layers
+        'NORM': 'none',
+
         # Number of hidden layers in the graph conv blocks
         'GRAPH_CONV_LAYER_COUNT': 4,
+
+        # Mesh unpooling
         'UNPOOL_INDICES': [0,1,0,1,0],
         'USE_ADOPTIVE_UNPOOL': False,
+
         # Weighted feature aggregation in graph convs (only possible with
         # pytorch-geometric graph convs)
         'WEIGHTED_EDGES': False,
+
         # Whether to use a voxel decoder
         'VOXEL_DECODER': True,
+
         # The graph conv implementation to use
         'GC': GraphConvNorm,
+
         # Whether to propagate coordinates in the graph decoder in addition to
         # voxel features
         'PROPAGATE_COORDS': False,
+
         # Dropout probability of UNet blocks
         'P_DROPOUT_UNET': None,
+
         # Dropout probability of graph conv blocks
         'P_DROPOUT_GRAPH': None,
-        # The used patch size, should be equal to global patch size
-        'PATCH_SIZE': [64, 64, 64],
+
         # The ids of structures that should be grouped in the graph net.
         # Example: if lh_white and rh_white have ids 0 and 1 and lh_pial and
         # rh_pial have ids 2 and 3, then the groups should be specified as
         # ((0,1),(2,3))
         'GROUP_STRUCTS': None,
+
         # Whether to exchange coordinates between groups
+
         'EXCHANGE_COORDS': True,
+
         # The number of neighbors considered for feature aggregation from
         # vertices of different structures in the graph net
         'K_STRUCT_NEIGHBORS': 5,
+
         # The mechanism for voxel feature aggregations, can be 'trilinear',
         # 'bilinear', or 'lns'
         'AGGREGATE': 'trilinear',
+
         # Where to take the features from the UNet
         'AGGREGATE_INDICES': [[5,6],[6,7],[7,8]],
+
         # Define the measure of uncertainty, possible values: None, 'mc_x' (x is the
         # number of forward passes in Monte Carlo uncertainty quantification)
         'UNCERTAINTY': None,
+
         # The number of vertex classes
         'N_VERTEX_CLASSES': 36,
     },
 
 
     ### Data ###
+
+    # Directory of raw freesurfer output
+    'FS_DIR': None,
+
+    # Directory of preprocessed data, e.g., containing thickness values from
+    # FreeSurfer
+    'MORPH_DATA_DIR': "/preprocessed/data/dir", # <<<< Needs to set (e.g. in main.py)
+    # Directory of raw data, usually preprocessed from 'FS_DIR'
+    'RAW_DATA_DIR': "/raw/data/dir", # <<<< Needs to set (e.g. in main.py)
 
     # The dataset to use
     'DATASET': 'ADNI_CSR_small',
@@ -202,8 +215,8 @@ hyper_ps_default={
     # The type of meshes used, either 'freesurfer' or 'marching cubes'
     'MESH_TYPE': 'freesurfer',
 
-    # The structure type for cortex data, either 'cerebral_cortex' or
-    # 'white_matter' or both
+    # The structure type for cortex data, either 'cerebral_cortex' (outer
+    # cortex surfaces) or 'white_matter' (inner cortex surfaces) or both
     'STRUCTURE_TYPE': ['white_matter', 'cerebral_cortex'],
 
     # Check if data has been transformed correctly. This leads potentially to a
@@ -222,10 +235,6 @@ hyper_ps_default={
     # Choose either 'voxelized_meshes' or 'aseg' segmentation ground truth
     # labels
     'SEG_GROUND_TRUTH': 'voxelized_meshes',
-
-    # Whether to use curvatures of the meshes. If set to True, the ground truth
-    # points are vertices and not sampled surface points
-    'PROVIDE_CURVATURES': True,
 
     # Data augmentation
     'AUGMENT_TRAIN': False,

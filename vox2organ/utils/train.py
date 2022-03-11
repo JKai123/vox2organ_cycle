@@ -571,6 +571,7 @@ def training_routine(
         n_m_classes=hps['N_M_CLASSES'],
         patch_shape=hps['PATCH_SIZE'],
         mesh_template=template,
+        check_dir=hps['MISC_DIR'],
         **model_config
     )
     trainLogger.info("%d parameters in the model.", model.count_parameters())

@@ -284,9 +284,18 @@ class DatasetHandler(torch.utils.data.Dataset):
             f.write("\n\n")
 
 
-    def get_item_and_mesh_from_index(self, index):
-        """ Return the 3D data plus a mesh """
-        raise NotImplementedError
+    @staticmethod
+    def combine_labels(labels, ids, value=1):
+        """ Only consider labels in 'ids' and set all those labels equally to
+        'value'.
+        """
+        combined_labels = np.isin(labels, ids).astype(int) * value
+
+        if isinstance(labels, torch.Tensor):
+            combined_labels = torch.from_numpy(combined_labels)
+
+        return combined_labels
+
 
     def get_item_from_index(self, index: int, *args, **kwargs):
         """
@@ -296,29 +305,6 @@ class DatasetHandler(torch.utils.data.Dataset):
         """
         raise NotImplementedError
 
+
     def __len__(self):
-        raise NotImplementedError
-
-    def check_data(self):
-        """ Check if voxel and mesh data is consistent """
-        for i in tqdm(range(len(self)),
-                      desc="Checking IoU of voxel and mesh labels"):
-            data = self.get_item_and_mesh_from_index(i)
-            voxel_label = data[1]
-            mesh = data[2]
-            shape = voxel_label.shape
-            vertices, faces = mesh.vertices, mesh.faces
-            faces = faces.view(self.n_m_classes, -1, 3)
-            voxelized_mesh = voxelize_mesh(
-                vertices, faces, shape, self.n_m_classes
-            ).cuda().sum(0).bool().long() # Treat as one class
-
-            j_vox = Jaccard(voxel_label.cuda(), voxelized_mesh.cuda(), 2)
-
-            if j_vox < 0.85:
-                img = nib.Nifti1Image(voxel_label.squeeze().cpu().numpy(), np.eye(4))
-                nib.save(img, "../to_check/data_voxel_label" + self._files[i] + ".nii.gz")
-                img = nib.Nifti1Image(voxelized_mesh.squeeze().cpu().numpy(), np.eye(4))
-                nib.save(img, "../to_check/data_mesh_label" + self._files[i] + ".nii.gz")
-                print(f"[Warning] Small IoU ({j_vox}) of voxel label and"
-                      " voxelized mesh label, check files at ../to_check/")
+        return len(self._files)
