@@ -7,3 +7,4 @@ misc/
 to_check/
 tmp/
 *.pdf
+.pylintrc
