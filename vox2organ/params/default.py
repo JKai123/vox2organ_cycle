@@ -16,7 +16,7 @@ from utils.losses import (
     NormalConsistencyLoss,
     EdgeLoss
 )
-from utils.utils_voxel2meshplusplus.graph_conv import (
+from utils.utils.graph_conv import (
     GraphConvNorm
 )
 

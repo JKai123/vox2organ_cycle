@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
 
-from utils.utils_voxel2meshplusplus.custom_layers import IdLayer
+from utils.utils.custom_layers import IdLayer
 from utils.utils import Euclidean_weights
 
 

@@ -6,7 +6,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import torch
 
-from utils.utils_voxel2meshplusplus.feature_aggregation import (
+from utils.utils.feature_aggregation import (
     aggregate_structural_features,
 )
 
