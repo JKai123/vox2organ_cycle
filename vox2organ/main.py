@@ -179,11 +179,6 @@ def main(hyper_ps):
     argparser.add_argument('--time',
                            action='store_true',
                            help="Measure time of some functions.")
-    argparser.add_argument('--test_on_large',
-                           dest='reduced_template',
-                           action='store_false',
-                           default=hyper_ps_default['REDUCED_TEMPLATE'],
-                           help="Test on the large fsaverage template.")
     argparser.add_argument('--ablation_study',
                            type=str,
                            nargs=1,
@@ -222,7 +217,6 @@ def main(hyper_ps):
     ovwr(hyper_ps, 'PARAMS_TO_TUNE', args.params_to_tune)
     ovwr(hyper_ps, 'TEST_MODEL_EPOCH', args.test)
     ovwr(hyper_ps, 'PARAMS_TO_FINE_TUNE', args.params_to_fine_tune)
-    ovwr(hyper_ps, 'REDUCED_TEMPLATE', args.reduced_template)
     ovwr(hyper_ps, 'EXP_PREFIX', args.exp_prefix)
     ovwr(hyper_ps, 'USE_WANDB', args.use_wandb)
 

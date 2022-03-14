@@ -199,7 +199,7 @@ class ImageAndMeshDataset(DatasetHandler):
                 self.voxelized_meshes = self._read_voxelized_meshes(
                     voxelized_mesh_file_names
                 )
-            except FileNotFoundError:
+            except (FileNotFoundError, TypeError):
                 self.voxelized_meshes = None # Compute later
 
         # Meshes
@@ -602,8 +602,6 @@ class ImageAndMeshDataset(DatasetHandler):
         upper_limit = np.array(self._patch_origin, dtype=int) +\
                 np.array(self.select_patch_size, dtype=int)
 
-        assert img.shape == (182, 218, 182),\
-                "All images should have this shape."
         # Select patch from whole image
         img_patch, trans_affine_1 = img_with_patch_size(
             img, self.select_patch_size, is_label=is_label, mode='crop',
@@ -738,7 +736,10 @@ class ImageAndMeshDataset(DatasetHandler):
             else:
                 self.mesh_labels[i] = m_new
 
-        self.mesh_targets = (points, normals, curvs)
+        # Placeholder for point labels
+        point_classes = [torch.zeros_like(curvs[0])] * len(curvs)
+
+        self.mesh_targets = (points, normals, curvs, point_classes)
 
         return self.mesh_targets
 

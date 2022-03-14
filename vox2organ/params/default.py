@@ -104,12 +104,8 @@ hyper_ps_default={
     # The architecture to use
     'ARCHITECTURE': 'vox2cortex',
 
-    # Template folder containing lh_white.ply, ... and
-    # lh_white.aparc.annot, ...
-    'MESH_TEMPLATE_PATH': '/mnt/nas/Data_Neuro/Parcellation_atlas/fsaverage/v2c_template/',
-
-    # Whether to use a reduced (smaller) template
-    'REDUCED_TEMPLATE': True,
+    # Template identifier, see utils.template
+    'MESH_TEMPLATE_ID': 'fsaverage-smooth-reduced',
 
     # A path to a pre-trained (sub-) model
     'PRE_TRAINED_MODEL_PATH': None,

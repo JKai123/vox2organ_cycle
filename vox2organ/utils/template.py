@@ -18,6 +18,30 @@ from pytorch3d.structures import Meshes
 from utils.coordinate_transform import transform_mesh_affine
 from utils.mesh import Mesh
 
+
+TEMPLATE_PATH = "../supplementary_material/"
+
+
+# Specification of different templates
+TEMPLATE_SPECS = {
+    "fsaverage-smooth-reduced": {
+        "path": os.path.join(TEMPLATE_PATH, "brain_template", "fsaverage"),
+        "mesh_suffix": "_smoothed_reduced.ply",
+        "feature_suffix": "_reduced.aparc.DKTatlas40.annot",
+    },
+    "fsaverage-smooth": {
+        "path": os.path.join(TEMPLATE_PATH, "brain_template", "fsaverage"),
+        "mesh_suffix": "_smoothed.ply",
+        "feature_suffix": ".aparc.DKTatlas40.annot",
+    },
+    "abdomen-ellipses": {
+        "path": os.path.join(TEMPLATE_PATH, "abdomen_template", "ellipses"),
+        "mesh_suffix": ".ply",
+        "feature_suffix": ""
+    },
+}
+
+
 def generate_sphere_template(centers: dict, radii: dict, level=6):
     """ Generate a template with spheres centered at centers and corresponding
     radii
@@ -108,14 +132,20 @@ def load_mesh_template(
         vertices.append(torch.from_numpy(m.vertices))
         faces.append(torch.from_numpy(m.faces))
 
-        ft = torch.from_numpy(
-            nib.freesurfer.io.read_annot(
-               os.path.join(path, mn + feature_suffix)
-            )[0].astype(np.int32)
-        )
-        # Combine -1 & 0 into one class
-        ft[ft < 0] = 0
-        features.append(ft)
+        try:
+            ft = torch.from_numpy(
+                nib.freesurfer.io.read_annot(
+                   os.path.join(path, mn + feature_suffix)
+                )[0].astype(np.int32)
+            )
+            # Combine -1 & 0 into one class
+            ft[ft < 0] = 0
+            features.append(ft)
+        except FileNotFoundError:
+            # Insert dummy if no features (= vertex classes) could be found
+            features.append(
+                torch.zeros((m.vertices.shape[0]), dtype=torch.int32)
+            )
 
     vertices = torch.stack(vertices).float()
     faces = torch.stack(faces).long()

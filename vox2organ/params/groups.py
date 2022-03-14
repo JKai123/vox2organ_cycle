@@ -73,8 +73,16 @@ hyper_ps_groups = {
             [0.01] * 5, # NormalConsistency
             [5.0] * 5 # Edge
         ],
+        'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
-        'N_V_CLASSES': 4 # Kidneys combined
+        'N_V_CLASSES': 4, # Kidneys combined
+        'PATCH_SIZE': [272, 272, 144],
+        'SELECT_PATCH_SIZE': [272, 272, 144],
+        'MESH_TEMPLATE_ID': 'abdomen-ellipses',
+        'MODEL_CONFIG': {
+            'N_VERTEX_CLASSES': 1,
+            'GROUP_STRUCTS': None,
+        },
     },
 
     'Vox2Cortex-Parc no-patch': {
@@ -86,7 +94,7 @@ hyper_ps_groups = {
            EdgeLoss(0.0)
         ],
         'STRUCTURE_TYPE': "abdomen-all",
-        'MESH_TEMPLATE_PATH': '/home/fabianb/work/vox2organ/supplementary_material/abdomen_template/ellipses/',
+        'MESH_TEMPLATE_ID': 'abdomen-ellipses',
     },
 
     # One hemisphere

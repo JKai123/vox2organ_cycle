@@ -22,7 +22,7 @@ from pytorch3d.structures import Pointclouds, Meshes
 
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
-from utils.template import load_mesh_template
+from utils.template import load_mesh_template, TEMPLATE_SPECS
 from utils.utils import string_dict, score_is_better
 from utils.losses import ChamferAndNormalsLoss
 from utils.logging import (
@@ -525,6 +525,7 @@ def training_routine(
     training_set, validation_set, _ = dataset_split_handler[hps['DATASET']](
         save_dir=experiment_dir,
         load_only=('train', 'validation'),
+        check_dir=hps['MISC_DIR'],
         **hps_lower
     )
     # Only store relevant targets
@@ -549,18 +550,10 @@ def training_routine(
         for i in range(len(validation_set))
     )
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
-    if hps['REDUCED_TEMPLATE']:
-        mesh_suffix: str="_smoothed_reduced.ply"
-        feature_suffix: str="_reduced.aparc.DKTatlas40.annot"
-    else:
-        mesh_suffix: str="_smoothed.ply"
-        feature_suffix: str=".aparc.DKTatlas40.annot"
     template = load_mesh_template(
-        hps['MESH_TEMPLATE_PATH'],
-        list(map(rm_suffix, training_set.mesh_label_names)),
-        mesh_suffix=mesh_suffix,
-        feature_suffix=feature_suffix,
-        trans_affine=trans_affine
+        mesh_label_names=list(map(rm_suffix, training_set.mesh_label_names)),
+        trans_affine=trans_affine,
+        **TEMPLATE_SPECS[hps['MESH_TEMPLATE_ID']]
     )
 
     ###### Training ######
@@ -571,7 +564,6 @@ def training_routine(
         n_m_classes=hps['N_M_CLASSES'],
         patch_shape=hps['PATCH_SIZE'],
         mesh_template=template,
-        check_dir=hps['MISC_DIR'],
         **model_config
     )
     trainLogger.info("%d parameters in the model.", model.count_parameters())
