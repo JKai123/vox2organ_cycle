@@ -23,6 +23,13 @@ class SupportedDatasets(IntEnum):
     ADNI_CSR_orig = 8
     OASIS_FS72 = 9
     Mindboggle = 10
+    FLARE = 11
+
+
+class AbdomenDatasets(IntEnum):
+    """ List abdominal datasets """
+    FLARE = SupportedDatasets.FLARE.value
+
 
 class CortexDatasets(IntEnum):
     """ List cortex datasets """
@@ -35,6 +42,7 @@ class CortexDatasets(IntEnum):
     ADNI_CSR_orig = SupportedDatasets.ADNI_CSR_orig.value
     OASIS_FS72 = SupportedDatasets.OASIS_FS72.value
     Mindboggle = SupportedDatasets.Mindboggle.value
+
 
 dataset_paths = {
     SupportedDatasets.MALC_CSR.name: {
@@ -115,7 +123,13 @@ dataset_paths = {
     },
     SupportedDatasets.Hippocampus.name: {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
-    }
+    },
+    SupportedDatasets.FLARE.name: {
+        'RAW_DATA_DIR': "/mnt/nas/Data_WholeBody/FLARE21/Processed/",
+        'FIXED_SPLIT': ["split_train.txt",
+                        "split_val.txt",
+                        "split_test.txt"] # Read from files
+    },
 }
 
 def valid_ids_MALC_CSR(candidates: list):

@@ -64,6 +64,19 @@ hyper_ps_groups = {
         }
     },
 
+    'Vox2Cortex Abdomen': {
+        'BASE_GROUP': "Vox2Cortex no-patch",
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [1.0] * 5, # Chamfer
+            [0.01] * 5, # Cosine,
+            [0.1] * 5, # Laplace,
+            [0.01] * 5, # NormalConsistency
+            [5.0] * 5 # Edge
+        ],
+        'N_M_CLASSES': 5,
+        'N_V_CLASSES': 4 # Kidneys combined
+    },
+
     'Vox2Cortex-Parc no-patch': {
        'BASE_GROUP': 'Vox2Cortex no-patch',
         'MESH_LOSS_FUNC': [
@@ -72,6 +85,8 @@ hyper_ps_groups = {
            NormalConsistencyLoss(),
            EdgeLoss(0.0)
         ],
+        'STRUCTURE_TYPE': "abdomen-all",
+        'MESH_TEMPLATE_PATH': '/home/fabianb/work/vox2organ/supplementary_material/abdomen_template/ellipses/',
     },
 
     # One hemisphere
