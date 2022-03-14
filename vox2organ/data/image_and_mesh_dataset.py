@@ -231,6 +231,22 @@ class ImageAndMeshDataset(DatasetHandler):
                         f"Small IoU ({iou}) of voxel label and voxelized mesh"
                         f" label, check files at {self._check_dir}"
                     )
+                    img = nib.Nifti1Image(vl.squeeze().cpu().numpy(), np.eye(4))
+                    nib.save(
+                        img,
+                        os.path.join(
+                            self._check_dir,
+                            "data_voxel_label.nii.gz"
+                        )
+                    )
+                    img = nib.Nifti1Image(vm.squeeze().cpu().numpy(), np.eye(4))
+                    nib.save(
+                        img,
+                        os.path.join(
+                            self._check_dir,
+                            "data_mesh_label.nii.gz"
+                        )
+                    )
 
         # Use voxelized meshes as voxel ground truth
         if self.seg_ground_truth == 'voxelized_meshes':

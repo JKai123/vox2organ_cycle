@@ -83,6 +83,11 @@ hyper_ps_groups = {
             'N_VERTEX_CLASSES': 1,
             'GROUP_STRUCTS': None,
         },
+        'EVAL_METRICS': [
+            'SymmetricHausdorff',
+            'JaccardMesh',
+            'AverageDistance'
+        ],
     },
 
     'Vox2Cortex-Parc no-patch': {

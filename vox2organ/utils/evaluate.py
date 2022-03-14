@@ -26,7 +26,6 @@ from utils.mesh import Mesh
 from utils.logging import (
     write_img_if_debug
 )
-from utils.cortical_thickness import cortical_thickness
 
 def add_to_results_(result_dict, metric_name, result):
     """ Helper function to add evaluation results to the result dict."""
@@ -179,8 +178,8 @@ class ModelEvaluator():
                 v, f = transform_mesh_affine(
                     v, f, np.linalg.inv(trans_affine)
                 )
-                # Meshes with thickness
-                pred_meshes = cortical_thickness(v, f)
+                # Meshes
+                pred_meshes = [Mesh(v_s, f_s) for v_s, f_s in zip(v, f)]
                 # Store the mesh of each structure separately
                 for i, m in enumerate(pred_meshes):
                     pred_mesh_filename =\
@@ -197,8 +196,8 @@ class ModelEvaluator():
             v, f = transform_mesh_affine(
                 v, f, np.linalg.inv(trans_affine)
             )
-            # Meshes with thickness
-            pred_meshes = cortical_thickness(v, f)
+            # Meshes
+            pred_meshes = [Mesh(v_s, f_s) for v_s, f_s in zip(v, f)]
             # Store the mesh of each structure separately
             for i, m in enumerate(pred_meshes):
                 pred_mesh_filename = filename + "_epoch" + str(epoch) +\

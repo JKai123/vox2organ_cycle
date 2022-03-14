@@ -160,7 +160,11 @@ class Mesh():
         t_mesh = self.to_trimesh(process=False)
         autumn = cm.get_cmap('autumn')
         color_norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
-        features = self.features.reshape(t_mesh.vertices.shape[0])
+        try:
+            features = self.features.reshape(t_mesh.vertices.shape[0])
+        except AttributeError:
+            # No features exist -> insert dummy
+            features = np.zeros(t_mesh.vertices.shape[0])
         if isinstance(features, torch.Tensor):
             features = features.cpu().numpy()
         colors = autumn(color_norm(features))
