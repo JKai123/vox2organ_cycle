@@ -63,7 +63,7 @@ hyper_ps_default={
     'EXP_PREFIX': 'exp_',
 
     # Project name used for wandb
-    'PROJ_NAME': 'vox2cortex',
+    'PROJ_NAME': 'vox2organ',
 
     # Entity of wandb, e.g. group name
     'ENTITY': 'team-segmentation',
