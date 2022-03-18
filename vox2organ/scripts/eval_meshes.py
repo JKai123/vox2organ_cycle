@@ -27,7 +27,8 @@ from utils.utils import choose_n_random_points
 from data.supported_datasets import dataset_paths
 
 EXPERIMENT_DIR = "../experiments/"
-SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
+SURF_NAMES = ("liver", "kidney_left", "kidney_right", "spleen", "pancreas")
+# SURF_NAMES = ("lh_white", "rh_white", "lh_pial", "rh_pial")
 # SURF_NAMES = ("rh_white", "rh_pial")
 PARTNER = {"rh_white": "rh_pial",
            "rh_pial": "rh_white",

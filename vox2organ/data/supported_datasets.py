@@ -125,6 +125,7 @@ dataset_paths = {
         'RAW_DATA_DIR': "/mnt/nas/Data_Neuro/Task04_Hippocampus/"
     },
     SupportedDatasets.FLARE.name: {
+        'FS_DIR': None,
         'RAW_DATA_DIR': "/mnt/nas/Data_WholeBody/FLARE21/Processed/",
         'FIXED_SPLIT': ["split_train.txt",
                         "split_val.txt",
