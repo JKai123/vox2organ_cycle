@@ -13,14 +13,14 @@ import torch
 from torch.nn import Dropout
 import numpy as np
 
+from data.dataset_split_handler import dataset_split_handler
+from models.model_handler import ModelHandler
+from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.logging import init_logging, get_log_dir
 from utils.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
-from utils.template import load_mesh_template
-from data.dataset_split_handler import dataset_split_handler
-from models.model_handler import ModelHandler
-from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
+from utils.template import load_mesh_template, TEMPLATE_SPECS
 from utils.model_names import (
     INTERMEDIATE_MODEL_NAME,
     BEST_MODEL_NAME,
@@ -97,7 +97,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         experiment_dir,
         test_split
         + "_template_"
-        + ("reduced" if hps['REDUCED_TEMPLATE'] else "full")
+        + hps['MESH_TEMPLATE_ID']
         + f"_{hps['DATASET']}"
     )
     if not os.path.isdir(test_dir):
@@ -109,11 +109,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     with open(param_file, 'r') as f:
         training_hps = json.load(f)
 
-    testLogger.info(
-        "Using template %s reduced=%r",
-        hps['MESH_TEMPLATE_PATH'],
-        hps['REDUCED_TEMPLATE']
-    )
+    testLogger.info("Using template %s", hps['MESH_TEMPLATE_ID'])
 
     # Lower case param names as input to constructors/functions
     training_hps_lower = dict_to_lower_dict(training_hps)
@@ -154,18 +150,10 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
         for i in range(len(test_set))
     )
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
-    if hps['REDUCED_TEMPLATE']:
-        mesh_suffix: str="_smoothed_reduced.ply"
-        feature_suffix: str="_reduced.aparc.DKTatlas40.annot"
-    else:
-        mesh_suffix: str="_smoothed.ply"
-        feature_suffix: str=".aparc.DKTatlas40.annot"
     template = load_mesh_template(
-        hps['MESH_TEMPLATE_PATH'],
-        list(map(rm_suffix, test_set.mesh_label_names)),
-        mesh_suffix=mesh_suffix,
-        feature_suffix=feature_suffix,
-        trans_affine=trans_affine
+        mesh_label_names=list(map(rm_suffix, test_set.mesh_label_names)),
+        trans_affine=trans_affine,
+        **TEMPLATE_SPECS[hps['MESH_TEMPLATE_ID']]
     )
 
     # Use current hps for testing. In particular, the evaluation metrics may be
