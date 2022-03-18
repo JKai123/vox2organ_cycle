@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # Copyright 2021 Fabian Bongratz All Rights Reserved.
 
-""" Setup vox2cortex """
+""" Setup vox2organ """
 
 from setuptools import setup
 
 setup(
-    name='vox2cortex',
+    name='vox2organ',
     version='0.1.0',
     description='Cortical Surface Reconstruction from MRI with Geometric Deep Learning',
-    url='https://gitlab.lrz.de/ga63wus/vox2cortex',
+    url='https://gitlab.lrz.de/ga63wus/vox2organ',
     author='Fabian Bongratz',
     author_email='fabi.bongratz@gmail.com',
     license='GNU GPLv3',
-    packages=['vox2cortex'],
+    packages=['vox2organ'],
     dependency_links=['https://github.com/fabibo3/pytorch3d'],
     keywords=[
         "Surface reconstruction",
