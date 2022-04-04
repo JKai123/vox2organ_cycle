@@ -35,7 +35,7 @@ hyper_ps_overfit = {
 # fixed together, see params.groups
 hyper_ps_master = {
     # Learning
-    'BATCH_SIZE': 2,
+    'BATCH_SIZE': 1,
 
     # LRZ
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',

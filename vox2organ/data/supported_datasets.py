@@ -24,11 +24,21 @@ class SupportedDatasets(IntEnum):
     OASIS_FS72 = 9
     Mindboggle = 10
     FLARE = 11
+    SPLEEN = 12
+    NIHPancreas = 13
+    MSDPancreas = 14
+    LiTS = 15
+    KiTS = 16
 
 
 class AbdomenDatasets(IntEnum):
     """ List abdominal datasets """
     FLARE = SupportedDatasets.FLARE.value
+    SPLEEN = SupportedDatasets.SPLEEN.value
+    MSDPancreas = SupportedDatasets.MSDPancreas.value
+    NIHPancreas = SupportedDatasets.NIHPancreas.value
+    LiTS = SupportedDatasets.LiTS.value
+    KiTS = SupportedDatasets.KiTS.value
 
 
 class CortexDatasets(IntEnum):
@@ -130,6 +140,41 @@ dataset_paths = {
         'FIXED_SPLIT': ["split_train.txt",
                         "split_val.txt",
                         "split_test.txt"] # Read from files
+    },
+    SupportedDatasets.SPLEEN.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
+        'FIXED_SPLIT': ["Spleen_train.txt",
+                        "Spleen_validation.txt",
+                        "Spleen_test.txt"] # Read from files
+    },
+    SupportedDatasets.LiTS.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
+        'FIXED_SPLIT': ["Lits_train.txt",
+                        "Lits_validation.txt",
+                        "Lits_test.txt"] # Read from files
+    },
+    SupportedDatasets.KiTS.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
+        'FIXED_SPLIT': ["Kits_train.txt",
+                        "Kits_validation.txt",
+                        "Kits_test.txt"] # Read from files
+    },
+    SupportedDatasets.MSDPancreas.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
+        'FIXED_SPLIT': ["MSD_Pancreas_train.txt",
+                        "MSD_Pancreas_validation.txt",
+                        "MSD_Pancreas_test.txt"] # Read from files
+    },
+    SupportedDatasets.NIHPancreas.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
+        'FIXED_SPLIT': ["NIH_Pancreas_train.txt",
+                        "NIH_Pancreas_validation.txt",
+                        "NIH_Pancreas_test.txt"] # Read from files
     },
 }
 

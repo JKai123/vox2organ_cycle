@@ -21,5 +21,10 @@ dataset_split_handler = {
     SupportedDatasets.ADNI_CSR_orig.name: CortexDataset.split,
     SupportedDatasets.ADNI_CSR_small.name: CortexDataset.split,
     SupportedDatasets.ADNI_CSR_large.name: CortexDataset.split,
-    SupportedDatasets.FLARE.name: AbdomenDataset.split
+    SupportedDatasets.FLARE.name: AbdomenDataset.split,
+    SupportedDatasets.SPLEEN.name: AbdomenDataset.split,
+    SupportedDatasets.MSDPancreas.name: AbdomenDataset.split,
+    SupportedDatasets.NIHPancreas.name: AbdomenDataset.split,
+    SupportedDatasets.LiTS.name: AbdomenDataset.split,
+    SupportedDatasets.KiTS.name: AbdomenDataset.split,
 }
