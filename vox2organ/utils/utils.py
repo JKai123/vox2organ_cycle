@@ -301,14 +301,14 @@ def score_is_better(old_value, new_value, name):
     if old_value is None:
         if name in ('JaccardVoxel', 'JaccardMesh'):
             return True, 'max'
-        elif name in ('Chamfer'):
+        elif name in ('Chamfer', 'AverageDistance'):
             return True, 'min'
         else:
             raise ValueError("Unknown score name.")
 
     if name in ('JaccardVoxel', 'JaccardMesh'):
         return new_value > old_value, 'max'
-    elif name in ('Chamfer'):
+    elif name in ('Chamfer', 'AverageDistance'):
         return new_value < old_value, 'min'
     else:
         raise ValueError("Unknown score name.")

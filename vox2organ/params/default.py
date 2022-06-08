@@ -263,15 +263,15 @@ hyper_ps_default={
     'EVAL_METRICS': [
         'SymmetricHausdorff',
         'JaccardVoxel',
-        'JaccardMesh',
-        'Chamfer',
-        'CorticalThicknessError',
+        # 'JaccardMesh',
+        # 'Chamfer',
+        # 'CorticalThicknessError',
         'AverageDistance'
     ],
 
     # Main validation metric according to which the best model is determined.
     # Note: This one must also be part of 'EVAL_METRICS'!
-    'MAIN_EVAL_METRIC': 'JaccardMesh',
+    'MAIN_EVAL_METRIC': 'AverageDistance',
 
     # For testing the model from a certain training epoch; if None, the final
     # model is used
