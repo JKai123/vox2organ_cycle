@@ -69,6 +69,8 @@ hyper_ps_groups = {
         'BASE_GROUP': "Vox2Cortex no-patch",
         'PATCH_SIZE': [192, 208, 192],
         'MESH_TEMPLATE_ID': "fsaverage-no-parc",
+        'SEG_GROUND_TRUTH': "voxel_seg",
+        'N_V_CLASSES': 3,
     },
 
     'Vox2Cortex Abdomen': {
