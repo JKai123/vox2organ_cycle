@@ -35,7 +35,7 @@ hyper_ps_groups = {
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
         # weights should respect this order!
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [1.0] * 4, # Chamfer
+            [4.0] * 4, # Chamfer
             [0.01] * 2 + [0.0125] * 2, # Cosine,
             [0.1] * 2 + [0.25] * 2, # Laplace,
             [0.001] * 2 + [0.00225] * 2, # NormalConsistency
@@ -61,7 +61,14 @@ hyper_ps_groups = {
             'VOXEL_DECODER': True,
             'GC': GraphConvNorm,
             'GROUP_STRUCTS': [[0, 1], [2, 3]],
+            'N_VERTEX_CLASSES': 1,
         }
+    },
+
+    'Vox2Cortex maxxed out': {
+        'BASE_GROUP': "Vox2Cortex no-patch",
+        'PATCH_SIZE': [192, 208, 192],
+        'MESH_TEMPLATE_ID': "fsaverage-no-parc",
     },
 
     'Vox2Cortex Abdomen': {

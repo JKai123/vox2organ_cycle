@@ -39,6 +39,11 @@ TEMPLATE_SPECS = {
         "mesh_suffix": ".ply",
         "feature_suffix": ""
     },
+    "fsaverage-no-parc": {
+        "path": os.path.join(TEMPLATE_PATH, "brain_template", "fsaverage"),
+        "mesh_suffix": ".ply",
+        "feature_suffix": "",
+    },
 }
 
 
