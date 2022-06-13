@@ -39,7 +39,7 @@ hyper_ps_master = {
 
     # LRZ
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
-    # 'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
+    'RAW_DATA_DIR': '/mnt/data/OASIS_FS72/',
 }
 
 # Overwrite master params if the value is different from the
