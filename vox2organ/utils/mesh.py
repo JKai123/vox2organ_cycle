@@ -218,15 +218,21 @@ class MeshesOfMeshes():
     representation.
 
     """
-    def __init__(self, verts, faces, features=None):
+    def __init__(self, verts, faces, normals=None, features=None):
         if verts.ndim != 4:
             raise ValueError("Vertices are required to be a 4D tensor.")
         if faces.ndim != 4:
             raise ValueError("Faces are required to be a 4D tensor.")
+        if normals is not None:
+            self.contains_normals = True
+            if normals.ndim != 4:
+                raise ValueError("Normals are required to be a 4D tensor.")
+        else:
+            self.contains_features = False
         if features is not None:
             self.contains_features = True
             if features.ndim != 4:
-                raise ValueError("Features are required to be a 4D tensor.")
+                raise ValueError("Features are required to be a 4D tensor.") # why 
         else:
             self.contains_features = False
 
@@ -240,17 +246,31 @@ class MeshesOfMeshes():
         else:
             self._features_padded = None
 
+        if normals is not None:
+            self.update_normals(normals)
+        else:
+            self._normals_padded = None
+
     def update_features(self, features):
         """ Add features to the mesh in padded representation """
         if features.shape[:-1] != self._verts_padded.shape[:-1]:
             raise ValueError("Invalid feature shape.")
         self._features_padded = features
+    
+    def update_normals(self, normals):
+        """ Add normals to the mesh in padded representation """
+        if normals.shape[:-1] != self._verts_padded.shape[:-1]:
+            raise ValueError("Invalid normals shape.")
+        self._normals_padded = normals
 
     def verts_padded(self):
         return self._verts_padded
 
     def features_padded(self):
         return self._features_padded
+
+    def normals_padded(self):
+        return self._normals_padded
 
     def faces_padded(self):
         return self._faces_padded
@@ -325,7 +345,15 @@ class MeshesOfMeshes():
         """ Packed representation of features """
         if self.contains_features:
             _, _, _, C = self._features_padded.shape
+            test = self._features_padded.view(-1, C)
             return self._features_padded.view(-1, C)
+        return None
+
+    def normals_packed(self):
+        """ Packed representation of features """
+        if self.contains_normals:
+            _, _, _, C = self._normals_padded.shape
+            return self._normals_padded.view(-1, C)
         return None
 
 def vff_to_Meshes(verts, faces, features, ndim):
