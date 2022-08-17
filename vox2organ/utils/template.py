@@ -17,9 +17,11 @@ from pytorch3d.structures import Meshes
 
 from utils.coordinate_transform import transform_mesh_affine
 from utils.mesh import Mesh
+from utils.mesh import MeshesOfMeshes
+from utils.utils import zero_pad_max_length
 
 
-TEMPLATE_PATH = "../supplementary_material/"
+TEMPLATE_PATH = "../vox2organ/supplementary_material/"
 
 
 # Specification of different templates
@@ -36,6 +38,11 @@ TEMPLATE_SPECS = {
     },
     "abdomen-ellipses": {
         "path": os.path.join(TEMPLATE_PATH, "abdomen_template", "ellipses"),
+        "mesh_suffix": ".ply",
+        "feature_suffix": ""
+    },
+    "abdomen-case00017": {
+        "path": os.path.join(TEMPLATE_PATH, "abdomen_template", "case_00017"),
         "mesh_suffix": ".ply",
         "feature_suffix": ""
     },
@@ -152,14 +159,18 @@ def load_mesh_template(
                 torch.zeros((m.vertices.shape[0]), dtype=torch.int32)
             )
 
-    vertices = torch.stack(vertices).float()
-    faces = torch.stack(faces).long()
-    features = torch.stack(features).long().unsqueeze(-1)
+    vertices_padded, _ = zero_pad_max_length(vertices)
+    faces_padded, _ = zero_pad_max_length(faces)
+    features_padded, _ = zero_pad_max_length(features)
+    vertices_padded = torch.stack(vertices_padded).float().unsqueeze(0)
+    faces_padded = torch.stack(faces_padded).long().unsqueeze(0)
+    features_padded = torch.stack(features_padded).long()
+    features_padded = features_padded.unsqueeze(-1).unsqueeze(0).permute((0,1,2,3))
 
     # Transform meshes
-    vertices, faces = transform_mesh_affine(vertices, faces, trans_affine)
+    vertices_padded, faces_padded = transform_mesh_affine(vertices_padded, faces_padded, trans_affine)
 
     # Compute normals
-    normals = Meshes(vertices, faces).verts_normals_padded()
+    normals = Meshes(vertices, faces).verts_normals_padded().unsqueeze(0)
 
-    return Mesh(vertices, faces, normals, features)
+    return MeshesOfMeshes(vertices_padded, faces_padded, normals, features_padded)

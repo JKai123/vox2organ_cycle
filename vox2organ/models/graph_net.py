@@ -35,7 +35,7 @@ class GraphDecoder(nn.Module):
     """
     def __init__(self,
                  norm: str,
-                 mesh_template: Mesh,
+                 mesh_template: MeshesOfMeshes,
                  unpool_indices: Union[list, tuple],
                  use_adoptive_unpool: bool,
                  graph_channels: Union[list, tuple],
@@ -169,13 +169,14 @@ class GraphDecoder(nn.Module):
         self.f2v_layers.apply(zero_weight_init)
 
         # Template (batch size 1)
+        # TODO maybe recomment this
         self.mesh_template = mesh_template
-        self.sphere_vertices = mesh_template.vertices.cuda()[None]
-        self.sphere_faces = mesh_template.faces.cuda()[None]
-        self.sphere_features = mesh_template.features.cuda()[None]
+        self.sphere_vertices = mesh_template.verts_padded().cuda()
+        self.sphere_faces = mesh_template.faces_padded().cuda()
+        self.sphere_features = mesh_template.features_padded().cuda()
         assert self.sphere_features.max().cpu().item() == n_vertex_classes - 1
 
-        # Assert correctness of the structure grouping
+        # # Assert correctness of the structure grouping
         if group_structs:
             n_m_classes = self.sphere_vertices.shape[1]
             gs_tensor = torch.tensor(group_structs)
@@ -208,7 +209,7 @@ class GraphDecoder(nn.Module):
     @measure_time
     def forward(self, skips):
 
-        # Batch of template meshes
+        # Batch of template meshes --> increases the first dimension to fit the batch size
         batch_size = skips[0].shape[0]
         temp_vertices = torch.cat(batch_size * [self.sphere_vertices], dim=0)
         temp_faces = torch.cat(batch_size * [self.sphere_faces], dim=0)
@@ -225,9 +226,9 @@ class GraphDecoder(nn.Module):
         cast = not issubclass(self.GC, GraphConv)
         with autocast(enabled=cast):
             # First graph conv: Vertex coords & classes --> latent features
-            edges_packed = temp_meshes.edges_packed()
-            verts_packed = temp_meshes.verts_packed()
-            features_packed = temp_meshes.features_packed()
+            edges_packed = temp_meshes.edges_packed().cuda()
+            verts_packed = temp_meshes.verts_packed().cuda()
+            features_packed = temp_meshes.features_packed().cuda()
             latent_features = self.graph_conv_first(
                 torch.cat(
                     # Classes one-hot encoded
@@ -258,9 +259,9 @@ class GraphDecoder(nn.Module):
 
                 # Load mesh information from previous iteration for class k
                 prev_meshes = pred_meshes[i]
-                vertices_padded = prev_meshes.verts_padded() # (N,M,V,3)
-                latent_features_padded = prev_meshes.features_padded() # (N,M,V,latent_features_count)
-                faces_padded = prev_meshes.faces_padded() # (N,M,F,3)
+                vertices_padded = prev_meshes.verts_padded().cuda() # (N,M,V,3)
+                latent_features_padded = prev_meshes.features_padded().cuda() # (N,M,V,latent_features_count)
+                faces_padded = prev_meshes.faces_padded().cuda() # (N,M,F,3)
 
                 if do_unpool == 1:
                     raise NotImplementedError("Unpooling not implemented.")
@@ -323,7 +324,7 @@ class GraphDecoder(nn.Module):
 
                 # New latent features
                 new_meshes = MeshesOfMeshes(
-                    vertices_padded, faces_padded, latent_features_padded
+                    vertices_padded, faces_padded, features=latent_features_padded
                 )
                 edges_packed = new_meshes.edges_packed()
                 if self.propagate_coords:
@@ -362,7 +363,7 @@ class GraphDecoder(nn.Module):
             # Replace features with template features (e.g. vertex classes)
             for m in pred_meshes:
                 m.update_features(
-                    self.mesh_template.features.expand(
+                    self.mesh_template.features_padded().expand(
                         batch_size, M, V, -1
                     ).cuda()
                 )

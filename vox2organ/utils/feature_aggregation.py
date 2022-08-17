@@ -16,9 +16,9 @@ from utils.utils import int_to_binlist
 def aggregate_trilinear(voxel_features, vertices, mode='bilinear'):
     """ Trilinear/bilinear aggregation of voxel features at vertex locations """
     if vertices.shape[-1] == 3:
-        vertices_ = vertices[:, :, None, None]
+        vertices_ = vertices[:, :, None, None].cuda()
     elif vertices.shape[-1] == 2:
-        vertices_ = vertices[:, :, None]
+        vertices_ = vertices[:, :, None].cuda()
     else:
         raise ValueError("Wrong dimensionality of vertices.")
     features = F.grid_sample(voxel_features, vertices_, mode=mode,
