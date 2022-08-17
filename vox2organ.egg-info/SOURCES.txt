@@ -1,0 +1,10 @@
+LICENSE
+README.md
+setup.py
+vox2organ/__init__.py
+vox2organ/main.py
+vox2organ.egg-info/PKG-INFO
+vox2organ.egg-info/SOURCES.txt
+vox2organ.egg-info/dependency_links.txt
+vox2organ.egg-info/requires.txt
+vox2organ.egg-info/top_level.txt

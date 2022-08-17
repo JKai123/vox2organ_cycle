@@ -1,0 +1,10 @@
+elasticdeform
+pandas
+deprecated
+nibabel==3.2.1
+numpy
+torch==1.7.1
+tqdm
+trimesh==3.9.35
+wandb==0.12.6
+scikit-image==0.18.1

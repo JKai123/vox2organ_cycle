@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: vox2organ
+Version: 0.1.0
+Summary: Cortical Surface Reconstruction from MRI with Geometric Deep Learning
+Home-page: https://gitlab.lrz.de/ga63wus/vox2organ
+Author: Fabian Bongratz
+Author-email: fabi.bongratz@gmail.com
+License: GNU GPLv3
+Keywords: Surface reconstruction,3D vision,Brain segmentation,Geometric deep learning,Computer vision,AI in medicine
+Platform: UNKNOWN
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Natural Language :: English
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: ==3.8.*
+License-File: LICENSE
+
+UNKNOWN
+
