@@ -225,6 +225,7 @@ class Solver():
                     self.mesh_loss_func_weights,
                     model.__class__.pred_to_pred_meshes(pred),
                     model.__class__.pred_to_pred_deltaV_meshes(pred),
+                    model.__class__.predMoM_to_meshes(pred),
                     mesh_target
                 )
             else:
@@ -350,7 +351,7 @@ class Solver():
                 model.eval()
 
                 val_results = self.evaluator.evaluate(
-                    model, epoch, save_meshes=5
+                    model, epoch, save_meshes=2, remove_previous_meshes=False
                 )
                 log_val_results(val_results, iteration - 1)
 

@@ -12,6 +12,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import GraphConv
 
+from utils.logging import write_array_if_debug_txt
+
 from utils.custom_layers import IdLayer
 from utils.utils import Euclidean_weights
 
@@ -32,6 +34,7 @@ class GraphConvNorm(GraphConv):
         # Normalize with 1 + N(i)
         # Attention: This requires the edges to be unique!
         D_inv = 1.0 / (1 + torch.unique(edges, return_counts=True)[1].unsqueeze(1))
+        write_array_if_debug_txt(torch.unique(edges).cpu().numpy(), edges.cpu().numpy())
         return D_inv * super().forward(verts, edges)
 
 

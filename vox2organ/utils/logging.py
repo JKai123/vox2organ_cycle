@@ -216,11 +216,21 @@ def init_logging(
 def write_array_if_debug(data_1, data_2):
     """ Write data if debug mode is on.
     """
-    file_1 = "../misc/array_1.npy"
-    file_2 = "../misc/array_2.npy"
+    file_1 = "./misc/array_1.npy"
+    file_2 = "./misc/array_2.npy"
     if debug:
         np.save(file_1, data_1)
         np.save(file_2, data_2)
+
+def write_array_if_debug_txt(data_1, data_2):
+    """ Write data if debug mode is on.
+    """
+    file_1 = "./misc/array_1.txt"
+    file_2 = "./misc/array_2.txt"
+    if debug:
+        np.savetxt(file_1, data_1)
+        np.savetxt(file_2, data_2)
+
 
 def write_img_if_debug(img: np.ndarray, path: str):
     """ Write data if debug mode is on.

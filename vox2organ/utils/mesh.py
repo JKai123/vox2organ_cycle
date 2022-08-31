@@ -13,6 +13,10 @@ from pytorch3d.structures import Meshes
 from pytorch3d.ops import cot_laplacian
 from matplotlib import cm
 from matplotlib.colors import Normalize
+from utils.utils_padded_packed import pack, unpack
+from logging import getLogger
+from utils.modes import ExecModes
+
 
 class Mesh():
     """ Custom meshes
@@ -218,7 +222,7 @@ class MeshesOfMeshes():
     representation.
 
     """
-    def __init__(self, verts, faces, normals=None, features=None):
+    def __init__(self, verts, faces, normals=None, features=None, verts_mask=None, faces_mask=None, normals_mask=None, features_mask=None):
         if verts.ndim != 4:
             raise ValueError("Vertices are required to be a 4D tensor.")
         if faces.ndim != 4:
@@ -232,14 +236,16 @@ class MeshesOfMeshes():
         if features is not None:
             self.contains_features = True
             if features.ndim != 4:
-                raise ValueError("Features are required to be a 4D tensor.") # why 
+                raise ValueError("Features are required to be a 4D tensor.")  
         else:
             self.contains_features = False
 
         self._verts_padded = verts
         self._faces_padded = faces
         self._edges_packed = None
+
         self.ndims = verts.shape[-1]
+        self._batch_size = verts.shape[0]
 
         if features is not None:
             self.update_features(features)
@@ -250,6 +256,30 @@ class MeshesOfMeshes():
             self.update_normals(normals)
         else:
             self._normals_padded = None
+
+        # Masks to switch between padded and unpadded
+        # Described as a list of lenghts of the unpadded data for each element of M
+        self._verts_mask = verts_mask
+        self._faces_mask = faces_mask
+        self._normals_mask = normals_mask
+        self._features_mask = features_mask
+    
+    # Getter for the individual masks
+    def verts_mask(self):
+        return self._verts_mask
+    
+
+    def faces_mask(self):
+        return self._faces_mask
+
+    
+    def normals_mask(self):
+        return self._normals_mask
+
+    
+    def features_mask(self):
+        return self._features_mask
+
 
     def update_features(self, features):
         """ Add features to the mesh in padded representation """
@@ -276,6 +306,7 @@ class MeshesOfMeshes():
         return self._faces_padded
 
     def edges_packed(self):
+        # TODO Fabi fragen ob das schon richtig packed ist
         """ Returns unique edges in packed representation.
         Based on pytorch3d.structures.Meshes.edges_packed()"""
         if self._edges_packed is None:
@@ -315,21 +346,36 @@ class MeshesOfMeshes():
 
             self._edges_packed = torch.stack([u // V, u % V], dim=1)
 
+            unique_node_ids_edges = torch.unique(self._edges_packed)
+            unique_node_ids_faces = torch.unique(self.faces_packed())
+            unique_verts = self.verts_packed()
+
         return self._edges_packed
 
     def faces_packed(self):
         """ Packed representation of faces """
+        if self._faces_mask == None:
+            raise ValueError("Faces-mask required for packed faces")
+        if self._verts_mask == None:
+            raise ValueError("Vertices-mask required for packed faces")
+            
         N, M, V, _ = self._verts_padded.shape
         _, _, F, _ = self._faces_padded.shape
         # New face index = local index + Ni * Mi * V
-        add_index = torch.cat(
-            [torch.ones(F) * i * V for i in range(N*M)]
-        ).long().to(self._faces_padded.device)
-        return self._faces_padded.view(-1, self.ndims) + add_index.view(-1, 1)
+        add_index_list = []
+        add_value = 0
+        for i in range(M*N):
+            add_index_list.append(torch.ones(self._faces_mask[int(i/N)]) * add_value)
+            add_value += self._verts_mask[int(i/N)] 
+        
+        add_index = torch.cat(add_index_list).long().to(self._faces_padded.device)
+        return pack(self._faces_padded, self._faces_mask) + add_index.view(-1, 1)
 
     def verts_packed(self):
         """ Packed representation of vertices """
-        return self._verts_padded.view(-1, self.ndims)
+        if self._verts_mask == None:
+            raise ValueError("Mask required for packed vertices")
+        return pack(self._verts_padded, self._verts_mask)
 
     def move_verts(self, offset):
         """ Move the vertex coordinates by offset """
@@ -343,17 +389,18 @@ class MeshesOfMeshes():
 
     def features_packed(self):
         """ Packed representation of features """
+        if self._features_mask == None:
+            raise ValueError("Mask required for packed features")
         if self.contains_features:
-            _, _, _, C = self._features_padded.shape
-            test = self._features_padded.view(-1, C)
-            return self._features_padded.view(-1, C)
+            return pack(self._features_padded, self._features_mask)
         return None
 
     def normals_packed(self):
         """ Packed representation of features """
+        if self._normals_mask == None:
+            raise ValueError("Mask required for packed normals")
         if self.contains_normals:
-            _, _, _, C = self._normals_padded.shape
-            return self._normals_padded.view(-1, C)
+            return pack(self._normals_padded, self._normals_mask)
         return None
 
 def vff_to_Meshes(verts, faces, features, ndim):

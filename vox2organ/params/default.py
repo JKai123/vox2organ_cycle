@@ -66,7 +66,7 @@ hyper_ps_default={
     'PROJ_NAME': 'vox2organ',
 
     # Entity of wandb, e.g. group name
-    'ENTITY': 'team-segmentation',
+    'ENTITY': 'jkaiser',
 
     # The loglevel for output logs
     'LOGLEVEL': 'INFO',

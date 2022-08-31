@@ -466,26 +466,3 @@ def int_to_binlist(i, n_digits):
     length n_digits, e.g.  int_to_binlist(6, 4) --> [0,1,1,0]"""
     return list(map(int, bin(i)[2:].zfill(n_digits)))
 
-
-def zero_pad_max_length(data):
-    """Pads along the zeroth dimension of a list of data with zeros such that the contents contained in 
-    the list are of the same lenght
-    :param data: list of torch.tensor elements of different length
-    """
-    lengths = torch.tensor([data_element.size(dim=0) for  data_element in data])
-    max_lenght = max(lengths)
-    pad = np.zeros((data[0].dim() - 1) * 2 + 1, dtype=int)
-    padded = [F.pad(data_element, tuple(np.append(pad, max_lenght - lengths[i])), "constant", 0) for i, data_element in enumerate(data)]
-    mask = sequence_mask(lengths, max_lenght)
-    return padded, mask
-
-
-def sequence_mask(lengths, maxlen=None, dtype=torch.bool):
-        if maxlen is None:
-            maxlen = lengths.max()
-        row_vector = torch.arange(0, maxlen, 1)
-        matrix = torch.unsqueeze(lengths, dim=-1)
-        mask = row_vector < matrix
-        count = torch.count_nonzero(mask[1])
-        mask.type(dtype)
-        return mask

@@ -18,7 +18,7 @@ from pytorch3d.structures import Meshes
 from utils.coordinate_transform import transform_mesh_affine
 from utils.mesh import Mesh
 from utils.mesh import MeshesOfMeshes
-from utils.utils import zero_pad_max_length
+from utils.utils_padded_packed import zero_pad_max_length
 
 
 TEMPLATE_PATH = "../vox2organ/supplementary_material/"
@@ -159,13 +159,12 @@ def load_mesh_template(
                 torch.zeros((m.vertices.shape[0]), dtype=torch.int32)
             )
 
-    vertices_padded, _ = zero_pad_max_length(vertices)
-    faces_padded, _ = zero_pad_max_length(faces)
-    features_padded, _ = zero_pad_max_length(features)
+    vertices_padded, vertices_mask = zero_pad_max_length(vertices)
+    faces_padded, faces_mask = zero_pad_max_length(faces)
+    features_padded, features_mask = zero_pad_max_length(features)
     vertices_padded = torch.stack(vertices_padded).float().unsqueeze(0)
     faces_padded = torch.stack(faces_padded).long().unsqueeze(0)
-    features_padded = torch.stack(features_padded).long()
-    features_padded = features_padded.unsqueeze(-1).unsqueeze(0).permute((0,1,2,3))
+    features_padded = torch.stack(features_padded).long().unsqueeze(-1).unsqueeze(0)
 
     # Transform meshes
     vertices_padded, faces_padded = transform_mesh_affine(vertices_padded, faces_padded, trans_affine)
@@ -173,4 +172,11 @@ def load_mesh_template(
     # Compute normals
     normals = Meshes(vertices, faces).verts_normals_padded().unsqueeze(0)
 
-    return MeshesOfMeshes(vertices_padded, faces_padded, normals, features_padded)
+    return MeshesOfMeshes(
+        vertices_padded, 
+        faces_padded, 
+        normals, 
+        features_padded, 
+        verts_mask=vertices_mask, 
+        faces_mask=faces_mask, 
+        features_mask=features_mask)

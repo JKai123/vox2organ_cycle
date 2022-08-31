@@ -326,6 +326,7 @@ class NormalConsistencyLoss(MeshLoss):
     def __init(self):
         super().__init__()
     def get_loss(self, pred_meshes, target=None):
+        test = mesh_normal_consistency(pred_meshes)
         return mesh_normal_consistency(pred_meshes)
 
 
@@ -384,9 +385,11 @@ def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, deltaV_mesh_pred, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_target):
     """ Linear combination of all losses. In contrast to geometric averaging,
-    this also allows for per-class mesh loss weights. """
+    this also allows for per-class mesh loss weights. 
+    mesh_pred_unpadded: List of Meshes - each Meshes contains N Meshes - the list is of length M
+    """
     losses = {}
     # Voxel losses
     if voxel_pred is not None:
@@ -415,6 +418,9 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                 if isinstance(lf, LaplacianLoss):
                     # Use relative coordinates
                     ml = lf(deltaV_mesh_pred, mesh_target, weight)
+                elif isinstance(lf, NormalConsistencyLoss):
+                    ml = lf(mesh_pred_unpadded, mesh_target, weight)
+                    # ml = lf(mesh_pred, mesh_target, weight)
                 else:
                     ml = lf(mesh_pred, mesh_target, weight)
                 losses[str(lf)] = ml

@@ -11,6 +11,7 @@ import torch
 
 from utils.logging import measure_time
 from utils.mesh import vff_to_Meshes, verts_faces_to_Meshes
+from utils.utils_padded_packed import as_list
 
 from models.u_net import ResidualUNet
 from models.base_model import V2MModel
@@ -248,6 +249,24 @@ class Vox2Cortex(V2MModel):
         # To pytorch3d Meshes
         pred_meshes = vff_to_Meshes(vertices, faces, features, 2)
 
+        return pred_meshes
+
+    @staticmethod
+    def predMoM_to_meshes(pred):
+        """ Get the vertices and faces and features of shape (S,C)
+        C as the number of classes
+        """    
+        C = pred[0][0].verts_padded().shape[1]
+        vert_list = []
+        face_list = []
+        feat_list = []
+        meshes = pred[0][1:] # Ignore template mesh at pos. 0
+        pred_meshes = []
+        for s, m in enumerate(meshes):
+            vert_list.append(as_list(m.verts_padded(), m.verts_mask()))
+            face_list.append(as_list(m.faces_padded(), m.faces_mask()))
+            feat_list.append(as_list(m.features_padded(), m.features_mask()))
+        pred_meshes = vff_to_Meshes(vert_list, face_list, feat_list, 2)
         return pred_meshes
 
     @staticmethod

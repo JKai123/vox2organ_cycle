@@ -22,6 +22,7 @@ from utils.feature_aggregation import (
     aggregate_from_indices
 )
 from utils.logging import measure_time
+from utils.utils_padded_packed import pack, unpack
 from utils.mesh import MeshesOfMeshes, Mesh
 from utils.coordinate_transform import (
     normalize_vertices,
@@ -215,7 +216,13 @@ class GraphDecoder(nn.Module):
         temp_faces = torch.cat(batch_size * [self.sphere_faces], dim=0)
         temp_features = torch.cat(batch_size * [self.sphere_features], dim=0)
         temp_meshes = MeshesOfMeshes(
-            verts=temp_vertices, faces=temp_faces, features=temp_features
+            verts=temp_vertices, 
+            faces=temp_faces, 
+            features=temp_features,
+            verts_mask= self.mesh_template.verts_mask(), 
+            faces_mask=self.mesh_template.faces_mask() , 
+            normals_mask=self.mesh_template.normals_mask(), 
+            features_mask=self.mesh_template.features_mask()
         )
 
         _, M, V, _ = temp_vertices.shape
@@ -229,6 +236,13 @@ class GraphDecoder(nn.Module):
             edges_packed = temp_meshes.edges_packed().cuda()
             verts_packed = temp_meshes.verts_packed().cuda()
             features_packed = temp_meshes.features_packed().cuda()
+            test_cat = torch.cat(
+                    # Classes one-hot encoded
+                    [verts_packed, F.one_hot(
+                        features_packed.squeeze()
+                    ).float().cuda()],
+                    dim=-1
+                )
             latent_features = self.graph_conv_first(
                 torch.cat(
                     # Classes one-hot encoded
@@ -239,8 +253,7 @@ class GraphDecoder(nn.Module):
                 ),
                 edges_packed
             )
-            temp_meshes.update_features(
-                latent_features.view(batch_size, M, V, -1)
+            temp_meshes.update_features(unpack(latent_features,temp_meshes.features_mask(), batch_size)
             )
 
             pred_meshes = [temp_meshes]
@@ -323,8 +336,15 @@ class GraphDecoder(nn.Module):
                     )
 
                 # New latent features
+                # TODO maybe masks are wrong if number of vertices has changed
                 new_meshes = MeshesOfMeshes(
-                    vertices_padded, faces_padded, features=latent_features_padded
+                    vertices_padded, 
+                    faces_padded, 
+                    features=latent_features_padded,
+                    verts_mask= prev_meshes.verts_mask(), 
+                    faces_mask=prev_meshes.faces_mask() , 
+                    normals_mask=prev_meshes.normals_mask(), 
+                    features_mask=prev_meshes.features_mask()
                 )
                 edges_packed = new_meshes.edges_packed()
                 if self.propagate_coords:
@@ -334,15 +354,22 @@ class GraphDecoder(nn.Module):
                 for f2f in f2f_res:
                     latent_features_packed =\
                         f2f(latent_features_packed, edges_packed)
-                new_meshes.update_features(
-                    latent_features_packed.view(batch_size, M, V_new, -1)
+                # TODO Falsch wenn sich V geändert hat
+                new_meshes.update_features(unpack(latent_features_packed,temp_meshes.features_mask(), batch_size)
                 )
 
                 # Move vertices
                 deltaV_packed = f2v(latent_features_packed, edges_packed)
-                deltaV_padded = deltaV_packed.view(batch_size, M, V_new,
-                                                   self.ndims)
-                new_deltaV_mesh = MeshesOfMeshes(deltaV_padded, faces_padded)
+                deltaV_padded = unpack(deltaV_packed, new_meshes.verts_mask(), batch_size)
+                new_deltaV_mesh = MeshesOfMeshes(
+                    deltaV_padded, 
+                    faces_padded, 
+                    features=latent_features_padded,
+                    verts_mask= prev_meshes.verts_mask(), 
+                    faces_mask=prev_meshes.faces_mask() , 
+                    normals_mask=prev_meshes.normals_mask(), 
+                    features_mask=prev_meshes.features_mask())
+                    
                 new_meshes.move_verts(deltaV_padded)
 
                 # New latent features
