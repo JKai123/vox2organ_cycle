@@ -2,13 +2,59 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "check_mom",
+            "type": "python",
+            "request": "launch",
+            "module": "check.check_mom",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/vox2organ",
+        },
+
+        {
+            "name": "main",
             "type": "python",
             "request": "launch",
             "program": "vox2organ/main.py",
             "args": ["--train", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", "-n", "debug", "--overfit" ],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "ablation",
+            "type": "python",
+            "request": "launch",
+            "program": "vox2organ/main.py",
+            "args": ["--train", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", 
+            "--ablation_study", "loss scheduling", "--exp_name", "edge_loss_ab_0", "--abl_val", "0.1" ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+        },
+
+        {
+            "name": "main launch",
+            "type": "python",
+            "request": "launch",
+            "program": "vox2organ/main.py",
+            "args": ["--train", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+        },
+
+        {
+            "name": "viz",
+            "type": "python",
+            "request": "launch",
+            "program": "visualization/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "avg",
+            "type": "python",
+            "request": "launch",
+            "program": "generate_average_template.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/vox2organ",
         }
     ]
 }
