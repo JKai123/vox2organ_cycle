@@ -8,3 +8,4 @@ to_check/
 tmp/
 *.pdf
 .pylintrc
+*.out
