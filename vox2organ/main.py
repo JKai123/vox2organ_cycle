@@ -186,6 +186,12 @@ def main(hyper_ps):
                            nargs=1,
                            help="Perform an ablation study."
                            f"Available options are: {AVAILABLE_ABLATIONS}")
+    argparser.add_argument('--abl_val',
+                           type=float,
+                           dest='abl_val',
+                           default=0,
+                           nargs=1,
+                           help="Multiplier for loss ablation")
     argparser.add_argument('--exp_prefix',
                            type=str,
                            default=hyper_ps_default['EXP_PREFIX'],
@@ -224,6 +230,10 @@ def main(hyper_ps):
 
     if args.ablation_study:
         hyper_ps['ABLATION_STUDY'] = args.ablation_study[0]
+        if args.abl_val:
+            hyper_ps['ABLATION_SCHEDULING'] = args.abl_val
+        else:
+            hyper_ps['ABLATION_SCHEDULING'] = 0.0
     else:
         hyper_ps['ABLATION_STUDY'] = hyper_ps_default['ABLATION_STUDY']
 

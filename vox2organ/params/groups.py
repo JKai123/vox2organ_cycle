@@ -103,7 +103,7 @@ hyper_ps_groups = {
         'BASE_GROUP': "Vox2Cortex no-patch",
         'MESH_LOSS_FUNC_WEIGHTS': [
             [1.0] * 5, # Chamfer
-            [0.01] * 5, # Cosine,
+            [0.00] * 5, # Cosine,
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5 # Edge
@@ -113,7 +113,7 @@ hyper_ps_groups = {
         'N_V_CLASSES': 4, # Kidneys combined
         'PATCH_SIZE': [272, 272, 144],
         'SELECT_PATCH_SIZE': [272, 272, 144],
-        'MESH_TEMPLATE_ID': 'abdomen-case00017',
+        'MESH_TEMPLATE_ID': 'abdomen-case00017-2',
         'MODEL_CONFIG': {
             'N_VERTEX_CLASSES': 1,
             'GROUP_STRUCTS': None,
@@ -121,7 +121,8 @@ hyper_ps_groups = {
         'EVAL_METRICS': [
             'SymmetricHausdorff',
             'JaccardMesh',
-            'AverageDistance'
+            'AverageDistance',
+            'SelfIntersections'
         ],
     },
 

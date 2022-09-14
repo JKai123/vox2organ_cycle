@@ -14,8 +14,22 @@ AVAILABLE_ABLATIONS = (
     "features from encoder",
     "features from decoder",
     "encoder only",
-    "laplace on coordinates" # see branch 'abs_lap'
+    "laplace on coordinates", # see branch 'abs_lap'
+    "loss scheduling"
 )
+
+
+def _loss_scheduling(hps):
+    """ Update params for ablation study 'loss params' """
+    hps['N_EPOCHS'] = 20
+    test = hps['ABLATION_SCHEDULING'][0]
+    hps['MESH_LOSS_FUNC_WEIGHTS'] = [
+            [1.0] * 5, # Chamfer
+            [0.00] * 5, # Cosine,
+            [0.1] * 5, # Laplace,
+            [0.01] * 5, # NormalConsistency
+            [5.0 * test] * 5  # Edge
+    ]
 
 def _encoder_only_params(hps):
     """ Update params for ablation study 'encoder only' """
@@ -81,6 +95,8 @@ def set_ablation_params_(hps: dict, ablation_study_id: str):
 
     elif ablation_study_id == 'encoder only':
         _encoder_only_params(hps)
+    elif ablation_study_id == 'loss scheduling':
+        _loss_scheduling(hps)
 
     else:
         raise NotImplementedError()

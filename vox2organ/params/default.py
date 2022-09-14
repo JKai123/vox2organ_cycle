@@ -258,6 +258,9 @@ hyper_ps_default={
 
     ### Evaluation ###
 
+    # Multiplier for Ablation
+    'ABLATION_SCHEDULING': 0.0,
+
     # The metrics used for evaluation, see utils.evaluate.EvalMetrics for
     # options
     'EVAL_METRICS': [

@@ -7,7 +7,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from enum import IntEnum
-
+import pymeshlab as pyml
 import numpy as np
 import torch
 from pytorch3d.loss import chamfer_distance
@@ -54,6 +54,40 @@ class EvalMetrics(IntEnum):
     # Average distance of predicted and groun truth mesh in terms of
     # point-to-mesh distance
     AverageDistance = 7
+
+    
+    # Number of self intersections
+    SelfIntersections = 8
+
+
+def SelfIntersectionsScore(
+    pred,
+    data,
+    n_v_classes,
+    n_m_classes,
+    model_class,
+) :
+    """ Compute the relative number of self intersections. """
+    # Prediction: Only consider mesh of last step
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    ndims = pred_vertices[-1].shape[-1]
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+    pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
+
+    isect_all = []
+
+    for v, f in zip(pred_vertices, pred_faces):
+        ms = pyml.MeshSet()
+        ms.add_mesh(pyml.Mesh(v.cpu().numpy(), f.cpu().numpy()))
+        faces = ms.compute_topological_measures()['faces_number']
+        ms.select_self_intersecting_faces()
+        ms.delete_selected_faces()
+        nnSI_faces = ms.compute_topological_measures()['faces_number']
+        SI_faces = faces-nnSI_faces
+        fracSI = (SI_faces/faces)*100
+        isect_all.append(fracSI)
+
+    return isect_all
 
 def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
                          padded_coordinates=(0.0, 0.0, 0.0)):
@@ -324,5 +358,6 @@ EvalMetricHandler = {
     EvalMetrics.Chamfer.name: ChamferScore,
     EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
     EvalMetrics.CorticalThicknessError.name: CorticalThicknessScore,
-    EvalMetrics.AverageDistance.name: AverageDistanceScore
+    EvalMetrics.AverageDistance.name: AverageDistanceScore,
+    EvalMetrics.SelfIntersections.name: SelfIntersectionsScore
 }

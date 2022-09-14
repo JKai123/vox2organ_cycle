@@ -46,6 +46,11 @@ TEMPLATE_SPECS = {
         "mesh_suffix": ".ply",
         "feature_suffix": ""
     },
+    "abdomen-case00017-2": {
+        "path": os.path.join(TEMPLATE_PATH, "abdomen_template", "case_00017_2"),
+        "mesh_suffix": ".ply",
+        "feature_suffix": ""
+    },
     "fsaverage-no-parc": {
         "path": os.path.join(TEMPLATE_PATH, "brain_template", "fsaverage"),
         "mesh_suffix": ".ply",
