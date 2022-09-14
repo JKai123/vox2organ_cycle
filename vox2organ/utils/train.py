@@ -351,7 +351,7 @@ class Solver():
                 model.eval()
 
                 val_results = self.evaluator.evaluate(
-                    model, epoch, save_meshes=2, remove_previous_meshes=False
+                    model, epoch, save_meshes=2, remove_previous_meshes=True
                 )
                 log_val_results(val_results, iteration - 1)
 
@@ -506,19 +506,6 @@ def training_routine(
         time_logging=hps['TIME_LOGGING']
     )
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    if hps['USE_WANDB'] and experiment_name != 'debug':
-        init_wandb_logging(
-            exp_name=experiment_name,
-            log_dir=log_dir,
-            wandb_proj_name=hps['PROJ_NAME'],
-            wandb_group_name=hps['GROUP_NAME'],
-            wandb_job_type='train',
-            entity=hps['ENTITY'],
-            params=hps_to_write
-        )
-    elif hps['USE_WANDB']:
-        trainLogger.info("No wandb logging in debug mode.")
-
     trainLogger.info("Start training '%s'...", experiment_name)
 
     ###### Load data ######

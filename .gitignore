@@ -9,3 +9,9 @@ tmp/
 *.pdf
 .pylintrc
 *.out
+*.log
+*.yaml
+*.json
+*.wandb
+wandb/
+vox2organ/wandb/

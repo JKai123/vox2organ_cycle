@@ -112,9 +112,9 @@ def log_val_results(val_results, iteration):
     if use_wandb:
         wandb.log(val_results, step=iteration)
 
-def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
-                       wandb_group_name, wandb_job_type, params, notes="",
-                       id=None, entity: str=None):
+def init_wandb_logging(exp_name=None, wandb_proj_name=None,
+                       wandb_group_name=None, wandb_job_type=None, params=None, notes="",
+                       id=None, entity: str=None, log_dir=None):
     """ Initialization for logging with wandb
     """
     global use_wandb
