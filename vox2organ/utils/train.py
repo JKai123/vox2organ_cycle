@@ -433,7 +433,7 @@ def create_exp_directory(experiment_base_dir, experiment_name, prefix):
         os.makedirs(log_dir, exist_ok=True)
     else:
         # Throw error if directory exists already
-        os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
 
     return experiment_name, experiment_dir, log_dir
 
@@ -600,7 +600,6 @@ def training_routine(
         freeze_pre_trained=hps['FREEZE_PRE_TRAINED']
     )
 
-    finish_wandb_run()
     trainLogger.info("Training finished.")
 
     return experiment_name

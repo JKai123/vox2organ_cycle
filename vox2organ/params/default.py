@@ -362,5 +362,5 @@ hyper_ps_default={
     'LOG_EVERY': 'epoch',
 
     # Evaluate model every n epochs
-    'EVAL_EVERY': 5,
+    'EVAL_EVERY': 2,
 }

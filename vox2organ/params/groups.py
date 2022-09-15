@@ -121,8 +121,8 @@ hyper_ps_groups = {
         'EVAL_METRICS': [
             'SymmetricHausdorff',
             'JaccardMesh',
-            'AverageDistance',
-            'SelfIntersections'
+            'AverageDistance'
+            #'SelfIntersections'
         ],
     },
 

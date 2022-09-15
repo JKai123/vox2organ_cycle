@@ -13,7 +13,7 @@ sweep_config = {
 }
 
 metric = {
-    'name': 'loss',
+    'name': 'TotalLoss',
     'goal': 'minimize'
 }
 
