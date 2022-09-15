@@ -9,3 +9,8 @@ tmp/
 *.pdf
 .pylintrc
 *.out
+*.log
+*.json
+*.wandb
+*.yaml
+wandb/
