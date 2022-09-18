@@ -9,6 +9,7 @@ __email__ = "fabi.bongratz@gmail.com"
 from enum import IntEnum
 import pymeshlab as pyml
 import numpy as np
+import open3d as o3d
 import torch
 from pytorch3d.loss import chamfer_distance
 from pytorch3d.ops import (
@@ -58,6 +59,32 @@ class EvalMetrics(IntEnum):
     
     # Number of self intersections
     SelfIntersections = 8
+
+
+def SelfIntersectionsScore_o3d(
+    pred,
+    data,
+    n_v_classes,
+    n_m_classes,
+    model_class,
+) :
+    """ Compute the relative number of self intersections. """
+    # Prediction: Only consider mesh of last step
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    ndims = pred_vertices[-1].shape[-1]
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+    pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
+
+    isect_all = []
+
+    for v, f in zip(pred_vertices, pred_faces):
+        ms = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(v), o3d.utility.Vector3dVector(f))
+        tri_index = np.asarray(ms.get_self_intersecting_triangles())
+        num_self_intersections = np.shape(tri_index)[0]
+        isect_all.append(num_self_intersections)
+    return isect_all
+
+
 
 
 def SelfIntersectionsScore(
