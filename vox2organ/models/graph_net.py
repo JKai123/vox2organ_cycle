@@ -102,6 +102,8 @@ class GraphDecoder(nn.Module):
         f2f_res_layers = [] # Residual feature to feature blocks
         f2v_layers = [] # Features to vertices
         lns_layers = [] # Learnt neighborhood sampling (optional)
+        f2f_res_layers_cycle = [] # Residual feature to feature blocks
+        f2v_layers_cycle = [] # Features to vertices
 
         # Whether or not to add the vertex coordinates to the features again
         # after each step
@@ -164,17 +166,17 @@ class GraphDecoder(nn.Module):
 
 
             # Create layers for cycle graph
-            f2f_res_layers_cycle = [] # Residual feature to feature blocks
-            f2v_layers_cycle = [] # Features to vertices
-            res_blocks_cycle = [Features2FeaturesResidual(
-                skip_features_count + self.latent_features_count[i] + add_n,
-                self.latent_features_count[i+1],
-                hidden_layer_count=n_f2f_hidden_layer,
-                norm=norm,
-                GC=GC,
-                p_dropout=p_dropout,
-                weighted_edges=weighted_edges
-            )]
+            res_blocks_cycle = [
+                Features2FeaturesResidual(
+                    self.latent_features_count[i+1] + add_n,
+                    self.latent_features_count[i+1],
+                    hidden_layer_count=n_f2f_hidden_layer,
+                    norm=norm,
+                    GC=GC,
+                    p_dropout=p_dropout,
+                    weighted_edges=False # No weighted edges here
+                )
+            ]
             for _ in range(n_residual_blocks - 1): # TODO
                 res_blocks_cycle.append(Features2FeaturesResidual(
                     self.latent_features_count[i+1],
@@ -185,6 +187,7 @@ class GraphDecoder(nn.Module):
                     p_dropout=p_dropout,
                     weighted_edges=False # No weighted edges here
                 ))
+
 
             # Cannot be nn.Sequential because graph convs take two inputs but
             # provide only one output. Maybe try torch_geometric.nn.Sequential

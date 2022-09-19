@@ -28,6 +28,8 @@ from pytorch3d.loss import (
     mesh_laplacian_smoothing,
     mesh_normal_consistency
 )
+
+from utils.utils_padded_packed import MoM_to_list
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 
@@ -135,7 +137,7 @@ class ChamferLoss(MeshLoss):
             n_points = target_.shape[1]
             target_curvs = target[2]
             point_weights = point_weigths_from_curvature(
-                target_curvs, target_points, self.curv_weight_max
+                target_curvs, target_, self.curv_weight_max
             ) if self.curv_weight_max else None
 
         pred_points = sample_points_from_meshes(pred_meshes, n_points)
@@ -388,14 +390,19 @@ def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
         for i, (n, w) in enumerate(zip(names, weights)):
             loss_dict[n] = ml[i] * w
 
+
+
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_pred_cycle, template, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_pred_cycle, template_MoM, mesh_target):
     """ Linear combination of all losses. In contrast to geometric averaging,
     this also allows for per-class mesh loss weights. 
     mesh_pred_unpadded: List of Meshes - each Meshes contains N Meshes - the list is of length M
     """
+
+    template = MoM_to_list(template_MoM)
+
     losses = {}
     # Voxel losses
     if voxel_pred is not None:
@@ -426,7 +433,7 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                     ml = lf(deltaV_mesh_pred, mesh_target, weight)
                 elif isinstance(lf, NormalConsistencyLoss):
                     ml = lf(mesh_pred_unpadded, mesh_target, weight)
-                 elif isinstance(lf, CycleLoss):
+                elif isinstance(lf, CycleLoss):
                     ml = lf(mesh_pred_cycle, template, weight)
                     # ml = lf(mesh_pred, mesh_target, weight)
                 else:

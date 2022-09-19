@@ -31,7 +31,7 @@ hyper_ps_groups = {
            LaplacianLoss(),
            NormalConsistencyLoss(),
            EdgeLoss(0.0),
-           CycleLoss(curv_weight_max=5.0)
+           CycleLoss()
         ],
         'PATCH_MODE': 'no',
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
@@ -41,7 +41,7 @@ hyper_ps_groups = {
             [0.01] * 2 + [0.0125] * 2, # Cosine,
             [0.1] * 2 + [0.25] * 2, # Laplace,
             [0.001] * 2 + [0.00225] * 2, # NormalConsistency
-            [5.0] * 4 # Edge
+            [5.0] * 4, # Edge
             [4.0] * 4 # Cycle
         ],
         'N_M_CLASSES': 4,
@@ -83,7 +83,7 @@ hyper_ps_groups = {
             [0.01] * 5, # Cosine,
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
-            [5.0] * 5 # Edge
+            [5.0] * 5, # Edge
             [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",
@@ -110,7 +110,7 @@ hyper_ps_groups = {
             [0.00] * 5, # Cosine,
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
-            [5.0] * 5 # Edge
+            [5.0] * 5, # Edge
             [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",

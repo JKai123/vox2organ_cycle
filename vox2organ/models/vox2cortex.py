@@ -225,12 +225,12 @@ class Vox2Cortex(V2MModel):
     def pred_to_cycle_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """
-        C = pred[3][0].verts_padded().shape[1]
+        C = pred[3][1].verts_padded().shape[1]
         S = len(pred[3])
 
         vertices = []
         faces = []
-        meshes = pred[3]
+        meshes = pred[3][1:]
         for s, m in enumerate(meshes):
             v_s = []
             f_s = []

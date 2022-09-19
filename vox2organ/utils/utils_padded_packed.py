@@ -61,3 +61,15 @@ def as_list(padded, lengths):
         cut = batch_of_indiv_mesh[:, :lengths[i], :]  # Resutls in a cut version of the mesh with the unpadded number of faces
         mesh_list.append(cut) # Concatenates along the final dimension to get N*M*F, 3 in the Ordering M[N[FFF]] M[N[FFF]]
     return mesh_list
+
+def MoM_to_list(m, batchsize=1):
+    
+    final_list = []
+    vert_list = as_list(m.verts_padded(), m.verts_mask())
+    for organ_verts in vert_list:
+        organ_list = [organ_verts for i in range(batchsize)]
+        organ_verts_batch = torch.Tensor(organ_list)
+        organ_tuple = (organ_verts_batch, [], [], []) # points, norms, curfs, parcs
+        final_list.append(organ_tuple)
+    return final_list
+
