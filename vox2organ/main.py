@@ -119,7 +119,7 @@ def main(ps = None):
     hyper_ps = {}
     dataset = "KiTS"
     group_name = 'Vox2Cortex Abdomen Patient'
-    exp_name = "ablation_study_patient_template_8"
+    exp_name = "ablation_study_patient_template_12"
     resume = False
 
 

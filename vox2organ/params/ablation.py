@@ -13,39 +13,39 @@ sweep_config = {
 }
 
 metric = {
-    'name': 'TotalLoss',
-    'goal': 'minimize'
+    'name': 'Val_JaccardMesh',
+    'goal': 'maximize'
 }
 
 
 parameters_dict = {
     'N_EPOCHS': {
-        'value': 20
+        'value': 14
         },
     'chamfer_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 1
+        'max': 3
         },
     'cosine_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 1
+        'max': 0.03
         },
     'laplace_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 1
+        'max': 0.03
         },
     'normal_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 1
+        'max': 0.3
         },
     'edge_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 1
+        'max': 15
         },
     }
 
