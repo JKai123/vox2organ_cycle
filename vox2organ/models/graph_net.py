@@ -162,6 +162,46 @@ class GraphDecoder(nn.Module):
                 raise NotImplementedError("LNS not implemented, see"
                                           " Voxel2Mesh repo.")
 
+
+            # Create layers for cycle graph
+            f2f_res_layers_cycle = [] # Residual feature to feature blocks
+            f2v_layers_cycle = [] # Features to vertices
+            res_blocks_cycle = [Features2FeaturesResidual(
+                skip_features_count + self.latent_features_count[i] + add_n,
+                self.latent_features_count[i+1],
+                hidden_layer_count=n_f2f_hidden_layer,
+                norm=norm,
+                GC=GC,
+                p_dropout=p_dropout,
+                weighted_edges=weighted_edges
+            )]
+            for _ in range(n_residual_blocks - 1): # TODO
+                res_blocks_cycle.append(Features2FeaturesResidual(
+                    self.latent_features_count[i+1],
+                    self.latent_features_count[i+1],
+                    hidden_layer_count=n_f2f_hidden_layer,
+                    norm=norm,
+                    GC=GC,
+                    p_dropout=p_dropout,
+                    weighted_edges=False # No weighted edges here
+                ))
+
+            # Cannot be nn.Sequential because graph convs take two inputs but
+            # provide only one output. Maybe try torch_geometric.nn.Sequential
+            res_blocks_cycle = nn.ModuleList(res_blocks_cycle)
+            f2f_res_layers_cycle.append(res_blocks_cycle)
+
+            # Feature to vertex layer, edge weighing never used
+            f2v_layers_cycle.append(GC(
+                self.latent_features_count[i+1], ndims, weighted_edges=False,
+                init='zero'
+            ))
+
+
+        self.f2f_res_layers_cycle = nn.ModuleList(f2f_res_layers_cycle)
+        self.f2v_layers_cycle = nn.ModuleList(f2v_layers_cycle)
+
+
         self.f2f_res_layers = nn.ModuleList(f2f_res_layers)
         self.f2v_layers = nn.ModuleList(f2v_layers)
         self.lns_layers = nn.ModuleList(lns_layers)
@@ -259,14 +299,19 @@ class GraphDecoder(nn.Module):
             pred_meshes = [temp_meshes]
             # No delta V for initial step
             pred_deltaV = [None]
+            cycle_pred_meshes = [None]
 
             # Iterate over decoder steps
             for i, (f2f_res,
+                    f2f_res_cycle,
                     f2v,
+                    f2v_cycle,
                     agg_indices,
                     do_unpool) in enumerate(zip(
                         self.f2f_res_layers,
+                        self.f2f_res_layers_cycle,
                         self.f2v_layers,
+                        self.f2v_layers_cycle,
                         self.aggregate_indices,
                         self.unpool_indices)):
 
@@ -384,6 +429,35 @@ class GraphDecoder(nn.Module):
                     # Discard the vertices that were introduced from the uniform unpool and didn't deform much
                     # vertices, faces, latent_features, temp_vertices_padded = adoptive_unpool(vertices, faces_prev, sphere_vertices, latent_features, V_prev)
 
+
+
+                # Cycle Mesh
+                cycle_vertices_padded = new_meshes.verts_padded().cuda() # (N,M,V,3)
+                cycle_latent_features_padded = new_meshes.features_padded().cuda() # (N,M,V,latent_features_count)
+                cycle_faces_padded = new_meshes.faces_padded().cuda() # (N,M,F,3)
+                if self.propagate_coords:
+                    latent_features_packed_cycle = new_meshes.features_verts_packed()
+                else:
+                    latent_features_packed_cycle = new_meshes.features_packed()
+
+                cycle_new_meshes = MeshesOfMeshes(
+                    cycle_vertices_padded, 
+                    cycle_faces_padded, 
+                    features=cycle_latent_features_padded,
+                    verts_mask= new_meshes.verts_mask(), 
+                    faces_mask=new_meshes.faces_mask() , 
+                    normals_mask=new_meshes.normals_mask(), 
+                    features_mask=new_meshes.features_mask()
+                )
+
+                for f2f in f2f_res_cycle:
+                    latent_features_packed_cycle =\
+                        f2f(latent_features_packed_cycle, edges_packed)
+                deltaV_packed_cycle = f2v(latent_features_packed_cycle, edges_packed)
+                deltaV_padded_cycle = unpack(deltaV_packed_cycle, new_meshes.verts_mask(), batch_size)
+                cycle_new_meshes.move_verts(deltaV_padded_cycle)
+
+                cycle_pred_meshes.append(cycle_new_meshes)
                 pred_meshes.append(new_meshes)
                 pred_deltaV.append(new_deltaV_mesh)
 
@@ -395,4 +469,4 @@ class GraphDecoder(nn.Module):
                     ).cuda()
                 )
 
-        return pred_meshes, pred_deltaV
+        return pred_meshes, pred_deltaV, cycle_pred_meshes

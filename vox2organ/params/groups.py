@@ -11,7 +11,8 @@ from utils.losses import (
     ClassAgnosticChamferAndNormalsLoss,
     LaplacianLoss,
     NormalConsistencyLoss,
-    EdgeLoss
+    EdgeLoss,
+    CycleLoss
 )
 from utils.graph_conv import (
     GraphConvNorm,
@@ -29,7 +30,8 @@ hyper_ps_groups = {
            ChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
            NormalConsistencyLoss(),
-           EdgeLoss(0.0)
+           EdgeLoss(0.0),
+           CycleLoss(curv_weight_max=5.0)
         ],
         'PATCH_MODE': 'no',
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
@@ -40,6 +42,7 @@ hyper_ps_groups = {
             [0.1] * 2 + [0.25] * 2, # Laplace,
             [0.001] * 2 + [0.00225] * 2, # NormalConsistency
             [5.0] * 4 # Edge
+            [4.0] * 4 # Cycle
         ],
         'N_M_CLASSES': 4,
         'PATCH_SIZE': [128, 144, 128],
@@ -81,6 +84,7 @@ hyper_ps_groups = {
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5 # Edge
+            [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
@@ -107,6 +111,7 @@ hyper_ps_groups = {
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5 # Edge
+            [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,

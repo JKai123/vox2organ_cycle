@@ -140,7 +140,7 @@ class Solver():
         self.mixed_precision = mixed_precision
 
     @measure_time
-    def training_step(self, model, data, iteration):
+    def training_step(self, model, data, iteration, template):
         """ One training step.
 
         :param model: Current pytorch model.
@@ -148,7 +148,7 @@ class Solver():
         :param iteration: The training iteration (used for logging)
         :returns: The overall (weighted) loss.
         """
-        loss_total = self.compute_loss(model, data, iteration)
+        loss_total = self.compute_loss(model, data, iteration, template)
 
         if self.mixed_precision:
             self.scaler.scale(loss_total).backward()
@@ -174,7 +174,7 @@ class Solver():
         return loss_total
 
     @measure_time
-    def compute_loss(self, model, data, iteration) -> torch.tensor:
+    def compute_loss(self, model, data, iteration, template) -> torch.tensor:
         # Chop data
         x, y, points, normals, curvs, parcs = data
         self.trainLogger.debug(
@@ -226,6 +226,8 @@ class Solver():
                     model.__class__.pred_to_pred_meshes(pred),
                     model.__class__.pred_to_pred_deltaV_meshes(pred),
                     model.__class__.predMoM_to_meshes(pred),
+                    model.__class__.pred_to_cycle_pred_meshes(pred),
+                    template,
                     mesh_target
                 )
             else:
@@ -252,7 +254,8 @@ class Solver():
               eval_every: int,
               start_epoch: int,
               freeze_pre_trained: bool,
-              save_models: bool=True):
+              save_models: bool=True,
+              template = None):
         """
         Training procedure
 
@@ -337,7 +340,7 @@ class Solver():
                     log_epoch(epoch, iteration)
                     log_lr(np.mean(lr_scheduler.get_last_lr()), iteration)
                 # Step
-                loss = self.training_step(model, data, iteration)
+                loss = self.training_step(model, data, iteration, template)
 
                 # For cyclic lr
                 lr_scheduler.step()
@@ -610,7 +613,8 @@ def training_routine(
         batch_size=hps['BATCH_SIZE'],
         eval_every=hps['EVAL_EVERY'],
         start_epoch=start_epoch,
-        freeze_pre_trained=hps['FREEZE_PRE_TRAINED']
+        freeze_pre_trained=hps['FREEZE_PRE_TRAINED'],
+        template = template
     )
 
     finish_wandb_run()

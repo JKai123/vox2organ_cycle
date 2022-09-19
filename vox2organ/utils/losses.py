@@ -306,6 +306,12 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
         return torch.stack([d_chamfer, d_cosine])
 
 
+
+class CycleLoss(ChamferLoss):
+    def __init(self):
+        super().__init__()
+    
+
 class LaplacianLoss(MeshLoss):
     def __init(self):
         super().__init__()
@@ -385,7 +391,7 @@ def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_pred_cycle, template, mesh_target):
     """ Linear combination of all losses. In contrast to geometric averaging,
     this also allows for per-class mesh loss weights. 
     mesh_pred_unpadded: List of Meshes - each Meshes contains N Meshes - the list is of length M
@@ -420,6 +426,8 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                     ml = lf(deltaV_mesh_pred, mesh_target, weight)
                 elif isinstance(lf, NormalConsistencyLoss):
                     ml = lf(mesh_pred_unpadded, mesh_target, weight)
+                 elif isinstance(lf, CycleLoss):
+                    ml = lf(mesh_pred_cycle, template, weight)
                     # ml = lf(mesh_pred, mesh_target, weight)
                 else:
                     ml = lf(mesh_pred, mesh_target, weight)

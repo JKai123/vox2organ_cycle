@@ -127,14 +127,14 @@ class Vox2Cortex(V2MModel):
     def forward(self, x):
 
         encoder_skips, decoder_skips, seg_out = self.voxel_net(x)
-        pred_meshes, pred_deltaV = self.graph_net(encoder_skips + decoder_skips)
+        pred_meshes, pred_deltaV, cycle_pred_meshes = self.graph_net(encoder_skips + decoder_skips)
 
         # pred has the form
         #   - batch of predicted meshes
         #   - batch of voxel predictions,
         #   - batch of displacements (also stored as meshes but with
         #   coordinates representing displacements)
-        pred = (pred_meshes, seg_out, pred_deltaV)
+        pred = (pred_meshes, seg_out, pred_deltaV, cycle_pred_meshes)
 
         return pred
 
@@ -222,6 +222,28 @@ class Vox2Cortex(V2MModel):
         return vertices, faces
 
     @staticmethod
+    def pred_to_cycle_verts_and_faces(pred):
+        """ Get the vertices and faces of shape (S,C)
+        """
+        C = pred[3][0].verts_padded().shape[1]
+        S = len(pred[3])
+
+        vertices = []
+        faces = []
+        meshes = pred[3]
+        for s, m in enumerate(meshes):
+            v_s = []
+            f_s = []
+            for c in range(C):
+                v_s.append(m.verts_padded()[:,c,:,:])
+                f_s.append(m.faces_padded()[:,c,:,:])
+            vertices.append(torch.stack(v_s))
+            faces.append(torch.stack(f_s))
+
+        return vertices, faces
+
+
+    @staticmethod
     def pred_to_deltaV_and_faces(pred):
         """ Get the displacements and faces of shape (S,C)
         """
@@ -277,3 +299,13 @@ class Vox2Cortex(V2MModel):
         pred_deltaV_meshes = verts_faces_to_Meshes(deltaV, faces, 2) # pytorch3d
 
         return pred_deltaV_meshes
+
+
+    @staticmethod
+    def pred_to_cycle_pred_meshes(pred):
+        """ Create valid prediction meshes of shape (S,C) with RELATIVE
+        coordinates, i.e., with vertices containing displacement vectors. """
+        verts, faces = Vox2Cortex.pred_to_cycle_verts_and_faces(pred)
+        pred_cycle_meshes = verts_faces_to_Meshes(verts, faces, 2) # pytorch3d
+
+        return pred_cycle_meshes
