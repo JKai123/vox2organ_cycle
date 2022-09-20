@@ -168,13 +168,13 @@ class GraphDecoder(nn.Module):
             # Create layers for cycle graph
             res_blocks_cycle = [
                 Features2FeaturesResidual(
-                    self.latent_features_count[i+1] + add_n,
+                    add_n,
                     self.latent_features_count[i+1],
                     hidden_layer_count=n_f2f_hidden_layer,
                     norm=norm,
                     GC=GC,
                     p_dropout=p_dropout,
-                    weighted_edges=False # No weighted edges here
+                    weighted_edges=weighted_edges 
                 )
             ]
             for _ in range(n_residual_blocks - 1): # TODO
@@ -197,7 +197,7 @@ class GraphDecoder(nn.Module):
             # Feature to vertex layer, edge weighing never used
             f2v_layers_cycle.append(GC(
                 self.latent_features_count[i+1], ndims, weighted_edges=False,
-                init='zero'
+                init='normal'
             ))
 
 
@@ -438,10 +438,9 @@ class GraphDecoder(nn.Module):
                 cycle_vertices_padded = new_meshes.verts_padded().cuda() # (N,M,V,3)
                 cycle_latent_features_padded = new_meshes.features_padded().cuda() # (N,M,V,latent_features_count)
                 cycle_faces_padded = new_meshes.faces_padded().cuda() # (N,M,F,3)
-                if self.propagate_coords:
-                    latent_features_packed_cycle = new_meshes.features_verts_packed()
-                else:
-                    latent_features_packed_cycle = new_meshes.features_packed()
+                latent_features_packed_cycle = new_meshes.verts_packed()
+                edges_packed = new_meshes.edges_packed()
+
 
                 cycle_new_meshes = MeshesOfMeshes(
                     cycle_vertices_padded, 
@@ -456,7 +455,7 @@ class GraphDecoder(nn.Module):
                 for f2f in f2f_res_cycle:
                     latent_features_packed_cycle =\
                         f2f(latent_features_packed_cycle, edges_packed)
-                deltaV_packed_cycle = f2v(latent_features_packed_cycle, edges_packed)
+                deltaV_packed_cycle = f2v_cycle(latent_features_packed_cycle, edges_packed)
                 deltaV_padded_cycle = unpack(deltaV_packed_cycle, new_meshes.verts_mask(), batch_size)
                 cycle_new_meshes.move_verts(deltaV_padded_cycle)
 

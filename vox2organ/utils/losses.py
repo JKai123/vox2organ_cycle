@@ -29,7 +29,7 @@ from pytorch3d.loss import (
     mesh_normal_consistency
 )
 
-from utils.utils_padded_packed import MoM_to_list
+from utils.utils_padded_packed import MoM_to_list, MoM_to_meshes
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 
@@ -309,9 +309,23 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
 
 
 
-class CycleLoss(ChamferLoss):
+class CycleLossChamfer(ChamferLoss):
     def __init(self):
         super().__init__()
+
+class CycleLoss(MeshLoss):
+    def __init(self):
+        super().__init__()
+    def get_loss(self, pred_meshes, target):
+        n_points = 30000 # TODO make this accesable
+        # target_points = sample_points_from_meshes(target, n_points)
+        # pred_points = sample_points_from_meshes(pred_meshes, n_points)
+        pred_verts = pred_meshes.verts_padded().float()
+        target_verts = target.verts_padded().float()
+        MSEloss = torch.nn.MSELoss()
+        loss = MSEloss(pred_verts, target_verts)
+        test = 1
+        return loss
     
 
 class LaplacianLoss(MeshLoss):
@@ -402,6 +416,7 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
     """
 
     template = MoM_to_list(template_MoM)
+    template_meshes = MoM_to_meshes(template_MoM)
 
     losses = {}
     # Voxel losses
@@ -434,7 +449,7 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                 elif isinstance(lf, NormalConsistencyLoss):
                     ml = lf(mesh_pred_unpadded, mesh_target, weight)
                 elif isinstance(lf, CycleLoss):
-                    ml = lf(mesh_pred_cycle, template, weight)
+                    ml = lf(mesh_pred_cycle, template_meshes, weight)
                     # ml = lf(mesh_pred, mesh_target, weight)
                 else:
                     ml = lf(mesh_pred, mesh_target, weight)

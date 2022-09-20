@@ -346,10 +346,6 @@ class MeshesOfMeshes():
 
             self._edges_packed = torch.stack([u // V, u % V], dim=1)
 
-            unique_node_ids_edges = torch.unique(self._edges_packed)
-            unique_node_ids_faces = torch.unique(self.faces_packed())
-            unique_verts = self.verts_packed()
-
         return self._edges_packed
 
     def faces_packed(self):

@@ -7,6 +7,7 @@ __email__ = "johannes.kaiser@tum.de"
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pytorch3d.structures import Meshes
 
 
 
@@ -68,8 +69,22 @@ def MoM_to_list(m, batchsize=1):
     vert_list = as_list(m.verts_padded(), m.verts_mask())
     for organ_verts in vert_list:
         organ_list = [organ_verts for i in range(batchsize)]
-        organ_verts_batch = torch.Tensor(organ_list)
-        organ_tuple = (organ_verts_batch, [], [], []) # points, norms, curfs, parcs
+        organ_tuple = (organ_list[0].cuda(), [], [], []) # points, norms, curfs, parcs
         final_list.append(organ_tuple)
     return final_list
+
+
+def MoM_to_meshes(m, batchsize=1, packed=False):
+    if packed:
+        vert_list = as_list(m.verts_padded(), m.verts_mask())
+        face_list = as_list(m.faces_padded(), m.faces_mask())
+    else:
+        vert_list = torch.unbind(m.verts_padded(), dim = 1)
+        face_list = torch.unbind(m.faces_padded(), dim = 1)
+    meshes_list = []
+    for v, f in zip(vert_list, face_list):
+        vert_organ_list = [torch.squeeze(v, dim=0) for i in range(batchsize)]
+        face_organ_list = [torch.squeeze(f, dim=0) for i in range(batchsize)]
+        meshes_list.append(Meshes(vert_organ_list, face_organ_list).cuda())
+    return meshes_list
 
