@@ -352,6 +352,23 @@ class NormalConsistencyLoss(MeshLoss):
         return mesh_normal_consistency(pred_meshes)
 
 
+class AverageEdgeLoss(MeshLoss):
+    def __init__(self):
+        super().__init__()
+
+    def get_loss(self, pred_meshes, target=None):
+        edges = pred_meshes.edges_packed()
+        e0 = edges[:,0]
+        e1 = edges[:,1]
+        verts = pred_meshes.verts_packed()
+        v0 = verts[e0]
+        v1 = verts[e1]
+        vec = v1 - v0
+        edge_lengths = torch.linalg.norm(vec, dim=1, ord=2)
+        avg_edge_length = torch.mean(edge_lengths)
+        return mesh_edge_loss(pred_meshes, avg_edge_length)
+
+
 class EdgeLoss(MeshLoss):
     def __init__(self, target_length):
         super().__init__()

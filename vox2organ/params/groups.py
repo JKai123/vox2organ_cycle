@@ -12,7 +12,8 @@ from utils.losses import (
     LaplacianLoss,
     NormalConsistencyLoss,
     EdgeLoss,
-    CycleLoss
+    CycleLoss,
+    AverageEdgeLoss
 )
 from utils.graph_conv import (
     GraphConvNorm,
@@ -31,7 +32,8 @@ hyper_ps_groups = {
            LaplacianLoss(),
            NormalConsistencyLoss(),
            EdgeLoss(0.0),
-           CycleLoss()
+           CycleLoss(),
+           AverageEdgeLoss()
         ],
         'PATCH_MODE': 'no',
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
@@ -84,7 +86,8 @@ hyper_ps_groups = {
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5, # Edge
-            [1.0] * 5 # Cycle
+            [1.0] * 5, # Cycle
+            [1.0] * 5 # AverageEdge
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
@@ -107,11 +110,12 @@ hyper_ps_groups = {
         'BASE_GROUP': "Vox2Cortex no-patch",
         'MESH_LOSS_FUNC_WEIGHTS': [
             [1.0] * 5, # Chamfer
-            [0.00] * 5, # Cosine,
-            [0.1] * 5, # Laplace,
-            [0.01] * 5, # NormalConsistency
-            [5.0] * 5, # Edge
-            [1.0] * 5 # Cycle
+            [0.03] * 5, # Cosine,
+            [0.0] * 5, # Laplace,
+            [0.00] * 5, # NormalConsistency
+            [50.0] * 5, # Edge
+            [10.0] * 5, # Cycle
+            [1.0] * 5 # AverageEdge
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
@@ -125,9 +129,7 @@ hyper_ps_groups = {
         },
         'EVAL_METRICS': [
             'SymmetricHausdorff',
-            'JaccardMesh',
-            'AverageDistance',
-            'SelfIntersections'
+            'AverageDistance'
         ],
     },
 
@@ -137,7 +139,7 @@ hyper_ps_groups = {
            ClassAgnosticChamferAndNormalsLoss(curv_weight_max=5.0),
            LaplacianLoss(),
            NormalConsistencyLoss(),
-           EdgeLoss(0.0)
+           EdgeLoss(0.0),
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'MESH_TEMPLATE_ID': 'abdomen-ellipses',
