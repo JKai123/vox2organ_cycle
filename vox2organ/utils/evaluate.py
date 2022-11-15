@@ -5,6 +5,7 @@ __email__ = "fabi.bongratz@gmail.com"
 
 import os
 import logging
+import time
 import glob
 from collections.abc import Sequence
 
@@ -94,6 +95,7 @@ class ModelEvaluator():
                 pred = model(data['img'][None].cuda())
 
             for metric in self._eval_metrics:
+                start = time.process_time()
                 res = EvalMetricHandler[metric](
                     pred,
                     data,
@@ -102,6 +104,7 @@ class ModelEvaluator():
                     model_class
                 )
                 add_to_results_(results_all, metric, res)
+                logging.getLogger(ExecModes.TRAIN.name).info(metric + " took " + str(time.process_time() - start))
 
             if i < save_meshes: # Store meshes for visual inspection
                 filename =\

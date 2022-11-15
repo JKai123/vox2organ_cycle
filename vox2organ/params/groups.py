@@ -112,9 +112,9 @@ hyper_ps_groups = {
             [1.0] * 5, # Chamfer
             [0.03] * 5, # Cosine,
             [0.0] * 5, # Laplace,
-            [0.00] * 5, # NormalConsistency
-            [50.0] * 5, # Edge
-            [10.0] * 5, # Cycle
+            [0.01] * 5, # NormalConsistency
+            [5.0] * 5, # Edge
+            [0.0] * 5, # Cycle
             [1.0] * 5 # AverageEdge
         ],
         'STRUCTURE_TYPE': "abdomen-all",

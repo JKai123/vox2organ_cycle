@@ -31,12 +31,14 @@ def _get_test_dataset_params(hps, training_hps):
     """ Get test split: All parameters equal to the training parameters but the
     dataset can potentially be different
     """
-    if (hps['DATASET'] == training_hps['DATASET'] and
+    test = DATASET_SPLIT_PARAMS
+    # TODO Revert this
+    """if (hps['DATASET'] == training_hps['DATASET'] and
         (any(hps[k] != training_hps[k] for k in DATASET_SPLIT_PARAMS))):
         raise RuntimeError(
             "Cannot test on the same dataset but potentially different test"
             " split than defined during training!"
-        )
+        )"""
     test_dataset_params = {
         k: hps[k] for k in (DATASET_PARAMS + DATASET_SPLIT_PARAMS)
     }

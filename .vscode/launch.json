@@ -41,6 +41,16 @@
         },
 
         {
+            "name": "main test",
+            "type": "python",
+            "request": "launch",
+            "program": "vox2organ/main.py",
+            "args": ["--test", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", "-n", "cycle_3"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+        },
+
+        {
             "name": "viz",
             "type": "python",
             "request": "launch",
