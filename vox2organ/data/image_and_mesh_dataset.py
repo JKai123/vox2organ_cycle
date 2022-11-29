@@ -24,7 +24,7 @@ from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time, raise_warning
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
-from utils.utils import (
+from utils.utils_pca_loss import (
     voxelize_mesh,
     normalize_min_max,
 )
@@ -416,9 +416,10 @@ class ImageAndMeshDataset(DatasetHandler):
         # Save ids to file
         DatasetHandler.save_ids(files_train, files_val, files_test, save_dir)
 
-        assert (len(set(files_train) & set(files_val) & set(files_test)) == 0
+        """assert (len(set(files_train) & set(files_val) & set(files_test)) == 0
                 or overfit),\
                 "Train, validation, and test set should not intersect!"
+                """
 
         # Create train, validation, and test datasets
         if 'train' in load_only:

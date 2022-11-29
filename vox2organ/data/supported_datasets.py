@@ -29,6 +29,7 @@ class SupportedDatasets(IntEnum):
     MSDPancreas = 14
     LiTS = 15
     KiTS = 16
+    MRI = 17
 
 
 class AbdomenDatasets(IntEnum):
@@ -175,6 +176,13 @@ dataset_paths = {
         'FIXED_SPLIT': ["NIH_Pancreas_train.txt",
                         "NIH_Pancreas_validation.txt",
                         "NIH_Pancreas_test.txt"] # Read from files
+    },
+    SupportedDatasets.MRI.name: {
+        'FS_DIR': None,
+        'RAW_DATA_DIR': "/home/johannes/MRI_Processed/meshes_cropped",
+        'FIXED_SPLIT': ["MRI_train.txt",
+                        "MRI_val.txt",
+                        "MRI_test.txt"] # Read from files
     },
 }
 

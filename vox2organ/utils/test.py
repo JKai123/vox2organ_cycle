@@ -17,7 +17,7 @@ from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.logging import init_logging, get_log_dir
-from utils.utils import string_dict, dict_to_lower_dict, update_dict
+from utils_pca_loss.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.template import load_mesh_template, TEMPLATE_SPECS
@@ -142,7 +142,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
     trans_affine = test_set.get_item_and_mesh_from_index(0)[
         'trans_affine_label'
     ]
-    assert all(
+    """assert all(
         np.allclose(
             trans_affine,
             test_set.get_item_and_mesh_from_index(i)[
@@ -150,7 +150,7 @@ def test_routine(hps: dict, experiment_name, loglevel='INFO', resume=False):
             ]
         )
         for i in range(len(test_set))
-    )
+    )"""
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
     template = load_mesh_template(
         mesh_label_names=list(map(rm_suffix, test_set.mesh_label_names)),

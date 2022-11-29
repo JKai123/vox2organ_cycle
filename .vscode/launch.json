@@ -15,7 +15,7 @@
             "type": "python",
             "request": "launch",
             "program": "vox2organ/main.py",
-            "args": ["--train", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", "-n", "debug", "--overfit" ],
+            "args": ["--train", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "MRI", "-n", "debug", "--overfit" ],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
         },

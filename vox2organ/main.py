@@ -13,7 +13,7 @@ from data.supported_datasets import (
 from params.default import hyper_ps_default
 from params.groups import assemble_group_params, hyper_ps_groups
 from utils.modes import ExecModes
-from utils.utils import update_dict
+from utils.utils_pca_loss import update_dict
 from utils.train import training_routine
 from utils.tune_params import tuning_routine
 from utils.test import test_routine
@@ -40,7 +40,7 @@ hyper_ps_master = {
     # LRZ
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
     # 'RAW_DATA_DIR': '/mnt/data/ADNI_FS72/',
-    'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
+    # 'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
     #'FIXED_SPLIT': None
 }
 

@@ -5,7 +5,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from params.default import hyper_ps_default
-from utils.utils import update_dict
+from utils.utils_pca_loss import update_dict
 from utils.losses import (
     ChamferAndNormalsLoss,
     ClassAgnosticChamferAndNormalsLoss,
@@ -33,7 +33,6 @@ hyper_ps_groups = {
            NormalConsistencyLoss(),
            EdgeLoss(0.0),
            CycleLoss(),
-           AverageEdgeLoss()
         ],
         'PATCH_MODE': 'no',
         # Order of structures: lh_white, rh_white, lh_pial, rh_pial; mesh loss
@@ -86,8 +85,7 @@ hyper_ps_groups = {
             [0.1] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5, # Edge
-            [1.0] * 5, # Cycle
-            [1.0] * 5 # AverageEdge
+            [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
@@ -114,8 +112,7 @@ hyper_ps_groups = {
             [0.0] * 5, # Laplace,
             [0.01] * 5, # NormalConsistency
             [5.0] * 5, # Edge
-            [0.0] * 5, # Cycle
-            [1.0] * 5 # AverageEdge
+            [1.0] * 5 # Cycle
         ],
         'STRUCTURE_TYPE': "abdomen-all",
         'N_M_CLASSES': 5,
@@ -131,6 +128,31 @@ hyper_ps_groups = {
             'SymmetricHausdorff',
             'AverageDistance'
         ],
+    },
+
+    
+    'Vox2Cortex Abdomen Patient wo Pan': {
+        'BASE_GROUP': "Vox2Cortex Abdomen Patient",
+        'STRUCTURE_TYPE': "abdomen-wo-pancreas",
+        'MESH_LOSS_FUNC': [
+           ChamferAndNormalsLoss(curv_weight_max=5.0),
+           LaplacianLoss(),
+           NormalConsistencyLoss(),
+           EdgeLoss(0.0),
+           CycleLoss(),
+           AverageEdgeLoss()
+        ],
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [3.0] * 4, # Chamfer
+            [0.03] * 4, # Cosine,
+            [0.01] * 4, # Laplace,
+            [0.02] * 4, # NormalConsistency
+            [5.0] * 4, # Edge
+            [1.0] * 4, # Cycle
+            [500.0] * 4 # AvgEdge
+        ],
+        'N_M_CLASSES': 4,
+        'N_V_CLASSES': 3, # Kidneys combined
     },
 
     'Vox2Cortex-Parc no-patch': {

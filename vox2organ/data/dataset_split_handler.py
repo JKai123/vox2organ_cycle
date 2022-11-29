@@ -27,4 +27,5 @@ dataset_split_handler = {
     SupportedDatasets.NIHPancreas.name: AbdomenDataset.split,
     SupportedDatasets.LiTS.name: AbdomenDataset.split,
     SupportedDatasets.KiTS.name: AbdomenDataset.split,
+    SupportedDatasets.MRI.name: AbdomenDataset.split,
 }
