@@ -20,7 +20,7 @@ from pytorch3d.ops import (
 from pytorch3d.structures import Meshes, Pointclouds
 from scipy.spatial.distance import directed_hausdorff
 
-from utils.utils import (
+from utils_pca_loss.utils import (
     voxelize_mesh,
     voxelize_contour,
 )

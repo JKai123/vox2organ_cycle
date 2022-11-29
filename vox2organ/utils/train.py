@@ -23,7 +23,7 @@ from pytorch3d.structures import Pointclouds, Meshes
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.template import load_mesh_template, TEMPLATE_SPECS
-from utils.utils import string_dict, score_is_better
+from utils_pca_loss.utils import string_dict, score_is_better
 from utils.losses import ChamferAndNormalsLoss
 from utils.logging import (
     init_logging,

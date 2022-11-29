@@ -15,7 +15,7 @@ import nibabel as nib
 import trimesh
 
 from utils.modes import DataModes, ExecModes
-from utils.utils import (
+from utils.utils_pca_loss import (
     create_mesh_from_voxels,
     normalize_min_max
 )

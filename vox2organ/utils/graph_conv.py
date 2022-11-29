@@ -15,7 +15,7 @@ from pytorch3d.ops import GraphConv
 from utils.logging import write_array_if_debug_txt
 
 from utils.custom_layers import IdLayer
-from utils.utils import Euclidean_weights
+from utils_pca_loss.utils import Euclidean_weights
 
 
 class GraphConvNorm(GraphConv):

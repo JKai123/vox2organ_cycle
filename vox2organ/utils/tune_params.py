@@ -10,7 +10,7 @@ import logging
 
 import json
 
-from utils.utils import string_dict, update_dict
+from utils_pca_loss.utils import string_dict, update_dict
 from utils.train import create_exp_directory, Solver
 from utils.modes import ExecModes
 from utils.logging import init_logging, finish_wandb_run, init_wandb_logging

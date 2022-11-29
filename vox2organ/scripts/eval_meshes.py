@@ -23,7 +23,7 @@ from pytorch3d.ops import (
 from utils.file_handle import read_dataset_ids
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
 from utils.mesh import Mesh
-from utils.utils import choose_n_random_points
+from utils.utils_pca_loss import choose_n_random_points
 from data.supported_datasets import dataset_paths
 
 EXPERIMENT_DIR = "../experiments/"

@@ -5,8 +5,8 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 import torch
-from utils.utils import sample_inner_volume_in_voxel
-from utils.utils import sample_outer_surface_in_voxel
+from utils.utils_pca_loss import sample_inner_volume_in_voxel
+from utils.utils_pca_loss import sample_outer_surface_in_voxel
 
 t = torch.tensor([[[0, 0, 0, 0, 0],
                    [0, 1, 1, 1, 0],

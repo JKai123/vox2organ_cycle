@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from pytorch3d.ops import knn_points
 
-from utils.utils import int_to_binlist
+from utils_pca_loss.utils import int_to_binlist
 
 def aggregate_trilinear(voxel_features, vertices, mode='bilinear'):
     """ Trilinear/bilinear aggregation of voxel features at vertex locations """

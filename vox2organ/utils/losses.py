@@ -33,7 +33,7 @@ from utils.utils_padded_packed import MoM_to_list, MoM_to_meshes
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 
-from utils.utils import choose_n_random_points
+from utils_pca_loss.utils import choose_n_random_points
 from utils.mesh import curv_from_cotcurv_laplacian
 
 def point_weigths_from_curvature(curvatures: torch.Tensor,

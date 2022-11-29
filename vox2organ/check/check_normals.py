@@ -14,7 +14,7 @@ import numpy as np
 from utils.eval_metrics import Jaccard
 from utils.mesh import Mesh
 from utils.file_handle import read_obj
-from utils.utils import create_mesh_from_voxels, voxelize_mesh
+from utils.utils_pca_loss import create_mesh_from_voxels, voxelize_mesh
 
 def check_normal_convention(vertices, faces):
     assert len(vertices.shape) == 2 and len(faces.shape) == 2
