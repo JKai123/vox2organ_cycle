@@ -23,7 +23,7 @@ from utils.eval_metrics import Jaccard
 from utils.logging import (
     write_scatter_plot_if_debug,
 )
-from utils.utils_pca_loss import (
+from utils.utils import (
     voxelize_mesh,
     sample_outer_surface_in_voxel,
     sample_inner_volume_in_voxel,

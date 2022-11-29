@@ -21,6 +21,8 @@ from collections.abc import Sequence
 import torch
 import torch.nn.functional as F
 import pytorch3d.structures
+import numpy as np
+import os
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.loss import (
     chamfer_distance,
@@ -32,9 +34,10 @@ from pytorch3d.loss import (
 from utils.utils_padded_packed import MoM_to_list, MoM_to_meshes
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
-
-from utils_pca_loss.utils import choose_n_random_points
 from utils.mesh import curv_from_cotcurv_laplacian
+from utils.utils_pca_loss.gpa import gpa
+from utils.utils_pca_loss.eval import mesh_vert_sqr_dist
+from utils.utils_pca_loss.pca import project_subspace
 
 def point_weigths_from_curvature(curvatures: torch.Tensor,
                                  points: torch.Tensor,
@@ -310,11 +313,11 @@ class ClassAgnosticChamferAndNormalsLoss(ChamferAndNormalsLoss):
 
 
 class CycleLossChamfer(ChamferLoss):
-    def __init(self):
+    def __init__(self):
         super().__init__()
 
 class CycleLoss(MeshLoss):
-    def __init(self):
+    def __init__(self):
         super().__init__()
     def get_loss(self, pred_meshes, target):
         n_points = 30000 # TODO make this accesable
@@ -329,7 +332,7 @@ class CycleLoss(MeshLoss):
     
 
 class LaplacianLoss(MeshLoss):
-    def __init(self):
+    def __init__(self):
         super().__init__()
     # Method does not support autocast
     @autocast(enabled=False)
@@ -345,7 +348,7 @@ class LaplacianLoss(MeshLoss):
 
 
 class NormalConsistencyLoss(MeshLoss):
-    def __init(self):
+    def __init__(self):
         super().__init__()
     def get_loss(self, pred_meshes, target=None):
         test = mesh_normal_consistency(pred_meshes)
@@ -367,6 +370,19 @@ class AverageEdgeLoss(MeshLoss):
         edge_lengths = torch.linalg.norm(vec, dim=1, ord=2)
         avg_edge_length = torch.mean(edge_lengths)
         return mesh_edge_loss(pred_meshes, avg_edge_length)
+
+class PCA_loss(MeshLoss):
+    def __init__(self):
+        super().__init__()
+
+    def get_loss(self, pred_meshes, target=None):
+        mean, eigenvectors, eigenvalues, folder_name = target
+        pred_meshes = gpa([pred_meshes], None)
+        meshes_proj = project_subspace(pred_meshes, mean, eigenvectors, eigenvalues)
+        dist, _ = mesh_vert_sqr_dist(pred_meshes, meshes_proj)
+        return dist
+        
+        
 
 
 class EdgeLoss(MeshLoss):
@@ -426,7 +442,10 @@ def _add_MultiLoss_to_dict(loss_dict, loss_func, mesh_pred,
 def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                             voxel_pred, voxel_target,
                             mesh_loss_func, mesh_loss_func_weights,
-                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, mesh_pred_cycle, template_MoM, mesh_target):
+                            mesh_pred, deltaV_mesh_pred, mesh_pred_unpadded, 
+                            mesh_pred_cycle, template_MoM, mesh_target,
+                            ssm_target):
+
     """ Linear combination of all losses. In contrast to geometric averaging,
     this also allows for per-class mesh loss weights. 
     mesh_pred_unpadded: List of Meshes - each Meshes contains N Meshes - the list is of length M
@@ -468,6 +487,8 @@ def all_linear_loss_combine(voxel_loss_func, voxel_loss_func_weights,
                 elif isinstance(lf, CycleLoss):
                     ml = lf(mesh_pred_cycle, template_meshes, weight)
                     # ml = lf(mesh_pred, mesh_target, weight)
+                elif isinstance(lf, PCA_loss):
+                    ml = lf(mesh_pred, ssm_target, weight)
                 else:
                     ml = lf(mesh_pred, mesh_target, weight)
                 losses[str(lf)] = ml

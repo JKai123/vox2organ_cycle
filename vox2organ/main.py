@@ -13,7 +13,7 @@ from data.supported_datasets import (
 from params.default import hyper_ps_default
 from params.groups import assemble_group_params, hyper_ps_groups
 from utils.modes import ExecModes
-from utils.utils_pca_loss import update_dict
+from utils.utils import update_dict
 from utils.train import training_routine
 from utils.tune_params import tuning_routine
 from utils.test import test_routine

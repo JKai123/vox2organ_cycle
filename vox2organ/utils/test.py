@@ -17,7 +17,7 @@ from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from params.default import DATASET_PARAMS, DATASET_SPLIT_PARAMS
 from utils.logging import init_logging, get_log_dir
-from utils_pca_loss.utils import string_dict, dict_to_lower_dict, update_dict
+from utils.utils import string_dict, dict_to_lower_dict, update_dict
 from utils.modes import ExecModes
 from utils.evaluate import ModelEvaluator
 from utils.template import load_mesh_template, TEMPLATE_SPECS

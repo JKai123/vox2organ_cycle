@@ -5,7 +5,7 @@ __author__ = "Fabi Bongratz"
 __email__ = "fabi.bongratz@gmail.com"
 
 from params.default import hyper_ps_default
-from utils.utils_pca_loss import update_dict
+from utils.utils import update_dict
 from utils.losses import (
     ChamferAndNormalsLoss,
     ClassAgnosticChamferAndNormalsLoss,
@@ -13,7 +13,8 @@ from utils.losses import (
     NormalConsistencyLoss,
     EdgeLoss,
     CycleLoss,
-    AverageEdgeLoss
+    AverageEdgeLoss,
+    PCA_loss
 )
 from utils.graph_conv import (
     GraphConvNorm,
@@ -130,7 +131,6 @@ hyper_ps_groups = {
         ],
     },
 
-    
     'Vox2Cortex Abdomen Patient wo Pan': {
         'BASE_GROUP': "Vox2Cortex Abdomen Patient",
         'STRUCTURE_TYPE': "abdomen-wo-pancreas",
@@ -153,6 +153,35 @@ hyper_ps_groups = {
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
+    },
+
+
+    
+    'Vox2Cortex Abdomen Patient wo Pan PCA': {
+        'BASE_GROUP': "Vox2Cortex Abdomen Patient",
+        'STRUCTURE_TYPE': "abdomen-wo-pancreas",
+        'MESH_LOSS_FUNC': [
+           ChamferAndNormalsLoss(curv_weight_max=5.0),
+           LaplacianLoss(),
+           NormalConsistencyLoss(),
+           EdgeLoss(0.0),
+           CycleLoss(),
+           AverageEdgeLoss(),
+           PCA_loss()
+        ],
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [3.0] * 4, # Chamfer
+            [0.03] * 4, # Cosine,
+            [0.01] * 4, # Laplace,
+            [0.02] * 4, # NormalConsistency
+            [5.0] * 4, # Edge
+            [1.0] * 4, # Cycle
+            [500.0] * 4, # AvgEdge
+            [0.01] * 4 # PCA
+        ],
+        'N_M_CLASSES': 4,
+        'N_V_CLASSES': 3, # Kidneys combined
+        'SSM_PATH': "..path/to/ssm"
     },
 
     'Vox2Cortex-Parc no-patch': {

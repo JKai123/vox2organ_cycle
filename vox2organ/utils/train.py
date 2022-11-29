@@ -23,8 +23,8 @@ from pytorch3d.structures import Pointclouds, Meshes
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.template import load_mesh_template, TEMPLATE_SPECS
-from utils_pca_loss.utils import string_dict, score_is_better
-from utils.losses import ChamferAndNormalsLoss
+from utils.utils import string_dict, score_is_better
+from utils.losses import ChamferAndNormalsLoss, PCA_loss
 from utils.logging import (
     init_logging,
     init_wandb_logging,
@@ -104,6 +104,7 @@ class Solver():
                  penalize_displacement,
                  clip_gradient,
                  lr_scheduler_params,
+                 ssm_path,
                  **kwargs):
 
         self.lr_scheduler_params = lr_scheduler_params
@@ -130,6 +131,12 @@ class Solver():
         else:
             assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                     "Number of weights must be equal to number of mesh losses."
+        
+        if any(isinstance(lf, PCA_loss) for lf in self.mesh_loss_func):
+            try:
+                self.ssm_path = ssm_path
+            except:
+                print("Path for SSM must be set with PCA_loss")
 
         self.loss_averaging = loss_averaging
         self.save_path = save_path
@@ -191,6 +198,28 @@ class Solver():
                 parcs.permute(1,0,2,3)
             )
         ]
+        if any(isinstance(lf, PCA_loss) for lf in self.mesh_loss_func):
+            assert len(os.listdir(self.ssm_path)) == len(self.mesh_loss_func_weights[0]),\
+                    "The Number of SSM must be the same as predicted organs"
+            ssm_mean_list = []
+            ssm_eigvec_list = []
+            ssm_eigval_list = []
+            folder_names = []
+            for folder in os.listdir(self.ssm_path):
+                ssm_mean_list.append(os.path.join(self.ssm_path, folder, "mean.npy"))
+                ssm_eigvec_list.append(os.path.join(self.ssm_path, folder, "eigenvectors.npy"))
+                ssm_eigval_list.append(os.path.join(self.ssm_path, folder, "eigenvalues.npy"))
+                folder_names.append(folder)
+
+            ssm_target = [
+                (mean.cuda(), eigenvectors.cuda(), eigenvalues.cuda(), folder_name.cuda())
+                for mean, eigenvectors, eigenvalues, folder_name in zip(
+                    np.load(ssm_mean_list),
+                    np.load(ssm_eigvec_list),
+                    np.load(ssm_eigval_list),
+                    folder_names
+                )
+            ]
 
         # Predict
         with autocast(self.mixed_precision):
@@ -228,7 +257,8 @@ class Solver():
                     model.__class__.predMoM_to_meshes(pred),
                     model.__class__.pred_to_cycle_pred_meshes(pred),
                     template,
-                    mesh_target
+                    mesh_target,
+                    ssm_target
                 )
             else:
                 raise ValueError("Unknown loss averaging.")

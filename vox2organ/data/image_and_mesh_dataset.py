@@ -24,7 +24,7 @@ from utils.eval_metrics import Jaccard
 from utils.modes import DataModes, ExecModes
 from utils.logging import measure_time, raise_warning
 from utils.mesh import Mesh, curv_from_cotcurv_laplacian
-from utils.utils_pca_loss import (
+from utils.utils import (
     voxelize_mesh,
     normalize_min_max,
 )
