@@ -23,6 +23,7 @@ from pytorch3d.structures import Pointclouds, Meshes
 from data.dataset_split_handler import dataset_split_handler
 from models.model_handler import ModelHandler
 from utils.template import load_mesh_template, TEMPLATE_SPECS
+from utils.ssm import load_ssm
 from utils.utils import string_dict, score_is_better
 from utils.losses import ChamferAndNormalsLoss, PCA_loss
 from utils.logging import (
@@ -104,7 +105,6 @@ class Solver():
                  penalize_displacement,
                  clip_gradient,
                  lr_scheduler_params,
-                 ssm_path,
                  **kwargs):
 
         self.lr_scheduler_params = lr_scheduler_params
@@ -131,12 +131,6 @@ class Solver():
         else:
             assert len(mesh_loss_func) == len(mesh_loss_func_weights),\
                     "Number of weights must be equal to number of mesh losses."
-        
-        if any(isinstance(lf, PCA_loss) for lf in self.mesh_loss_func):
-            try:
-                self.ssm_path = ssm_path
-            except:
-                print("Path for SSM must be set with PCA_loss")
 
         self.loss_averaging = loss_averaging
         self.save_path = save_path
@@ -147,7 +141,7 @@ class Solver():
         self.mixed_precision = mixed_precision
 
     @measure_time
-    def training_step(self, model, data, iteration, template):
+    def training_step(self, model, data, iteration, template, ssm):
         """ One training step.
 
         :param model: Current pytorch model.
@@ -155,7 +149,7 @@ class Solver():
         :param iteration: The training iteration (used for logging)
         :returns: The overall (weighted) loss.
         """
-        loss_total = self.compute_loss(model, data, iteration, template)
+        loss_total = self.compute_loss(model, data, iteration, template, ssm)
 
         if self.mixed_precision:
             self.scaler.scale(loss_total).backward()
@@ -181,7 +175,7 @@ class Solver():
         return loss_total
 
     @measure_time
-    def compute_loss(self, model, data, iteration, template) -> torch.tensor:
+    def compute_loss(self, model, data, iteration, template, ssm) -> torch.tensor:
         # Chop data
         x, y, points, normals, curvs, parcs = data
         self.trainLogger.debug(
@@ -198,29 +192,7 @@ class Solver():
                 parcs.permute(1,0,2,3)
             )
         ]
-        if any(isinstance(lf, PCA_loss) for lf in self.mesh_loss_func):
-            assert len(os.listdir(self.ssm_path)) == len(self.mesh_loss_func_weights[0]),\
-                    "The Number of SSM must be the same as predicted organs"
-            ssm_mean_list = []
-            ssm_eigvec_list = []
-            ssm_eigval_list = []
-            folder_names = []
-            for folder in os.listdir(self.ssm_path):
-                ssm_mean_list.append(os.path.join(self.ssm_path, folder, "mean.npy"))
-                ssm_eigvec_list.append(os.path.join(self.ssm_path, folder, "eigenvectors.npy"))
-                ssm_eigval_list.append(os.path.join(self.ssm_path, folder, "eigenvalues.npy"))
-                folder_names.append(folder)
-
-            ssm_target = [
-                (mean.cuda(), eigenvectors.cuda(), eigenvalues.cuda(), folder_name.cuda())
-                for mean, eigenvectors, eigenvalues, folder_name in zip(
-                    np.load(ssm_mean_list),
-                    np.load(ssm_eigvec_list),
-                    np.load(ssm_eigval_list),
-                    folder_names
-                )
-            ]
-
+    
         # Predict
         with autocast(self.mixed_precision):
             pred = model(x.cuda())
@@ -258,7 +230,7 @@ class Solver():
                     model.__class__.pred_to_cycle_pred_meshes(pred),
                     template,
                     mesh_target,
-                    ssm_target
+                    ssm
                 )
             else:
                 raise ValueError("Unknown loss averaging.")
@@ -285,7 +257,8 @@ class Solver():
               start_epoch: int,
               freeze_pre_trained: bool,
               save_models: bool=True,
-              template = None):
+              template = None,
+              ssm = None):
         """
         Training procedure
 
@@ -370,7 +343,7 @@ class Solver():
                     log_epoch(epoch, iteration)
                     log_lr(np.mean(lr_scheduler.get_last_lr()), iteration)
                 # Step
-                loss = self.training_step(model, data, iteration, template)
+                loss = self.training_step(model, data, iteration, template, ssm)
 
                 # For cyclic lr
                 lr_scheduler.step()
@@ -589,6 +562,9 @@ def training_routine(
         trans_affine=trans_affine,
         **TEMPLATE_SPECS[hps['MESH_TEMPLATE_ID']]
     )
+    ssm = None
+    if any(isinstance(lf, PCA_loss) for lf in hps['MESH_LOSS_FUNC']):
+            ssm = load_ssm(hps['SSM_PATH'], hps['N_M_CLASSES'], trans_affine)
 
     ###### Training ######
 
@@ -644,7 +620,8 @@ def training_routine(
         eval_every=hps['EVAL_EVERY'],
         start_epoch=start_epoch,
         freeze_pre_trained=hps['FREEZE_PRE_TRAINED'],
-        template = template
+        template = template,
+        ssm = ssm
     )
 
     finish_wandb_run()

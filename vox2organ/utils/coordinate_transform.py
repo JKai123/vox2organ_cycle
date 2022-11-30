@@ -167,3 +167,37 @@ def transform_mesh_affine(vertices: Union[np.ndarray, torch.Tensor],
         new_faces = new_faces.numpy()
 
     return new_coords, new_faces
+
+
+def transform_coords_affine_wo_shift(vertices: Union[np.ndarray, torch.Tensor],
+                          transformation_matrix: Union[np.ndarray, torch.Tensor]):
+    """ Transform vertices of shape (V, D) or (S, V, D) using a given
+    transformation matrix such that v_new = (mat @ v.T).T. """
+
+    transformation_matrix = transformation_matrix[0:-1, 0:-1]
+    ndims = vertices.shape[-1]
+    if (tuple(transformation_matrix.shape) != (ndims, ndims)):
+        raise ValueError("Wrong shape of transformation matrix.")
+
+    # Convert to torch if necessary
+    if isinstance(vertices, np.ndarray):
+        vertices_ = torch.from_numpy(vertices).float()
+    else:
+        vertices_ = vertices
+    if isinstance(transformation_matrix, np.ndarray):
+        transformation_matrix = torch.from_numpy(
+            transformation_matrix
+        ).float().to(vertices_.device)
+    vertices_ = vertices_.view(-1, ndims)
+    coords = vertices_
+    # Transform
+    new_coords = (transformation_matrix @ coords.T)
+
+    # Correct shape
+    new_coords = new_coords.T.view(vertices.shape)
+
+    # Correct data type
+    if isinstance(vertices, np.ndarray):
+        new_coords = new_coords.numpy()
+
+    return new_coords

@@ -35,9 +35,8 @@ from utils.utils_padded_packed import MoM_to_list, MoM_to_meshes
 from pytorch3d.ops import sample_points_from_meshes, laplacian
 from torch.cuda.amp import autocast
 from utils.mesh import curv_from_cotcurv_laplacian
-from utils.utils_pca_loss.gpa import gpa
-from utils.utils_pca_loss.eval import mesh_vert_sqr_dist
-from utils.utils_pca_loss.pca import project_subspace
+from utils.ssm import gpa, get_subspace_dist
+
 
 def point_weigths_from_curvature(curvatures: torch.Tensor,
                                  points: torch.Tensor,
@@ -377,9 +376,8 @@ class PCA_loss(MeshLoss):
 
     def get_loss(self, pred_meshes, target=None):
         mean, eigenvectors, eigenvalues, folder_name = target
-        pred_meshes = gpa([pred_meshes], None)
-        meshes_proj = project_subspace(pred_meshes, mean, eigenvectors, eigenvalues)
-        dist, _ = mesh_vert_sqr_dist(pred_meshes, meshes_proj)
+        pred_meshes = gpa(pred_meshes, None)
+        dist = get_subspace_dist(pred_meshes, mean, eigenvectors, eigenvalues)
         return dist
         
         

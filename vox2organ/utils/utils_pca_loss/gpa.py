@@ -7,6 +7,7 @@ __email__ = "johannes.kaiser@tum.de"
 import numpy as np
 import torch
 import scipy
+import torch
 import open3d as o3d
 from pytorch3d.loss import (
     chamfer_distance)
@@ -15,7 +16,8 @@ from pytorch3d.structures import (
 )
 from tqdm import tqdm
 def center_origin(shape_trimesh):
-    shape_trimesh.translate(np.array([0, 0, 0]), relative=False)
+    center = torch.mean(shape_trimesh.verts_packed(), dim=0)
+    shape_trimesh.offset_verts_(-center)
 
 
 def unit_scale(shape_trimesh, typ="2norm"):
@@ -23,12 +25,11 @@ def unit_scale(shape_trimesh, typ="2norm"):
     # scale by vertices 2 norm
     # scale by bounding box
     if typ == "frobenius":
-        norm = np.sqrt(np.sum(np.square(shape_trimesh.vertices)))
+        norm = np.sqrt(np.sum(np.square(shape_trimesh.vertices_packed())))
     if typ == "2norm":
-        norm = np.sqrt(np.sum(np.square(shape_trimesh.vertices), axis = 1))
+        norm = np.sqrt(np.sum(np.square(shape_trimesh.vertices_packed()), axis = 1))
         norm = np.max(norm)
-        mesh_verts = (np.asarray(shape_trimesh.vertices)) / norm
-        o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(mesh_verts), o3d.utility.Vector3iVector(shape_trimesh.triangles))
+        mesh_verts = (np.asarray(shape_trimesh.vertices_packed())) / norm
     if typ == "bounding box":
         # oriented_bb = shape_trimesh.get_oriented_bounding_box
         raise NotImplementedError
@@ -108,7 +109,7 @@ def gpa(meshes, path):
         #o3d.io.write_triangle_mesh(path + "/" + "_original_" + str(i) + ".ply", mesh)
     for mesh in meshes:
         center_origin(mesh)
-        unit_scale(mesh)
+        # unit_scale(mesh)
     return meshes
     
     # target = meshes[0]

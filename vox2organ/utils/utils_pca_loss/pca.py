@@ -3,7 +3,9 @@ __email__ = "johannes.kaiser@tum.de"
 
 import numpy as np
 import open3d as o3d
+import torch
 from sklearn.decomposition import PCA
+from pytorch3d.structures.meshes import Meshes
 
 
 def pca(meshes, dims):
@@ -57,12 +59,23 @@ def scikit_pca(meshes, dims):
     return(mean, eig_vec, exp_var, pca)
 
     
+def get_subspace_dist(mesh, mean, eigenvectors, eigenvalues):
+    flattened_verts = mesh.verts_packed().flatten()
+    data = flattened_verts - mean
+    data = torch.matmul(data, eigenvectors.T)
+    data = torch.matmul(data, eigenvectors)
+    data += mean
+    proj_verts = data.reshape(-1,3)
+    unproj_verst = flattened_verts.reshape(-1,3)
+    dist = torch.linalg.norm(proj_verts-unproj_verst)
+    return dist
+
 def project_subspace(meshes, mean, eigenvectors, eigenvalues):
     # Transform in new space
-    data, edges_list = transf_meshes(meshes, mean, eigenvectors, eigenvalues)
+    data, faces_list = transf_meshes(meshes, mean, eigenvectors, eigenvalues)
     
     # Transform back
-    data = np.dot(data, eigenvectors)    
+    data = torch.matmul(data, eigenvectors)    
     
     # Add mean
     data += mean
@@ -72,21 +85,22 @@ def project_subspace(meshes, mean, eigenvectors, eigenvalues):
     vert_list = []
     for i, verts in enumerate(data):
         vert_list.append(verts.reshape(-1, 3))
-        meshes.append(o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts.reshape(-1, 3)), edges_list[i]))
+        meshes.append(Meshes(torch.unsqueeze(verts.reshape(-1,3), dim=0), 
+        torch.unsqueeze(faces_list[i], dim=0)))
     return meshes
 
 
 def transf_meshes(meshes, mean, eigenvectors, eigenvalues):
      # meshes to data
     flattened_verts_list = []
-    edges_list = []
+    faces_list = []
     for mesh in meshes:
-        flattened_verts_list.append(np.asarray(mesh.vertices).flatten())
-        edges_list.append(mesh.triangles)
-    data = np.stack(flattened_verts_list)
+        flattened_verts_list.append(mesh.verts_packed().flatten())
+        faces_list.append(mesh.faces_packed())
+    data = torch.stack(flattened_verts_list)
     # mean = np.mean(data, axis = 0)
     data = data - mean
     
     # Transform data in subspace
-    data = np.dot(data, eigenvectors.T)
-    return data, edges_list
+    data = torch.matmul(data, eigenvectors.T)
+    return data, faces_list

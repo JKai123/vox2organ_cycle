@@ -181,7 +181,7 @@ hyper_ps_groups = {
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
-        'SSM_PATH': "..path/to/ssm"
+        'SSM_PATH': "../shape_results/temp_final_ssm/"
     },
 
     'Vox2Cortex-Parc no-patch': {
