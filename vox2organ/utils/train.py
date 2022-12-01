@@ -512,7 +512,7 @@ def training_routine(
         time_logging=hps['TIME_LOGGING']
     )
     trainLogger = logging.getLogger(ExecModes.TRAIN.name)
-    if hps['USE_WANDB'] and experiment_name != 'debug':
+    """if hps['USE_WANDB'] and experiment_name != 'debug':
         init_wandb_logging(
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -523,7 +523,7 @@ def training_routine(
             params=hps_to_write
         )
     elif hps['USE_WANDB']:
-        trainLogger.info("No wandb logging in debug mode.")
+        trainLogger.info("No wandb logging in debug mode.")"""
 
     trainLogger.info("Start training '%s'...", experiment_name)
 
