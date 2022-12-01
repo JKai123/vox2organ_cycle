@@ -65,6 +65,11 @@ def center_origin(shape_trimesh):
     shape_trimesh.offset_verts_(-center)
 
 def get_subspace_dist(mesh, mean, eigenvectors, eigenvalues):
+    # savepath = "../transformed_point_clouds/"
+    # if not os.path.exists(savepath):
+    #     os.mkdir(savepath)
+    # np.save(savepath + "mesh_coor.npy", mesh.verts_packed().cpu().detach().numpy())
+    # np.save(savepath + "mean_coor.npy", mean.cpu().detach().numpy())
     flattened_verts = mesh.verts_packed().flatten()
     data = flattened_verts - mean
     data = torch.matmul(data, eigenvectors.T)
