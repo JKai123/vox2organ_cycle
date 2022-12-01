@@ -155,6 +155,32 @@ hyper_ps_groups = {
         'N_V_CLASSES': 3, # Kidneys combined
     },
 
+    'Vox2Cortex Abdomen Patient Kidney Spleen': {
+        'BASE_GROUP': "Vox2Cortex Abdomen Patient",
+        'STRUCTURE_TYPE': "abdomen-wo-pancreas",
+        'MESH_LOSS_FUNC': [
+           ChamferAndNormalsLoss(curv_weight_max=5.0),
+           LaplacianLoss(),
+           NormalConsistencyLoss(),
+           EdgeLoss(0.0),
+           CycleLoss(),
+           AverageEdgeLoss()
+        ],
+        'MESH_LOSS_FUNC_WEIGHTS': [
+            [3.0] * 2, # Chamfer
+            [0.03] * 2, # Cosine,
+            [0.01] * 2, # Laplace,
+            [0.02] * 2, # NormalConsistency
+            [5.0] * 2, # Edge
+            [1.0] * 2, # Cycle
+            [500.0] * 2 # AvgEdge
+        ],
+        'N_M_CLASSES': 2,
+        'N_V_CLASSES': 2, # Kidneys combined
+        'PATCH_SIZE': [136, 136, 72], # [272, 272, 144],
+        'SELECT_PATCH_SIZE': [136, 136, 72], # [272, 272, 144],
+    },
+
 
     
     'Vox2Cortex Abdomen Patient wo Pan PCA': {

@@ -56,6 +56,16 @@ def _get_seg_and_mesh_label_names(structure_type, patch_mode, ndims):
             )
         else:
             raise NotImplementedError()
+    elif structure_type == "kidney-spleen":
+            if patch_mode=="no":
+                seg_label_names = (
+                    ("kidney",), ("spleen",)
+                )
+                mesh_label_names = (
+                    "kidney_right", "spleen"
+                )
+            else:
+                raise NotImplementedError()
 
     else:
         raise NotImplementedError()

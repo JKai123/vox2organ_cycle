@@ -78,13 +78,13 @@ def get_sweep_config():
 def update_hps_sweep(hps, config):
     hps['N_EPOCHS'] = config.N_EPOCHS
     hps['MESH_LOSS_FUNC_WEIGHTS'] = [
-            [config.chamfer_loss] * 4, # Chamfer
-            [config.cosine_loss] * 4, # Cosine,
-            [config.laplace_loss] * 4, # Laplace,
-            [config.normal_loss] * 4, # NormalConsistency
-            [config.edge_loss] * 4, # Edge
-            [config.cycle_loss] * 4, # Cycle
-            [config.avg_edge_loss] * 4, # AvgEdge
+            [config.chamfer_loss] * 2, # Chamfer
+            [config.cosine_loss] * 2, # Cosine,
+            [config.laplace_loss] * 2, # Laplace,
+            [config.normal_loss] * 2, # NormalConsistency
+            [config.edge_loss] * 2, # Edge
+            [config.cycle_loss] * 2, # Cycle
+            [config.avg_edge_loss] * 2, # AvgEdge
             # [config.pca_loss] * 4 # PCA
         ]
     return hps

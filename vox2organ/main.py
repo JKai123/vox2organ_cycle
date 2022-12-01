@@ -19,6 +19,7 @@ from utils.tune_params import tuning_routine
 from utils.test import test_routine
 from utils.train_test import train_test_routine
 from utils.hyp_sweep import update_hps_sweep
+from utils.logging import get_log_dir
 from utils.logging import (
     init_logging,
     init_wandb_logging)
@@ -33,19 +34,6 @@ hyper_ps_overfit = {
     # Learning
     # Sanity checks not possible on lrz
     'SANITY_CHECK_DATA': True
-}
-
-# Parameters that are overwritten frequently. For groups of parameters that are
-# fixed together, see params.groups
-hyper_ps_master = {
-    # Learning
-    'BATCH_SIZE': 1,
-
-    # LRZ
-    # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
-    # 'RAW_DATA_DIR': '/mnt/data/ADNI_FS72/',
-    # 'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
-    #'FIXED_SPLIT': None
 }
 
 # Overwrite master params if the value is different from the
@@ -91,10 +79,13 @@ def single_experiment(hyper_ps, ps, mode, resume):
     # Potentially overfit
     if hps['OVERFIT']:
         hps = update_dict(hps, hyper_ps_overfit)
-    
+        
+    experiment_base_dir = hps['EXPERIMENT_BASE_DIR']
+    experiment_dir = os.path.join(experiment_base_dir, hps['EXPERIMENT_NAME'])
+    log_dir = get_log_dir(experiment_dir)
     init_wandb_logging(
-        exp_name=hps['PROJ_NAME'],
-        log_dir
+        exp_name=hps['EXPERIMENT_NAME'],
+        log_dir=log_dir,
         wandb_proj_name=hps['PROJ_NAME'],
         wandb_group_name=hps['GROUP_NAME'],
         wandb_job_type='train',
@@ -122,9 +113,18 @@ def main(ps = None):
     """
     Main function for training, validation, test
     """
-    hyper_ps = {}
+    hyper_ps = {
+    # Learning
+    'BATCH_SIZE': 1,
+
+    # LRZ
+    # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
+    # 'RAW_DATA_DIR': '/mnt/data/ADNI_FS72/',
+    'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
+    #'FIXED_SPLIT': None
+}
     exp_name = "hyp_sweep_KiTS_1"
-    group_name = 'Vox2Cortex Abdomen Patient wo Pan'
+    group_name = 'Vox2Cortex Abdomen Patient Kidney Spleen'
     ovwr(hyper_ps, 'EXPERIMENT_NAME', exp_name)
     ovwr(hyper_ps, 'DATASET', "KiTS")
     ovwr(hyper_ps, 'PROJ_NAME', 'final_sweeps')
@@ -156,4 +156,4 @@ def main(ps = None):
 
 
 if __name__ == '__main__':
-    main(hyper_ps_master)
+    main()

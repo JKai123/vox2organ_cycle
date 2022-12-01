@@ -59,12 +59,11 @@
             "cwd": "${workspaceFolder}",
         },
         {
-            "name": "avg",
+            "name": "hyp",
             "type": "python",
             "request": "launch",
-            "program": "generate_average_template.py",
+            "program": "vox2organ/run_hpy.py",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/vox2organ",
-        }
+            "cwd": "${workspaceFolder}",
     ]
 }
