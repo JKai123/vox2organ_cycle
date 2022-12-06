@@ -121,6 +121,7 @@ def main(ps = None):
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
     # 'RAW_DATA_DIR': '/mnt/data/ADNI_FS72/',
     'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
+    'EVAL_EVERY': 2,
     #'FIXED_SPLIT': None
 }
     exp_name = "hyp_sweep_KiTS_1"

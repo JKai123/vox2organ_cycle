@@ -12,14 +12,14 @@ sweep_config = {
 }
 
 metric = {
-    'name': 'Val_JaccardMesh',
-    'goal': 'maximize'
+    'name': 'Val_AverageDistance',
+    'goal': 'minimize'
 }
 
 
 parameters_dict = {
     'N_EPOCHS': {
-        'value': 14
+        'value': 30
         },
     'chamfer_loss': {
         'distribution': 'uniform',
@@ -56,11 +56,11 @@ parameters_dict = {
         'min': 0,
         'max': 1000
         },
-    'pca_loss': {
-        'distribution': 'uniform',
-        'min': 0,
-        'max': 0.05
-        },
+    # 'pca_loss': {
+    #     'distribution': 'uniform',
+    #     'min': 0,
+    #     'max': 0.05
+    #     },
     }
 
 command = {
