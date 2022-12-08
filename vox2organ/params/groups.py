@@ -143,13 +143,13 @@ hyper_ps_groups = {
            AverageEdgeLoss()
         ],
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [3.0] * 4, # Chamfer
-            [0.03] * 4, # Cosine,
-            [0.01] * 4, # Laplace,
-            [0.02] * 4, # NormalConsistency
-            [5.0] * 4, # Edge
-            [1.0] * 4, # Cycle
-            [500.0] * 4 # AvgEdge
+            [2.4] * 4, # Chamfer
+            [0.021] * 4, # Cosine,
+            [0.005] * 4, # Laplace,
+            [0.14] * 4, # NormalConsistency
+            [12.0] * 4, # Edge
+            [2.4] * 4, # Cycle
+            [500.0] * 4, # AvgEdge
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
@@ -170,12 +170,12 @@ hyper_ps_groups = {
            PCA_loss()
         ],
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [3.0] * 4, # Chamfer
-            [0.03] * 4, # Cosine,
-            [0.01] * 4, # Laplace,
-            [0.02] * 4, # NormalConsistency
-            [5.0] * 4, # Edge
-            [1.0] * 4, # Cycle
+            [2.4] * 4, # Chamfer
+            [0.021] * 4, # Cosine,
+            [0.005] * 4, # Laplace,
+            [0.14] * 4, # NormalConsistency
+            [12.0] * 4, # Edge
+            [2.4] * 4, # Cycle
             [500.0] * 4, # AvgEdge
             [0.01] * 4 # PCA
         ],
