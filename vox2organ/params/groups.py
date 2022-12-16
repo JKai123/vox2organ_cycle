@@ -207,7 +207,9 @@ hyper_ps_groups = {
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
-        'SSM_PATH': "../shape_results/temp_final_ssm/"
+        'PATCH_SIZE': [192, 192, 96], # [272, 272, 144], # 
+        'SELECT_PATCH_SIZE': [192, 192, 96],
+        'SSM_PATH': "../shape_results/final_training_kits_2/"
     },
 
     'Vox2Cortex-Parc no-patch': {

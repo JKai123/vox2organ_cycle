@@ -23,44 +23,44 @@ parameters_dict = {
         },
     'chamfer_loss': {
         'distribution': 'uniform',
-        'min': 0,
-        'max': 3
+        'min': 2,
+        'max': 5
         },
     'cosine_loss': {
         'distribution': 'uniform',
-        'min': 0,
-        'max': 0.03
+        'min': 0.05,
+        'max': 0.1
         },
     'laplace_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 0.03
+        'max': 0.1
         },
     'normal_loss': {
         'distribution': 'uniform',
-        'min': 0,
+        'min': 0.14,
         'max': 0.3
         },
     'edge_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 15
+        'max': 45
         },
     'cycle_loss': {
         'distribution': 'uniform',
         'min': 0,
-        'max': 3
+        'max': 5
         },
     'avg_edge_loss': {
         'distribution': 'uniform',
-        'min': 0,
+        'min': 200,
         'max': 1000
         },
-    # 'pca_loss': {
-    #     'distribution': 'uniform',
-    #     'min': 0,
-    #     'max': 0.05
-    #     },
+    'pca_loss': {
+        'distribution': 'uniform',
+        'min': 0,
+        'max': 0.05
+        },
     }
 
 command = {
@@ -78,13 +78,13 @@ def get_sweep_config():
 def update_hps_sweep(hps, config):
     hps['N_EPOCHS'] = config.N_EPOCHS
     hps['MESH_LOSS_FUNC_WEIGHTS'] = [
-            [config.chamfer_loss] * 2, # Chamfer
-            [config.cosine_loss] * 2, # Cosine,
-            [config.laplace_loss] * 2, # Laplace,
-            [config.normal_loss] * 2, # NormalConsistency
-            [config.edge_loss] * 2, # Edge
-            [config.cycle_loss] * 2, # Cycle
-            [config.avg_edge_loss] * 2, # AvgEdge
-            # [config.pca_loss] * 4 # PCA
+            [config.chamfer_loss] * 4, # Chamfer
+            [config.cosine_loss] * 4, # Cosine,
+            [config.laplace_loss] * 4, # Laplace,
+            [config.normal_loss] * 4, # NormalConsistency
+            [config.edge_loss] * 4, # Edge
+            [config.cycle_loss] * 4, # Cycle
+            [config.avg_edge_loss] * 4, # AvgEdge
+            [config.pca_loss] * 4 # PCA
         ]
     return hps

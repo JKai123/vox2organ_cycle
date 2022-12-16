@@ -122,6 +122,7 @@ def init_wandb_logging(exp_name, log_dir, wandb_proj_name,
 
     use_wandb = True
     wandb_run = wandb.init(
+        settings=wandb.Settings(console='off'),
         name=exp_name,
         dir=log_dir,
         config=params,

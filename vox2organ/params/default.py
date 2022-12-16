@@ -205,6 +205,9 @@ hyper_ps_default={
     # components/structures
     'N_M_CLASSES': 2,
 
+    # Position of the Shape Model when using PCA loss
+    'SSM_PATH': "../shape_results/final_training_kits_2/",
+
     # The number of reference points in a cortex structure
     'N_REF_POINTS_PER_STRUCTURE': 40962,
 

@@ -116,14 +116,18 @@ def SelfIntersectionsScore(
 
     return isect_all
 
-def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
-                         padded_coordinates=(0.0, 0.0, 0.0)):
+def AverageDistanceScore(
+    pred,
+    data,
+    n_v_classes,
+    n_m_classes,
+    model_class,
+) :
     """ Compute point-to-mesh distance between prediction and ground truth. """
-
-    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
 
     # Ground truth
     gt_mesh = data['mesh_label']
+    trans_affine = data['trans_affine_label']
     # Back to original coordinate space
     gt_vertices, gt_faces= gt_mesh.vertices, gt_mesh.faces
     ndims = gt_vertices.shape[-1]
@@ -133,23 +137,30 @@ def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
     pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
     pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
 
+    device = pred_vertices.device
+
     # Iterate over structures
     assd_all = []
     for pred_v, pred_f, gt_v, gt_f in zip(
         pred_vertices,
         pred_faces,
-        gt_vertices.cuda(),
-        gt_faces.cuda()
+        gt_vertices.to(device),
+        gt_faces.to(device)
     ):
 
-        # Prediction
-        pred_mesh = Meshes([pred_v], [pred_f])
+        # Prediction in original space
+        pred_v_t, pred_f_t = transform_mesh_affine(
+            pred_v, pred_f, np.linalg.inv(trans_affine)
+        )
+        pred_mesh = Meshes([pred_v_t], [pred_f_t])
         pred_pcl = sample_points_from_meshes(pred_mesh, 100000)
         pred_pcl = Pointclouds(pred_pcl)
 
-        # Remove padded vertices from gt
-        gt_v = gt_v[~torch.isclose(gt_v, padded_coordinates).all(dim=1)]
-        gt_mesh = Meshes([gt_v], [gt_f])
+        # Ground truth in original space
+        gt_v_t, gt_f_t = transform_mesh_affine(
+            gt_v, gt_f, np.linalg.inv(trans_affine)
+        )
+        gt_mesh = Meshes([gt_v_t], [gt_f_t])
         gt_pcl = sample_points_from_meshes(gt_mesh, 100000)
         gt_pcl = Pointclouds(gt_pcl)
 

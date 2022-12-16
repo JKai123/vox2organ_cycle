@@ -65,5 +65,5 @@
             "program": "vox2organ/run_hpy.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
-    ]
+        }
 }

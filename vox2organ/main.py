@@ -120,15 +120,15 @@ def main(ps = None):
     # LRZ
     # 'MESH_TEMPLATE_PATH': '/mnt/data/fsaverage70/v2c_template/',
     # 'RAW_DATA_DIR': '/mnt/data/ADNI_FS72/',
-    'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
+    # 'RAW_DATA_DIR': '/mnt/nas/Data_WholeBody/AbdomenCT-1K/Processed/',
     'EVAL_EVERY': 2,
     #'FIXED_SPLIT': None
 }
-    exp_name = "hyp_sweep_KiTS_1"
-    group_name = 'Vox2Cortex Abdomen Patient Kidney Spleen'
+    exp_name = "hyp_sweep_MRI_1"
+    group_name = 'Vox2Cortex Abdomen Patient wo Pan PCA'
     ovwr(hyper_ps, 'EXPERIMENT_NAME', exp_name)
-    ovwr(hyper_ps, 'DATASET', "KiTS")
-    ovwr(hyper_ps, 'PROJ_NAME', 'final_sweeps')
+    ovwr(hyper_ps, 'DATASET', "MRI")
+    ovwr(hyper_ps, 'PROJ_NAME', 'final_sweeps_mri')
     ovwr(hyper_ps, 'GROUP_NAME', group_name )
     ovwr(hyper_ps, 'OVERFIT', hyper_ps_default['OVERFIT']) # 1
 

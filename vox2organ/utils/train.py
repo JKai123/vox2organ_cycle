@@ -547,7 +547,7 @@ def training_routine(
         'trans_affine_label'
     ]
     # All meshes should have the same transformation matrix
-    assert all(
+    """assert all(
         np.allclose(
             trans_affine,
             validation_set.get_item_and_mesh_from_index(i)[
@@ -555,7 +555,7 @@ def training_routine(
             ]
         )
         for i in range(len(validation_set))
-    )
+    )"""
     rm_suffix = lambda x: re.sub(r"_reduced_0\..", "", x)
     template = load_mesh_template(
         mesh_label_names=list(map(rm_suffix, training_set.mesh_label_names)),
