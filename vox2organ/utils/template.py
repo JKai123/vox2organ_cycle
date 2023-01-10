@@ -56,6 +56,11 @@ TEMPLATE_SPECS = {
         "mesh_suffix": ".ply",
         "feature_suffix": "",
     },
+    "average": {
+        "path": os.path.join(TEMPLATE_PATH, "abdomen_template", "avg_template2"),
+        "mesh_suffix": ".ply",
+        "feature_suffix": "",
+    },
 }
 
 

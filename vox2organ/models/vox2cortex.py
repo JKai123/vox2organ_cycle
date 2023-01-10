@@ -222,6 +222,27 @@ class Vox2Cortex(V2MModel):
         return vertices, faces
 
     @staticmethod
+    def pred_to_verts_and_faces_list(pred):
+        """ Get the vertices and faces of shape (S,C)
+        """
+        C = pred[0][0].verts_padded().shape[1]
+        S = len(pred[0])
+
+        vertices = []
+        faces = []
+        meshes = pred[0][1:] # Ignore template mesh at pos. 0
+        for s, m in enumerate(meshes):
+            v_s = []
+            f_s = []
+            for c in range(C):
+                v_s.append(m.verts_padded()[:,c,:,:])
+                f_s.append(m.faces_padded()[:,c,:,:])
+            vertices.append(torch.stack(v_s))
+            faces.append(torch.stack(f_s))
+
+        return vertices, faces
+
+    @staticmethod
     def pred_to_cycle_verts_and_faces(pred):
         """ Get the vertices and faces of shape (S,C)
         """

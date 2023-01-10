@@ -336,7 +336,7 @@ def mirror_mesh_at_plane(mesh, plane_normal, plane_point):
 
     return mirrored_mesh
 
-def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
+def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True, undo_norm=True):
     """ Voxelize the mesh and return a segmentation map of 'shape' for each
     mesh class.
 
@@ -358,9 +358,12 @@ def voxelize_mesh(vertices, faces, shape, n_m_classes, strip=True):
     voxelized_mesh = torch.zeros(shape, dtype=torch.long)
     vertices = vertices.view(n_m_classes, -1, 3)
     faces = faces.view(n_m_classes, -1, 3)
-    unnorm_verts = unnormalize_vertices_per_max_dim(
-        vertices.view(-1, 3), shape
-    ).view(n_m_classes, -1, 3)
+    if undo_norm:
+        unnorm_verts = unnormalize_vertices_per_max_dim(
+            vertices.view(-1, 3), shape
+        ).view(n_m_classes, -1, 3)
+    else:
+        unnorm_verts = vertices
     voxelized_all = []
     for v, f in zip(unnorm_verts, faces):
         vm = voxelized_mesh.clone()

@@ -56,10 +56,13 @@ def unpack(packed, lengths, batchsize):
     padded = torch.stack(padded).float().squeeze(0).permute(1,0,2,3)
     return padded
 
-def as_list(padded, lengths):
+def as_list(padded, lengths, dim=1, squeeze=False):
     mesh_list = [] # List with M entries of dimension NxFx3
-    for i, batch_of_indiv_mesh in enumerate(torch.unbind(padded, dim=1)): # Results in M meshes of dimension N,F,3
+
+    for i, batch_of_indiv_mesh in enumerate(torch.unbind(padded, dim=dim)): # Results in M meshes of dimension N,F,3
         cut = batch_of_indiv_mesh[:, :lengths[i], :]  # Resutls in a cut version of the mesh with the unpadded number of faces
+        if squeeze:
+            cut = torch.squeeze(cut)
         mesh_list.append(cut) # Concatenates along the final dimension to get N*M*F, 3 in the Ordering M[N[FFF]] M[N[FFF]]
     return mesh_list
 

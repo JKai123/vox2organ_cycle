@@ -45,7 +45,7 @@
             "type": "python",
             "request": "launch",
             "program": "vox2organ/main.py",
-            "args": ["--test", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", "-n", "cycle_3"],
+            "args": ["--test", "--group", "Vox2Cortex Abdomen Patient", "--dataset", "KiTS", "-n", "cycle_3", "--overfit"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
         },

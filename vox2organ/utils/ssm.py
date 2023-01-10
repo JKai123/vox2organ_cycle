@@ -19,6 +19,7 @@ from utils.coordinate_transform import transform_coords_affine_wo_shift
 
 
 def load_ssm(ssm_path, num_organs, trans_affine):
+    test = len(os.listdir(ssm_path))
     assert len(os.listdir(ssm_path)) == num_organs,\
             "The Number of SSM must be the same as predicted organs"
     ssm_mean_list = []
@@ -77,5 +78,5 @@ def get_subspace_dist(mesh, mean, eigenvectors, eigenvalues):
     data += mean
     proj_verts = data.reshape(-1,3)
     unproj_verst = flattened_verts.reshape(-1,3)
-    dist = torch.linalg.norm(proj_verts-unproj_verst)
+    dist = torch.mean(torch.linalg.norm(proj_verts-unproj_verst, dim=1))
     return dist

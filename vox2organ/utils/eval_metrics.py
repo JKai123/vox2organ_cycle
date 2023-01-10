@@ -11,7 +11,7 @@ import pymeshlab as pyml
 import numpy as np
 import open3d as o3d
 import torch
-from pytorch3d.loss import chamfer_distance
+from pytorch3d.loss import chamfer_distance, mesh_normal_consistency
 from pytorch3d.ops import (
     knn_points,
     knn_gather,
@@ -31,6 +31,7 @@ from utils.cortical_thickness import cortical_thickness
 from utils.coordinate_transform import transform_mesh_affine
 from utils.mesh import Mesh
 from utils.cortical_thickness import _point_mesh_face_distance_unidirectional
+from utils.utils_padded_packed import as_list
 
 class EvalMetrics(IntEnum):
     """ Supported evaluation metrics """
@@ -59,6 +60,9 @@ class EvalMetrics(IntEnum):
     
     # Number of self intersections
     SelfIntersections = 8
+
+    # Normal Consistency
+    NormalConsistency = 9
 
 
 def SelfIntersectionsScore_o3d(
@@ -116,14 +120,18 @@ def SelfIntersectionsScore(
 
     return isect_all
 
-def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
-                         padded_coordinates=(0.0, 0.0, 0.0)):
+def AverageDistanceScore(
+    pred,
+    data,
+    n_v_classes,
+    n_m_classes,
+    model_class,
+) :
     """ Compute point-to-mesh distance between prediction and ground truth. """
-
-    padded_coordinates = torch.Tensor(padded_coordinates).cuda()
 
     # Ground truth
     gt_mesh = data['mesh_label']
+    trans_affine = data['trans_affine_label']
     # Back to original coordinate space
     gt_vertices, gt_faces= gt_mesh.vertices, gt_mesh.faces
     ndims = gt_vertices.shape[-1]
@@ -133,23 +141,30 @@ def AverageDistanceScore(pred, data, n_v_classes, n_m_classes, model_class,
     pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
     pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
 
+    device = pred_vertices.device
+
     # Iterate over structures
     assd_all = []
     for pred_v, pred_f, gt_v, gt_f in zip(
         pred_vertices,
         pred_faces,
-        gt_vertices.cuda(),
-        gt_faces.cuda()
+        gt_vertices.to(device),
+        gt_faces.to(device)
     ):
 
-        # Prediction
-        pred_mesh = Meshes([pred_v], [pred_f])
+        # Prediction in original space
+        pred_v_t, pred_f_t = transform_mesh_affine(
+            pred_v, pred_f, np.linalg.inv(trans_affine)
+        )
+        pred_mesh = Meshes([pred_v_t], [pred_f_t])
         pred_pcl = sample_points_from_meshes(pred_mesh, 100000)
         pred_pcl = Pointclouds(pred_pcl)
 
-        # Remove padded vertices from gt
-        gt_v = gt_v[~torch.isclose(gt_v, padded_coordinates).all(dim=1)]
-        gt_mesh = Meshes([gt_v], [gt_f])
+        # Ground truth in original space
+        gt_v_t, gt_f_t = transform_mesh_affine(
+            gt_v, gt_f, np.linalg.inv(trans_affine)
+        )
+        gt_mesh = Meshes([gt_v_t], [gt_f_t])
         gt_pcl = sample_points_from_meshes(gt_mesh, 100000)
         gt_pcl = Pointclouds(gt_pcl)
 
@@ -353,6 +368,30 @@ def Jaccard(pred, target, n_classes):
     # Return average iou over classes ignoring background
     return np.sum(ious)/(n_classes - 1)
 
+
+def NormalConsistency(pred,
+    data,
+    n_v_classes,
+    n_m_classes,
+    model_class,
+    ):
+    "Normal consistency for each mesh"
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    ncs = []
+    pv = pred_vertices[-1] # only consider last mesh step
+    pf = pred_faces[-1]
+    vmask = pred[0][0]._verts_mask
+    fmask = pred[0][0]._faces_mask
+    # pv = torch.squeeze(pv, dim=1)
+    # pf = torch.squeeze(pf, dim=1)
+    pv_l = as_list(pv, vmask, dim=0, squeeze=True)
+    pf_l = as_list(pf, fmask, dim=0, squeeze=True)
+    for pv, pf in zip(pv_l, pf_l):
+        meshes = Meshes([pv], [pf])
+        ncs.append(mesh_normal_consistency(meshes).cpu().item())
+    return ncs
+    
+
 def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
                  padded_coordinates=(0.0, 0.0, 0.0), **kwargs):
     """ Chamfer distance averaged over classes
@@ -361,23 +400,41 @@ def ChamferScore(pred, data, n_v_classes, n_m_classes, model_class,
     between the predicted loss and randomly sampled surface points, here the
     Chamfer distance is computed between the predicted mesh and the ground
     truth mesh. """
-    pred_vertices, _ = model_class.pred_to_verts_and_faces(pred)
-    gt_vertices = data['mesh_label'].vertices.cuda()
+    gt_vertices, gt_faces = data['mesh_label'].vertices.cuda(), data['mesh_label'].faces.cuda()
+    #gt_vertices = torch.permute(gt_vertices, [2, 1, 0])
+    ndims = gt_vertices.shape[-1]
+    pred_vertices, pred_faces = model_class.pred_to_verts_and_faces(pred)
+    pred_vertices = pred_vertices[-1].view(n_m_classes, -1, ndims)
+    pred_faces = pred_faces[-1].view(n_m_classes, -1, ndims)
+    device = pred_vertices.device
+    trans_affine = data['trans_affine_label']
+    inv_trans_affine = np.linalg.inv(trans_affine)
     padded_coordinates = torch.Tensor(padded_coordinates).cuda()
     if gt_vertices.ndim == 2:
         gt_vertices = gt_vertices.unsqueeze(0)
     chamfer_scores = []
-    for c in range(n_m_classes):
-        pv = pred_vertices[-1][c] # only consider last mesh step
-        gt = gt_vertices[c][
-            ~torch.isclose(gt_vertices[c], padded_coordinates).all(dim=1)
-        ]
+    for pv, pf, gv, gf in zip(
+        pred_vertices,
+        pred_faces,
+        gt_vertices.to(device),
+        gt_faces.to(device)
+    ):
+
+
+        pv_t, pf_t = transform_mesh_affine(
+            pv, pf, inv_trans_affine
+        )
+        pv_t = pv_t[pv_t[:, 2] != 0]
+        gv_t, gf_t = transform_mesh_affine(
+            gv, gf, inv_trans_affine
+        )
+        gv_t = gv_t[gv_t[:, 2] != gv_t[-1, 2]]
         chamfer_scores.append(
-            chamfer_distance(pv, gt[None])[0].cpu().item()
+            chamfer_distance(pv_t[None, :], gv_t[None, :])[0].cpu().item()
         )
 
     # Average over classes
-    return np.sum(chamfer_scores) / float(n_m_classes)
+    return chamfer_scores
 
 EvalMetricHandler = {
     EvalMetrics.JaccardVoxel.name: JaccardVoxelScore,
@@ -386,5 +443,6 @@ EvalMetricHandler = {
     EvalMetrics.SymmetricHausdorff.name: SymmetricHausdorffScore,
     EvalMetrics.CorticalThicknessError.name: CorticalThicknessScore,
     EvalMetrics.AverageDistance.name: AverageDistanceScore,
-    EvalMetrics.SelfIntersections.name: SelfIntersectionsScore
+    EvalMetrics.SelfIntersections.name: SelfIntersectionsScore,
+    EvalMetrics.NormalConsistency.name: NormalConsistency
 }

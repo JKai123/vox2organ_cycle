@@ -101,7 +101,8 @@ hyper_ps_groups = {
         'EVAL_METRICS': [
             'SymmetricHausdorff',
             'JaccardMesh',
-            'AverageDistance'
+            'AverageDistance',
+            'Chamfer'
         ],
     },
 
@@ -127,7 +128,9 @@ hyper_ps_groups = {
         },
         'EVAL_METRICS': [
             'SymmetricHausdorff',
-            'AverageDistance'
+            'AverageDistance',
+            'Chamfer',
+            'NormalConsistency'
         ],
     },
 
@@ -143,13 +146,13 @@ hyper_ps_groups = {
            AverageEdgeLoss()
         ],
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [2.4] * 4, # Chamfer
-            [0.021] * 4, # Cosine,
-            [0.005] * 4, # Laplace,
-            [0.14] * 4, # NormalConsistency
-            [12.0] * 4, # Edge
-            [2.4] * 4, # Cycle
-            [500.0] * 4, # AvgEdge
+            [1.0] * 4, # Chamfer
+            [0.03] * 4, # Cosine,
+            [0.018] * 4, # Laplace,
+            [0.0] * 4, # NormalConsistency
+            [5.0] * 4, # Edge
+            [1.0] * 4, # Cycle
+            [50.0] * 4, # AvgEdge
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
@@ -170,18 +173,19 @@ hyper_ps_groups = {
            PCA_loss()
         ],
         'MESH_LOSS_FUNC_WEIGHTS': [
-            [2.4] * 4, # Chamfer
-            [0.021] * 4, # Cosine,
-            [0.005] * 4, # Laplace,
-            [0.14] * 4, # NormalConsistency
-            [12.0] * 4, # Edge
-            [2.4] * 4, # Cycle
-            [500.0] * 4, # AvgEdge
-            [0.01] * 4 # PCA
+            [3.0] * 4, # Chamfer
+            [0.09] * 4, # Cosine,
+            [0.09] * 4, # Laplace,
+            [0.0] * 4, # NormalConsistency
+            [5.0] * 4, # Edge
+            [3.0] * 4, # Cycle
+            [150.0] * 4, # AvgEdge
+            [0.0] * 4 # PCA [0.65] * 4 # PCA
         ],
         'N_M_CLASSES': 4,
         'N_V_CLASSES': 3, # Kidneys combined
-        'SSM_PATH': "../shape_results/temp_final_ssm/"
+        'SSM_PATH': "../shape_results/final_training_kits_9_avg/",
+        'N_EPOCHS': 100
     },
 
     'Vox2Cortex-Parc no-patch': {

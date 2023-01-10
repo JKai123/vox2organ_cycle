@@ -105,6 +105,7 @@ class ModelEvaluator():
                 )
                 add_to_results_(results_all, metric, res)
                 logging.getLogger(ExecModes.TRAIN.name).info(metric + " took " + str(time.process_time() - start))
+                logging.getLogger(ExecModes.TRAIN.name).info(metric + ": " + str(res) + "\n")
 
             if i < save_meshes: # Store meshes for visual inspection
                 filename =\
@@ -149,9 +150,12 @@ class ModelEvaluator():
         if img.ndim == 3:
             img_filename = filename + "_mri.nii.gz"
             img_filename = os.path.join(self._mesh_dir, img_filename)
-            if not os.path.isfile(img_filename):
-                nib_img = nib.Nifti1Image(img.cpu().numpy(), np.eye(4))
-                nib.save(nib_img, img_filename)
+            try:
+                if not os.path.isfile(img_filename):
+                    nib_img = nib.Nifti1Image(img.cpu().numpy(), np.eye(4))
+                    nib.save(nib_img, img_filename)
+            except:
+                print("An exception occurred")
 
         # Label
         gt_mesh = data['mesh_label']
