@@ -159,9 +159,9 @@ dataset_paths = {
     SupportedDatasets.KiTS.name: {
         'FS_DIR': None,
         'RAW_DATA_DIR': "/mnt/data/AbdomenCT-1K/Processed/",
-        'FIXED_SPLIT': ["Kits_train2.txt",
-                        "Kits_validation.txt",
-                        "Kits_test2_clean.txt"] # Read from files
+        'FIXED_SPLIT': ["abdomen-ct_train.txt",
+                        "abdomen-ct_val.txt",
+                        "abdomen-ct_test.txt"] # Read from files
     },
     SupportedDatasets.MSDPancreas.name: {
         'FS_DIR': None,

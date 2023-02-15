@@ -120,6 +120,8 @@ class ModelEvaluator():
             torch.cuda.empty_cache()
 
         # Just consider means over evaluation set
+        for k, v in results_all.items():
+            torch.save(v, os.path.join(self._save_dir, k + ".pt"))
         results = {k: np.mean(v) for k, v in results_all.items()}
 
         return results

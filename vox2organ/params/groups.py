@@ -130,7 +130,8 @@ hyper_ps_groups = {
             'SymmetricHausdorff',
             'AverageDistance',
             'Chamfer',
-            'NormalConsistency'
+            'NormalConsistency',
+            'JaccardMesh',
         ],
     },
 
@@ -151,7 +152,7 @@ hyper_ps_groups = {
             [0.018] * 4, # Laplace,
             [0.0] * 4, # NormalConsistency
             [5.0] * 4, # Edge
-            [1.0] * 4, # Cycle
+            [0.0] * 4, # Cycle
             [50.0] * 4, # AvgEdge
         ],
         'N_M_CLASSES': 4,
@@ -179,7 +180,7 @@ hyper_ps_groups = {
             [0.0] * 4, # NormalConsistency
             [5.0] * 4, # Edge
             [3.0] * 4, # Cycle
-            [150.0] * 4, # AvgEdge
+            [30.0] * 4, # AvgEdge
             [0.0] * 4 # PCA [0.65] * 4 # PCA
         ],
         'N_M_CLASSES': 4,
